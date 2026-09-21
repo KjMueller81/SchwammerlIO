@@ -473,7 +473,7 @@ function zeigeDienste(){
   el.textContent = t.join(' · ') || 'Noch keine Datenabfrage.';
 }
 // ---- Protokoll ----
-var VERSION = '2026-09-22.1';
+var VERSION = '2026-09-22.2';
 var LOG = [];
 function logZeile(art, text){
   var z = new Date(), t = z.toTimeString().slice(0, 8) + '.' + String(z.getMilliseconds()).padStart(3, '0');
@@ -1436,11 +1436,15 @@ async function radarTageRaster(bounds, NX, NY, n, melde){
     var best = null; zeiten.forEach(function(z){ if(!best || Math.abs(z - ziel) < Math.abs(best - ziel)) best = z; });
     if(!best || Math.abs(best - ziel) > 2 * 3600e3) continue;
     try{
-      var px = await radarBild(bounds, NX, NY, best);
+      var px = await radarBild(bounds, NX, NY, best), farbig = 0, gesamt = NX * NY;
+      for(var q = 3; q < px.length; q += 4) if(px[q] >= 128) farbig++;
+      var datum = isoTag(new Date(best.getTime() - 12 * 3600e3));
+      // Leeres Bild = fehlende Daten, nicht "kein Regen": nur übernehmen, wenn der Tag laut Stationen trocken war
+      if(farbig === 0){ var maxSt = stationsMaxAm ? stationsMaxAm(datum) : null; if(maxSt === null || maxSt >= 1){ out[datum] = {leer:true}; logZeile('RAD', datum + ': Bild leer, Stationen ' + (maxSt === null ? '?' : maxSt + ' mm') + ' → verworfen'); continue; } }
       if(radarLegende.length < 6 || t === 1) await radarLegendeLernen(bounds, NX, NY, best, px);
       var R = [], unbekannt = 0;
       for(var i = 0; i < NY; i++){ R.push([]); for(var j = 0; j < NX; j++){ var o = (i*NX+j)*4; var v = radarMmAusFarbe(px[o], px[o+1], px[o+2], px[o+3]); if(v === null) unbekannt++; R[i].push(v); } }
-      out[isoTag(new Date(best.getTime() - 12 * 3600e3))] = {R:R, unbekannt:unbekannt};
+      out[datum] = {R:R, unbekannt:unbekannt, farbig:farbig / gesamt};
       tage++; if(melde) melde(tage, n);
     }catch(e){ logZeile('NET', 'Radarbild T-' + t + ': ' + (e.message || e)); }
   }
@@ -1572,6 +1576,7 @@ async function stationsNetz(mitte, radiusKm, melde){
   erg.forEach(function(e){ if(e) out.push(e); });
   return out;
 }
+var stationsMaxAm = null;   // wird je Überblick gesetzt: datum → höchste Tagessumme im Stationsnetz
 // Gemessene Tagessumme an einem Punkt: Inverse-Distanz-Gewichtung über Stationen bis 40 km (null, wenn keine nah genug)
 function stationsRegenAm(lat, lng, datum, netz){
   var sw = 0, sv = 0, nah = 0, naechste = null;
@@ -2198,6 +2203,7 @@ async function bewerteRegion(){
       note.textContent = 'DWD-Stationen im Umkreis …';
       netz = await stationsNetz(L.latLng((latN + latS) / 2, (lngW + lngE) / 2), Math.max(breiteKm, hoeheKm) / 2, function(a, b){ note.textContent = 'Stationen ' + a + ' / ' + b; fort(.3 + .15 * a / b); });
       if(netz.length){
+        stationsMaxAm = function(datum){ var mx = null; netz.forEach(function(x){ var t = x.tage[datum]; if(t && t.n >= 12) mx = mx === null ? t.p : Math.max(mx, t.p); }); return mx; };
         var heute = new Date(); heute.setHours(12, 0, 0, 0);
         WW.forEach(function(w, k){
           var n1 = w.tw.length, ers = 0; if(!w.q) w.q = {modell:w.tw.slice()};
@@ -2211,13 +2217,14 @@ async function bewerteRegion(){
     }catch(e){ netz = null; logZeile('NET', 'Stationsnetz: ' + (e.message || e)); }
   }
   // Radarbilder der letzten 10 Tage: gemessener Regen je Waldzelle (1 km), überschreibt Station/Modell dort, wo die Farbe bekannt ist
-  var RAD = null, radTage = 0, radUnbekannt = 0;
+  var RAD = null, radTage = 0, radUnbekannt = 0, radVerworfen = 0;
   if(WW && dienstOk['maps.dwd.de'] !== false){
     try{
       note.textContent = 'Radarbilder …';
       RAD = await radarTageRaster(b, NX, NY, 10, function(a, n){ note.textContent = 'Radarbilder ' + a + ' / ' + n; fort(.4 + .05 * a / n); });
-      radTage = Object.keys(RAD).length; if(!radTage) RAD = null;
-      for(var kd in RAD) radUnbekannt += RAD[kd].unbekannt;
+      var verworfen = 0; for(var kd in RAD){ if(RAD[kd].leer) verworfen++; else radUnbekannt += RAD[kd].unbekannt; }
+      radTage = Object.keys(RAD).length - verworfen; if(!radTage) RAD = null;
+      radVerworfen = verworfen;
     }catch(e){ RAD = null; logZeile('NET', 'Radarraster: ' + (e.message || e)); }
   }
   // Rückfall: Korrektur über das Verhältnis gemessen/Modell am Pin (nur wenn kein Messnetz)
@@ -2242,8 +2249,10 @@ async function bewerteRegion(){
   function wetterMitRadar(w, i, j){
     if(!RAD) return w;
     var heute = new Date(); heute.setHours(12, 0, 0, 0); var n = w.tw.length, tw = w.tw.slice(), ers = 0;
-    for(var kd in RAD){ var v = RAD[kd].R[i][j]; if(v === null || v === undefined) continue;
-      var d = new Date(kd + 'T12:00:00'), diff = Math.round((heute.getTime() - d.getTime()) / 864e5), ix = n - 1 - diff; if(ix >= 0 && ix < n){ tw[ix] = v; ers++; } }
+    for(var kd in RAD){ if(RAD[kd].leer) continue; var v = RAD[kd].R[i][j]; if(v === null || v === undefined) continue;
+      var d = new Date(kd + 'T12:00:00'), diff = Math.round((heute.getTime() - d.getTime()) / 864e5), ix = n - 1 - diff; if(ix < 0 || ix >= n) continue;
+      if(v === 0 && RAD[kd].farbig < .02 && w.tw[ix] >= 8) continue;      // fast leeres Bild, Station meldet Regen → Bild nicht trauen
+      tw[ix] = v; ers++; }
     if(!ers) return w;
     return {tw:tw, et0:w.et0, tmin:w.tmin, tmax:w.tmax, f:w.f, hoehe:w.hoehe, bodenF:w.bodenF, radarZelle:ers};
   }
@@ -2349,7 +2358,8 @@ async function bewerteRegion(){
   }
   var hinweise = ['Lage „eben" und Struktur „innen" angenommen — Pin kann davon abweichen']; if(!WW) hinweise.push('Wetter fehlt'); if(!bodenOk) hinweise.push('Boden aus Formular');
   if(BP && legende.length) hinweise.push('Boden nach Kartenfarbe (' + legende.length + ' Einheiten aus ' + Object.keys(bodenGrid).length + ' Stützstellen gelernt, ' + bodenFarbe + ' Zellen)');
-  if(RAD) hinweise.push('Radar: ' + radTage + ' Tagesbilder, 1 km je Waldzelle' + (radarLegende.length ? ' (' + radarLegende.length + ' Farbstufen gelernt)' : '') + (radUnbekannt ? ', ' + radUnbekannt + ' Zellwerte ohne bekannte Farbe → Station' : ''));
+  if(RAD) hinweise.push('Radar: ' + radTage + ' Tagesbilder' + (radVerworfen ? ' (' + radVerworfen + ' leere verworfen)' : '') + ', 1 km je Waldzelle' + (radarLegende.length ? ', ' + radarLegende.length + ' Farbstufen' : '') + (radUnbekannt ? ', ' + radUnbekannt + ' Zellwerte ohne bekannte Farbe → Station' : ''));
+  else if(radVerworfen) hinweise.push('Radar: alle ' + radVerworfen + ' Tagesbilder leer → Stationsregen');
   if(netz && netz.length) hinweise.push('Regen gemessen: ' + netz.length + ' DWD-Stationen, ' + netzTage + ' Tage interpoliert');
   else if(korrektur !== null && Math.abs(korrektur - 1) > .1) hinweise.push('Modellregen um Pin ×' + korrektur.toFixed(2) + ' korrigiert (gemessen/Modell)'); else if(WW) hinweise.push('Modellregen ohne Messung');
   rasterCache = {zellen:zellen, N:NX, NY:NY, latN:latN, lngW:lngW, dLat:dLat, dLng:dLng, zellM:zellM, hinweise:hinweise, kreis:null, pinZelle:null, wetterQuelle:WW ? 'Raster ' + G + '×' + G + ' interpoliert, Tag +' + tagV : 'fehlt', grob:true};
@@ -2386,7 +2396,7 @@ function regionMeldung(){
   if(pos){
     var pi = Math.floor((C.latN - pos.lat) / C.dLat), pj = Math.floor((pos.lng - C.lngW) / C.dLng);
     var pz = C.zellen.find(function(z){ return z.i === pi && z.j === pj; }), r0 = bewerte(readForm());
-    if(pz) t += ' · Kontrolle: Pin ' + (art === 'best' ? Math.max(r0.pf, r0.st, r0.som) : r0[art]) + ', Zelle am Pin ' + sc(pz) + ' (' + (pz.artText || LT[pz.v.baum]) + ', ' + LB[pz.v.boden] + (pz.bq ? ', ' + pz.bq : '') + ')';
+    if(pz) t += ' · Kontrolle: Pin ' + (art === 'best' ? Math.max(r0.pf, r0.st, r0.som) : r0[art]) + (wetter ? ' (' + wetter.mm7 + ' mm/7 T)' : '') + ', Zelle am Pin ' + sc(pz) + (pz.mm7 !== null && pz.mm7 !== undefined ? ' (' + Math.round(pz.mm7) + ' mm/7 T' + (pz.radZ ? ', Radar' : ', Station') + ')' : '') + ' — ' + (pz.artText || LT[pz.v.baum]) + ', ' + LB[pz.v.boden] + (pz.bq ? ', ' + pz.bq : '');
   }
   if(!n) t += ' — nichts über der Schwelle; Regler nach links schieben (Bestwert ' + top + ').';
   if(C.hinweise.length) t += ' · ' + C.hinweise.join(', ');
