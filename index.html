@@ -47,14 +47,7 @@
     .pinpop .i{display:none}
     .pinpop.offen .i{display:block}
     .pinpop .btn{padding:4px 8px;font-size:11px;margin:0}
-    .pinpop.m .u{margin-bottom:3px;line-height:1.3}
-    .pinpop.m .reihe{display:flex;gap:4px;align-items:center;margin-top:5px;flex-wrap:nowrap}
-    .pinpop.m .reihe span{font-size:10.5px;color:var(--papier-2);margin-right:2px}
-    .pinpop.m .reihe .btn{flex:1;padding:5px 2px;text-align:center;white-space:nowrap}
-    .pinpop.m .reihe.sel select{flex:1;padding:5px 7px;font-size:12px;background:var(--feld);color:var(--papier);border:1px solid var(--moos);border-radius:6px}
-    .pinpop.m .reihe.sel span{min-width:38px}
-    .pinpop.m .progt th,.pinpop.m .progt td{font-size:11px;padding:1px 0}
-    .pinpop.m .progt td.a,.pinpop.m .progt th:first-child{width:52px}
+ 
     .leaflet-popup-content{margin:7px 9px}
     .leaflet-control-zoom{display:none}
     .leaflet-top.leaflet-right .leaflet-control{margin-top:8px}
@@ -159,10 +152,19 @@
   .pinpop .z b{font-size:19px;display:block}
   .pinpop .z small{font-size:9.5px;color:var(--papier-2)}
   .pinpop .u{font-size:12.5px;margin-bottom:5px}
-  .pinpop .i{font-size:11.5px;color:var(--papier-2)}
+  .pinpop .i{font-size:11.5px;color:var(--papier-2);display:none}
+  .pinpop.offen .i{display:block}
   .pinpop .i div{margin-top:2px}
   .pinpop .btn{display:inline-block;margin-top:7px;margin-right:6px;padding:4px 10px;border:1px solid var(--moos);border-radius:6px;color:var(--moos-hell);font-size:12px;text-decoration:none;cursor:pointer;background:transparent;font-family:inherit}
   .pinpop .btn:hover{background:var(--moos);color:#fff}
+  .pinpop.m .u{margin-bottom:3px;line-height:1.3}
+  .pinpop.m .reihe{display:flex;gap:4px;align-items:center;margin-top:5px;flex-wrap:nowrap}
+  .pinpop.m .reihe span{font-size:10.5px;color:var(--papier-2);margin-right:2px}
+  .pinpop.m .reihe .btn{flex:1;padding:5px 2px;text-align:center;white-space:nowrap}
+  .pinpop.m .reihe.sel select{flex:1;padding:5px 7px;font-size:12px;background:var(--feld);color:var(--papier);border:1px solid var(--moos);border-radius:6px}
+  .pinpop.m .reihe.sel span{min-width:38px}
+  .pinpop.m .progt th,.pinpop.m .progt td{font-size:11px;padding:1px 0}
+  .pinpop.m .progt td.a,.pinpop.m .progt th:first-child{width:52px}
   .pinpop .btn.an{background:var(--moos);color:#fff}
   .topnr{background:transparent;border:none;box-shadow:none;color:#1d2119;font-weight:700;font-size:12px}
   .topnr::before{display:none}
@@ -471,7 +473,7 @@ function zeigeDienste(){
   el.textContent = t.join(' · ') || 'Noch keine Datenabfrage.';
 }
 // ---- Protokoll ----
-var VERSION = '2026-09-21.6';
+var VERSION = '2026-09-22.1';
 var LOG = [];
 function logZeile(art, text){
   var z = new Date(), t = z.toTimeString().slice(0, 8) + '.' + String(z.getMilliseconds()).padStart(3, '0');
@@ -1131,11 +1133,12 @@ var LR = {rand:'Lichtungskante',weg:'Wegrand',aussen:'Außenrand',innen:'innen'}
 function merkmalHtml(){
   var v = readForm();
   var f = function(ok, txt){ return ok === false ? '<span style="opacity:.6">' + txt + ' ?</span>' : txt; };
-  return f(erkannt.baum, LT[v.baum]) + (v.alter !== 'mittel' ? ' (' + LA[v.alter] + ')' : '') + ' · ' + f(erkannt.boden, 'Boden ' + bodenLabel(v)) + ' · ' + f(erkannt.lage, LG[v.lage]) + (v.rand !== 'innen' ? ' · ' + LR[v.rand] : '');
+  return f(erkannt.baum, LT[v.baum]) + (v.alter !== 'mittel' ? ', ' + LA[v.alter] : '') + (dichtePunkt !== null ? ', ' + Math.round(dichtePunkt) + ' % Kronen' : '')
+    + ' · ' + f(erkannt.boden, bodenLabel(v)) + ' · ' + f(erkannt.lage, LG[v.lage]) + (v.rand !== 'innen' ? ', ' + LR[v.rand] : '') + (hoehePunkt !== null ? ' · ' + Math.round(hoehePunkt) + ' m' : '');
 }
 function pinPopupHtml(status){
   var v = readForm(), r = bewerte(v);
-  if(MOBIL) return pinPopupMobil(status, v, r);
+  return pinPopupMobil(status, v, r);
   if(erkannt.keinWald){
     return '<div class="pinpop"><div class="u"><b>Kein Wald</b> an diesem Punkt laut Baumartenkarte.</div>'
       + '<div class="i">' + (pinInfo.length ? pinInfo.join('<br>') : '') + '</div>'
@@ -1183,7 +1186,8 @@ function pinPopupMobil(status, v, r){
   } else if(status) h += '<div class="u">' + status + '</div>';
   h += '<div class="u" style="font-size:11.5px;color:var(--papier-2)">' + merkmalHtml() + '</div>';
   if(pinFehler.length) h += '<div class="u" style="font-size:10.5px;color:#e8a516">Nicht erkannt: ' + pinFehler.join(', ') + '</div>';
-  h += '<div class="i">'; pinInfo.forEach(function(t){ h += '<div>' + t + '</div>'; }); h += '</div>';
+  var infos = pinInfo.filter(function(t){ return !/^Boden /.test(t) && !/^(Fichte|Kiefer|Douglasie|Tanne|Lärche|Buche|Eiche|Erle|Birke|sonst\. Laub)/.test(t) && !/^Radar:/.test(t); });
+  h += '<div class="i">'; infos.forEach(function(t){ h += '<div>' + t + '</div>'; }); h += '</div>';
   var spN = pos && spots.find(function(x){ return map.distance(L.latLng(x.lat, x.lng), pos) < 60; });
   if(spN) h += '<div class="u" style="font-size:11px;color:var(--moos-hell)">Gespeichert als „' + spN.name + '"</div>';
   var spHier = pos && spots.find(function(x){ return map.distance(L.latLng(x.lat, x.lng), pos) < 60; });
@@ -1208,7 +1212,7 @@ function pinPopupMobil(status, v, r){
 }
 function aktualisierePin(status){
   if(!pin) return;
-  if(!pin.getPopup()) pin.bindPopup('', {maxWidth:Math.min(320, window.innerWidth - 36), autoPan:true, autoPanPaddingTopLeft:[10, 56], closeButton:true});
+  if(!pin.getPopup()) pin.bindPopup('', {maxWidth:Math.min(MOBIL ? 320 : 380, window.innerWidth - 36), autoPan:true, autoPanPaddingTopLeft:[10, 56], closeButton:true});
   pin.setPopupContent(pinPopupHtml(status));
   if(!pin.isPopupOpen()) pin.openPopup();
 }
@@ -1293,28 +1297,33 @@ async function hoehenErsatz(punkte){
   await pause(1100);
   return j.results.map(function(r){ return r.elevation; });
 }
+var hoehenCache = {};   // "lat,lng" (3 Dezimalen ≈ 100 m) → m
 async function hoehen(punkte){
-  var la = punkte.map(function(p){ return p[0].toFixed(5); }).join(','), lo = punkte.map(function(p){ return p[1].toFixed(5); }).join(',');
+  var offen = [], erg = new Array(punkte.length);
+  punkte.forEach(function(p, k){ var key = p[0].toFixed(3) + ',' + p[1].toFixed(3); if(hoehenCache[key] !== undefined) erg[k] = hoehenCache[key]; else offen.push(k); });
+  if(!offen.length) return erg;
+  var teil = offen.map(function(k){ return punkte[k]; });
+  var la = teil.map(function(p){ return p[0].toFixed(5); }).join(','), lo = teil.map(function(p){ return p[1].toFixed(5); }).join(',');
   var fehler = null;
-  for(var versuch = 0; versuch < 2; versuch++){
+  for(var versuch = 0; versuch < 3; versuch++){
     try{
       var res = await fetch('https://api.open-meteo.com/v1/elevation?latitude=' + la + '&longitude=' + lo);
-      if(res.status === 429){ fehler = 'Limit'; await pause(1500); continue; }
+      if(res.status === 429){ fehler = 'Limit'; await pause(2500 * (versuch + 1)); continue; }
       var j = await res.json().catch(function(){ return {}; });
-      if(res.ok && j.elevation){ hoehenQuelle = 'Open-Meteo'; return j.elevation; }
+      if(res.ok && j.elevation){ hoehenQuelle = 'Open-Meteo'; j.elevation.forEach(function(h, q){ var k = offen[q]; erg[k] = h; hoehenCache[punkte[k][0].toFixed(3) + ',' + punkte[k][1].toFixed(3)] = h; }); return erg; }
       fehler = j.reason || ('HTTP ' + res.status);
     }catch(e){ fehler = e.message; }
   }
-  try{ var h = await hoehenErsatz(punkte); hoehenQuelle = 'EU-DEM (Ersatz)'; return h; }
+  try{ var h = await hoehenErsatz(teil); hoehenQuelle = 'EU-DEM (Ersatz)'; h.forEach(function(x, q){ erg[offen[q]] = x; }); return erg; }
   catch(e){ throw new Error('Open-Meteo: ' + fehler + ' · Ersatz: ' + e.message); }
 }
 async function hoehenViele(punkte, melde){
   var pakete = []; for(var i = 0; i < punkte.length; i += 100) pakete.push(punkte.slice(i, i + 100));
   var out = new Array(pakete.length), fertig = 0;
   var erg = await pool(pakete.map(function(teil, k){ return async function(){
-    for(var v = 0; v < 3; v++){ try{ var h = await hoehen(teil); fertig++; if(melde) melde(Math.min(fertig * 100, punkte.length), punkte.length); return h; }
-      catch(e){ if(v === 2) throw e; await pause(700 * (v + 1)); } }
-  }; }), 2);
+    for(var v = 0; v < 3; v++){ try{ var h = await hoehen(teil); fertig++; if(melde) melde(Math.min(fertig * 100, punkte.length), punkte.length); await pause(200); return h; }
+      catch(e){ if(v === 2) throw e; await pause(1500 * (v + 1)); } }
+  }; }), 1);
   for(var k = 0; k < erg.length; k++){ if(!erg[k]) throw new Error('Höhenpaket fehlgeschlagen'); out[k] = erg[k]; }
   return [].concat.apply([], out);
 }
@@ -1784,7 +1793,7 @@ async function ausleseStandort(){
     var dLat = 200/111320, dLng = 200/(111320*Math.cos(pos.lat*Math.PI/180));
     var h = await hoehen([[pos.lat,pos.lng],[pos.lat+dLat,pos.lng],[pos.lat-dLat,pos.lng],[pos.lat,pos.lng+dLng],[pos.lat,pos.lng-dLng]]);
     var lage = lageAusHoehen(h); $('f-lage').value = lage.wert; hoehePunkt = h[0]; erkannt.lage = true;
-    m.push(Math.round(h[0]) + ' m' + (hoehenDehnung(h[0]) > 1.05 ? ' (Berglage, Regen wirkt länger)' : '') + ', ' + lage.text + (hoehenQuelle !== 'Open-Meteo' ? ' (' + hoehenQuelle + ')' : ''));
+    if(hoehenDehnung(h[0]) > 1.05) m.push('Berglage: Regen wirkt länger');
   }catch(e){ merkeBlockade(e); erkannt.lage = false; fehler.push('Höhe'); }
   schritt('Wetter, Station, Radar …', .25);
   try{
@@ -1814,7 +1823,7 @@ async function ausleseStandort(){
   } else { erkannt.boden = false; fehler.push('Boden (Ebene fehlt)'); }
   schritt('Kronendichte und Baumart …', .8);
   var tcd = null;
-  try{ tcd = await kronendichte(pos); if(tcd !== null){ dichtePunkt = tcd; m.push('Kronendichte ' + Math.round(tcd) + ' %'); } }catch(e){ merkeBlockade(e); }
+  try{ tcd = await kronendichte(pos); if(tcd !== null){ dichtePunkt = tcd; } }catch(e){ merkeBlockade(e); }
   if(rollen.baum){
     try{ var bt = await baumAmPunkt(pos);
       if(bt && bt.wert && tcd !== null){ if(tcd < 80 && bt.wert === 'fichte') bt.wert = 'fichte_licht'; if(tcd >= 80 && bt.wert === 'fichte_licht') bt.wert = 'fichte'; if(tcd < 50 && !bt.rand) bt.rand = 'weg'; }
@@ -2282,10 +2291,16 @@ async function bewerteRegion(){
   var BP = null, legende = [], bodenFarbe = 0;
   if(bodenOk){
     try{
-      BP = await pixelBild(rollen.boden.url, rollen.boden.layer, b, NX, NY);
+      var BPX = Math.min(NX * 3, 600), BPY = Math.min(NY * 3, 600), BPfull = await pixelBild(rollen.boden.url, rollen.boden.layer, b, BPX, BPY);
+      // Mittelpixel je Zelle in ein NX×NY-Raster übernehmen (keine Farbmischung)
+      BP = new Uint8ClampedArray(NX * NY * 4);
+      for(var i = 0; i < NY; i++) for(var j = 0; j < NX; j++){
+        var sy = Math.min(BPY - 1, Math.floor((i + .5) * BPY / NY)), sx = Math.min(BPX - 1, Math.floor((j + .5) * BPX / NX)), so = (sy * BPX + sx) * 4, o2 = (i * NX + j) * 4;
+        BP[o2] = BPfull[so]; BP[o2+1] = BPfull[so+1]; BP[o2+2] = BPfull[so+2]; BP[o2+3] = BPfull[so+3];
+      }
       for(var key in bodenGrid){
         var p = key.split(','), o = (p[0]*NX + +p[1])*4; if(BP[o+3] < 128) continue;
-        var far = [BP[o], BP[o+1], BP[o+2]], hit = legende.find(function(l){ return Math.abs(l.rgb[0]-far[0]) + Math.abs(l.rgb[1]-far[1]) + Math.abs(l.rgb[2]-far[2]) < 12; });
+        var far = [BP[o], BP[o+1], BP[o+2]], hit = legende.find(function(l){ return Math.abs(l.rgb[0]-far[0]) + Math.abs(l.rgb[1]-far[1]) + Math.abs(l.rgb[2]-far[2]) < 18; });
         if(hit){ hit.n[bodenGrid[key]] = (hit.n[bodenGrid[key]] || 0) + 1; } else { var nn = {}; nn[bodenGrid[key]] = 1; legende.push({rgb:far, n:nn}); }
       }
       legende.forEach(function(l){ var best = null; for(var k in l.n) if(!best || l.n[k] > l.n[best]) best = k; l.wert = best; });
@@ -2299,7 +2314,7 @@ async function bewerteRegion(){
       if(BP[o+3] >= 128){
         var best = null, bd = 1e9;
         legende.forEach(function(l){ var d = Math.abs(l.rgb[0]-BP[o]) + Math.abs(l.rgb[1]-BP[o+1]) + Math.abs(l.rgb[2]-BP[o+2]); if(d < bd){ bd = d; best = l; } });
-        if(best && bd < 30){ bodenFarbe++; letzteQuelle = 'Kartenfarbe'; return best.wert; }
+        if(best && bd < 36){ bodenFarbe++; letzteQuelle = 'Kartenfarbe'; return best.wert; }
       }
     }
     var k = bodenNaechsteKey(i, j); if(!k) return null;
@@ -2508,3 +2523,4 @@ setTimeout(function(){ map.invalidateSize(); }, 200);
 </script>
 </body>
 </html>
+ 
