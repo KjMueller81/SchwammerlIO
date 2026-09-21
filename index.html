@@ -234,9 +234,10 @@
         <div class="op">
           <input type="range" id="o-regen" min="10" max="100" value="70">
           <div class="row"><label>Zeitraum</label><select id="regen-tage"><option value="3">3 Tage</option><option value="7" selected>7 Tage</option><option value="14">14 Tage</option><option value="30">30 Tage</option></select></div>
+          <div class="row"><label>Farben</label><select id="regen-farbe"><option value="blau" selected>Blau (wie Wetterkarten)</option><option value="rg">Rot wenig → Grün viel</option></select></div>
           <div class="hint" style="margin-top:6px">Gemessener Regen der DWD-Stationen, nach Entfernung interpoliert — Summe über den gewählten Zeitraum in mm. Zeichnet sich beim Verschieben nach.</div>
-          <div class="skala"><div class="balken" style="background:linear-gradient(90deg,#be1e1e,#e15a19,#f5aa14,#50be28,#149628,#00641e)"></div>
-            <div class="marken"><span>0</span><span>10</span><span>20</span><span>30</span><span>40 mm+</span></div></div>
+          <div class="skala"><div class="balken" id="regen-balken" style="background:linear-gradient(90deg,#d6e8f8,#aad0ee,#78b2e4,#3c82cd,#1955aa,#082d78)"></div>
+            <div class="marken"><span>0</span><span>10</span><span>20</span><span>30</span><span>45 mm+</span></div></div>
           <div class="hint" id="regen-note"></div>
         </div>
       </div>
@@ -495,7 +496,7 @@ function zeigeDienste(){
   el.textContent = t.join(' · ') || 'Noch keine Datenabfrage.';
 }
 // ---- Protokoll ----
-var VERSION = '2026-09-22.10';
+var VERSION = '2026-09-22.13';
 var LOG = [];
 function logZeile(art, text){
   var z = new Date(), t = z.toTimeString().slice(0, 8) + '.' + String(z.getMilliseconds()).padStart(3, '0');
@@ -802,6 +803,13 @@ $('griff').addEventListener('click', function(){ setzeStufe((stufe + 1) % 3); })
 setzeStufe(stufe);
  
 // ============ Bewertungsmodell ============
+// Regen: eigene Skala in Blau (0 mm fast transparent → 40 mm+ dunkelblau), damit sie nicht wie eine Bewertung aussieht
+var SKALA_REGEN = [[0,[214,232,248]],[5,[170,208,238]],[10,[120,178,228]],[20,[60,130,205]],[30,[25,85,170]],[45,[8,45,120]]];
+function farbeRegen(mm){
+  var S = SKALA_REGEN; if(mm <= S[0][0]) return S[0][1];
+  for(var i = 1; i < S.length; i++) if(mm <= S[i][0]){ var t = (mm - S[i-1][0]) / (S[i][0] - S[i-1][0]), c = []; for(var k = 0; k < 3; k++) c.push(Math.round(S[i-1][1][k] + t * (S[i][1][k] - S[i-1][1][k]))); return c; }
+  return S[S.length-1][1];
+}
 // Einheitliche Skala: rot schlecht → orange → gelb → grün gut
 var SKALA = [[0,[176,48,40]],[20,[200,74,44]],[35,[224,138,42]],[50,[230,194,41]],[62,[176,196,60]],[75,[112,168,70]],[90,[52,138,60]]];
 function farbeStetig(score){
@@ -1664,6 +1672,19 @@ async function stationsNetz(mitte, radiusKm, melde){
 }
 var stationsMaxAm = null;   // wird je Überblick gesetzt: datum → höchste Tagessumme im Stationsnetz
 // Gemessene Tagessumme an einem Punkt: Inverse-Distanz-Gewichtung über Stationen bis 40 km (null, wenn keine nah genug)
+// Stationen für einen Bereich vollständig einsammeln (unabhängig von der Kartenmitte)
+async function stationsNetzBereich(b, melde){
+  var pts = [], latS = b.getSouth(), latN = b.getNorth(), lngW = b.getWest(), lngE = b.getEast();
+  var dLat = 60 / 111.32, dLng = 60 / (111.32 * Math.cos((latS + latN) / 2 * Math.PI / 180));
+  for(var la = latS + dLat / 2; la < latN + dLat / 2; la += dLat) for(var lo = lngW + dLng / 2; lo < lngE + dLng / 2; lo += dLng) pts.push(L.latLng(Math.min(latN, la), Math.min(lngE, lo)));
+  if(pts.length > 16) pts = pts.filter(function(_, k){ return k % Math.ceil(pts.length / 16) === 0; });
+  var ids = {}, netz = [], fertig = 0;
+  for(var q = 0; q < pts.length; q++){
+    try{ var teil = await stationsNetz(pts[q], 45); teil.forEach(function(x){ var k = x.lat + ',' + x.lon; if(!ids[k]){ ids[k] = true; netz.push(x); } }); }catch(e){}
+    fertig++; if(melde) melde(fertig, pts.length);
+  }
+  return netz;
+}
 // Schnelle Entfernung in km (äquirektangular, reicht für < 200 km)
 function kmSchnell(lat1, lng1, lat2, lng2){ var x = (lng2 - lng1) * Math.cos((lat1 + lat2) * Math.PI / 360) * 111.32, y = (lat2 - lat1) * 111.32; return Math.sqrt(x * x + y * y); }
 // Stationsgewichte für einen Punkt einmal berechnen, dann je Tag nur summieren
@@ -1733,7 +1754,7 @@ async function holeWetter(ll, hoehe){
       if(netz.length){
         var heute = new Date(); heute.setHours(12, 0, 0, 0); var n = w.tw.length, ers = 0, naechste = null;
         if(!w.q) w.q = {modell:w.tw.slice()}; w.q.station = new Array(n).fill(null);
-        for(var i = Math.max(0, n - 35); i < n - 1; i++){ var d = new Date(heute.getTime() - (n - 1 - i) * 864e5), v = stationsRegenAm(ll.lat, ll.lng, isoTag(d), netz); if(v !== null){ w.q.station[i] = Math.round(v * 10) / 10; ers++; } }
+        for(var i = Math.max(0, n - 35); i < n - 1; i++){ var d = new Date(heute.getTime() - (n - 1 - i) * 864e5), v = stationsRegenAm(ll.lat, ll.lng, isoTag(d), netz, 30); if(v !== null){ w.q.station[i] = Math.round(v * 10) / 10; ers++; } }
         netz.forEach(function(x){ var dk = map.distance(ll, L.latLng(x.lat, x.lon)) / 1000; if(!naechste || dk < naechste.km) naechste = {name:x.name, km:Math.round(dk)}; });
         if(ers){ quellenAbgleich(w); w.station = {name:'Netz ' + netz.length + ' Stationen, nächste ' + (naechste ? naechste.name + ' ' + naechste.km + ' km' : '?'), km:naechste ? naechste.km : 0, tage:ers}; w.quelle = 'Regen: Stationsnetz (' + netz.length + ') · Rest Open-Meteo'; netzOk = true; }
       }
@@ -1966,9 +1987,9 @@ async function zeichneRegenfeld(){
     var b = map.getBounds(), mitte = b.getCenter(), rKm = Math.max(map.distance(b.getNorthWest(), b.getNorthEast()), map.distance(b.getNorthWest(), b.getSouthWest())) / 2000;
     if(rKm > 175){ $('regen-note').textContent = 'Ausschnitt zu groß (' + Math.round(rKm * 2) + ' km) — auf unter 350 km Breite hineinzoomen.'; if(regenOverlay){ map.removeLayer(regenOverlay); regenOverlay = null; } regenLaeuft = false; return; }
     $('regen-note').textContent = 'Stationen werden geladen …';
-    var netz = await stationsNetz(mitte, Math.min(180, rKm + 15));
+    var netz = await stationsNetzBereich(b, function(a, n){ $('regen-note').textContent = 'Stationen ' + a + ' / ' + n + ' Suchfelder …'; });
     if(!netz.length){ $('regen-note').textContent = 'Keine Stationsdaten für diesen Ausschnitt.'; regenLaeuft = false; return; }
-    var reichweite = Math.max(25, Math.min(70, rKm * 0.5));                   // größerer Ausschnitt → weitere Interpolation
+    var reichweite = 30;                                                       // fest, damit derselbe Ort immer denselben Wert bekommt
     var tage = +$('regen-tage').value, heute = new Date(); heute.setHours(12, 0, 0, 0);
     var daten = []; for(var t = 1; t <= tage; t++) daten.push(isoTag(new Date(heute.getTime() - t * 864e5)));
     var NX = 72, NY = Math.max(24, Math.round(72 * map.distance(b.getNorthWest(), b.getSouthWest()) / map.distance(b.getNorthWest(), b.getNorthEast())));
@@ -1979,14 +2000,14 @@ async function zeichneRegenfeld(){
       for(var k = 0; k < daten.length && gw.length; k++){ var v = stationsRegenMitGewichten(gw, daten[k], netz); if(v !== null){ sum += v; ok = true; } }
       var o = (i * NX + j) * 4; if(!ok) continue;
       if(sum > mx) mx = sum;
-      var f = farbeGrob(Math.min(100, sum * 2.5)).match(/\d+/g); d[o] = +f[0]; d[o+1] = +f[1]; d[o+2] = +f[2]; d[o+3] = 255;
+      var f = $('regen-farbe').value === 'rg' ? farbeGrob(Math.min(100, sum * 2.5)).match(/\d+/g).map(Number) : farbeRegen(sum); d[o] = f[0]; d[o+1] = f[1]; d[o+2] = f[2]; d[o+3] = sum < .5 ? 90 : 255;
     }
     cx.putImageData(img, 0, 0);
     var F = 4, big = document.createElement('canvas'); big.width = NX * F; big.height = NY * F; var bx = big.getContext('2d'); bx.imageSmoothingEnabled = true; bx.imageSmoothingQuality = 'high';
     try{ bx.filter = 'blur(' + (F * .8) + 'px)'; }catch(e){} bx.drawImage(cv, 0, 0, NX * F, NY * F);
     if(regenOverlay) map.removeLayer(regenOverlay);
     regenOverlay = L.imageOverlay(big.toDataURL('image/png'), b, {opacity:+$('o-regen').value / 100, interactive:false}).addTo(map);
-    $('regen-note').textContent = netz.length + ' Stationen, Reichweite ' + Math.round(reichweite) + ' km · Höchstwert im Ausschnitt ' + Math.round(mx) + ' mm in ' + tage + ' Tagen. Stärker hineinzoomen = mehr Stationen je Fläche, genaueres Bild.';
+    $('regen-note').textContent = netz.length + ' Stationen, Reichweite 30 km · Höchstwert im Ausschnitt ' + Math.round(mx) + ' mm in ' + tage + ' Tagen. Werte sind ortsfest — unabhängig von Ausschnitt und Mitte.';
   }catch(e){ $('regen-note').textContent = 'Regenfeld nicht berechenbar: ' + (e.message || e); }
   regenLaeuft = false;
 }
@@ -1996,6 +2017,10 @@ $('c-regen').addEventListener('change', function(){
 });
 $('o-regen').addEventListener('input', function(){ if(regenOverlay) regenOverlay.setOpacity(this.value / 100); });
 $('regen-tage').addEventListener('change', zeichneRegenfeld);
+$('regen-farbe').addEventListener('change', function(){
+  $('regen-balken').style.background = this.value === 'rg' ? 'linear-gradient(90deg,#be1e1e,#e15a19,#f5aa14,#50be28,#149628,#00641e)' : 'linear-gradient(90deg,#d6e8f8,#aad0ee,#78b2e4,#3c82cd,#1955aa,#082d78)';
+  zeichneRegenfeld();
+});
 map.on('moveend', function(){ if(!$('c-regen').checked) return; clearTimeout(regenTimer); regenTimer = setTimeout(zeichneRegenfeld, 500); });
 document.querySelector('#l-regen label').addEventListener('click', function(){ var c = $('c-regen'); c.checked = !c.checked; c.dispatchEvent(new Event('change')); });
  
@@ -2035,8 +2060,7 @@ function zeichneWeich(C, art, min, deck, trend){
     n++; summe += score; if(score > top) top = score;
     if(!wetterKarte && score < min) return;
     gezeigt++;
-    var farbe = trend ? farbeGrob(50 + Math.max(-50, Math.min(50, diff * 1.4))) : farbeGrob(score);
-    var m = farbe.match(/\d+/g), o = (z.i * NX + z.j) * 4;
+    var m = trend ? farbeGrob(50 + Math.max(-50, Math.min(50, diff * 1.4))).match(/\d+/g) : (wetterKarte ? farbeRegen(art === 'mm7' ? z.mm7 : z.feu * 1.8) : farbeGrob(score).match(/\d+/g)), o = (z.i * NX + z.j) * 4;
     d[o] = +m[0]; d[o+1] = +m[1]; d[o+2] = +m[2]; d[o+3] = 255;
   });
   cx.putImageData(img, 0, 0);
@@ -2075,7 +2099,7 @@ function zeichneRaster(){
     if(!wetterKarte && score < min) return;
     gezeigt++;
     var basis = grob ? 0.9 : 0.3 + 0.55 * Math.min(1, score / 90), sw = C.latN - z.i*C.dLat, we = C.lngW + z.j*C.dLng;
-    var farbe = trend ? farbeGrob(50 + Math.max(-50, Math.min(50, diff * 1.4))) : (grob ? farbeGrob(score) : farbeStetig(score));
+    var farbe = trend ? farbeGrob(50 + Math.max(-50, Math.min(50, diff * 1.4))) : (wetterKarte ? 'rgb(' + farbeRegen(art === 'mm7' ? z.mm7 : z.feu * 1.8).join(',') + ')' : (grob ? farbeGrob(score) : farbeStetig(score)));
     var rect = L.rectangle([[sw - C.dLat, we], [sw, we + C.dLng]], {renderer:canvas, color:grob ? '#1d2119' : farbe, weight:grob ? 0.6 : (z.geschaetzt ? 1 : 0), opacity:grob ? .35 : .5,
       dashArray:(!grob && z.geschaetzt) ? '3 3' : null, fillColor:farbe, fillOpacity:deck * basis, basis:basis, score:score, interactive:true});
     rect.on('click', function(ev){
@@ -2392,13 +2416,13 @@ async function bewerteRegion(){
   if(WW){
     try{
       note.textContent = 'DWD-Stationen im Umkreis …';
-      netz = await stationsNetz(L.latLng((latN + latS) / 2, (lngW + lngE) / 2), Math.max(breiteKm, hoeheKm) / 2, function(a, b){ note.textContent = 'Stationen ' + a + ' / ' + b; fort(.3 + .15 * a / b); });
+      netz = await stationsNetzBereich(b, function(a, n){ note.textContent = 'Stationen ' + a + ' / ' + n + ' Suchfelder'; fort(.3 + .15 * a / n); });
       if(netz.length){
         stationsMaxAm = function(datum){ var mx = null; netz.forEach(function(x){ var t = x.tage[datum]; if(t && t.n >= 12) mx = mx === null ? t.p : Math.max(mx, t.p); }); return mx; };
         var heute = new Date(); heute.setHours(12, 0, 0, 0);
         WW.forEach(function(w, k){
           var n1 = w.tw.length, ers = 0; if(!w.q) w.q = {modell:w.tw.slice()};
-          var gw = stationsGewichte(wp[k][0], wp[k][1], netz, 25);
+          var gw = stationsGewichte(wp[k][0], wp[k][1], netz, 30);
           for(var i = Math.max(0, n1 - 35); i < n1 - 1; i++){
             var d = new Date(heute.getTime() - (n1 - 1 - i) * 864e5), v = gw.length ? stationsRegenMitGewichten(gw, isoTag(d), netz) : null;
             if(v !== null){ w.tw[i] = Math.round(v * 10) / 10; ers++; }
@@ -2540,7 +2564,7 @@ async function bewerteRegion(){
     if(WW){
       var kp = naechsterPunkt(lat, lng), wb = WW[kp];
       if(netz && netz.length){                                       // Stationsregen je Zelle, unabhängig vom Raster
-        var twZ = wb.tw.slice(), nZ = twZ.length, ersZ = 0, gewZ = stationsGewichte(lat, lng, netz, 25);
+        var twZ = wb.tw.slice(), nZ = twZ.length, ersZ = 0, gewZ = stationsGewichte(lat, lng, netz, 30);
         if(gewZ.length){
           for(var iz = Math.max(0, nZ - 35); iz < nZ - 1; iz++){ var vz = stationsRegenMitGewichten(gewZ, DATUM[nZ - 1 - iz], netz); if(vz !== null){ twZ[iz] = Math.round(vz * 10) / 10; ersZ++; } }
         }
@@ -2593,7 +2617,7 @@ $('g-art').addEventListener('change', function(){
 function regionMeldung(){
   var C = rasterCache; if(!C || !C.grob) return;
   var art = $('r-art').value, min = +$('r-min').value;
-  if(art === 'mm7' || art === 'feu'){ $('g-note').textContent = art === 'mm7' ? 'Wetterkarte: Regen der letzten 7 Tage aus dem Stationsnetz interpoliert (rot 0 mm → grün 40 mm+). Zelle antippen für den Wert.' : 'Wetterkarte: berechnete Streufeuchte heute (rot trocken → grün 25 mm voll). Zelle antippen für den Wert.'; return {n:0, top:0}; }
+  if(art === 'mm7' || art === 'feu'){ $('g-note').textContent = art === 'mm7' ? 'Wetterkarte in Blau: Regen der letzten 7 Tage (hell 0 mm → dunkelblau 45 mm+). Zelle antippen für den Wert.' : 'Wetterkarte in Blau: berechnete Streufeuchte heute (hell trocken → dunkelblau 25 mm voll). Zelle antippen für den Wert.'; return {n:0, top:0}; }
   var sc = function(z){ return art === 'best' ? Math.max(z.rr.pf, z.rr.st, z.rr.som) : z.rr[art]; };
   var n = 0, top = 0, summe = 0, besser = 0, schlechter = 0;
   C.zellen.forEach(function(z){ var v = sc(z); summe += v; if(v > top) top = v; if(v >= min) n++; if(z.rrT){ var d = (art === 'best' ? Math.max(z.rrT[3].pf, z.rrT[3].st, z.rrT[3].som) : z.rrT[3][art]) - v; if(C.trend){ } if(d >= 8) besser++; else if(d <= -8) schlechter++; } });
