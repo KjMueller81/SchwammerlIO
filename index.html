@@ -186,6 +186,9 @@
   @media (min-width:701px){ #tagregler{left:auto;right:12px;width:320px;bottom:24px} }
   #toast{position:fixed;left:50%;bottom:calc(70px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:#efeee6;color:#1d2119;padding:8px 14px;border-radius:8px;font-size:13px;z-index:2000;display:none;box-shadow:0 4px 14px rgba(0,0,0,.4);max-width:88vw}
   .leaflet-image-layer.weich{image-rendering:auto}
+  .skala{margin-top:6px}
+  .skala .balken{height:10px;border-radius:3px}
+  .skala .marken{display:flex;justify-content:space-between;font-size:10px;color:var(--papier-2);margin-top:2px}
   .gps{width:34px;height:34px;background:#fff;border-radius:4px;border:2px solid rgba(0,0,0,.2);background-clip:padding-box;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;color:#333}
   .gps:hover{background:#f4f4f4}
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -223,6 +226,17 @@
     <section class="pane on" id="p-karten">
       <h2>Ebenen</h2>
       <div id="layers"></div>
+      <div class="layer" id="l-regen">
+        <div class="top"><input type="checkbox" id="c-regen"><label for="c-regen">Regen 7 Tage (Stationsnetz, gemessen)</label></div>
+        <div class="op">
+          <input type="range" id="o-regen" min="10" max="100" value="70">
+          <div class="row"><label>Zeitraum</label><select id="regen-tage"><option value="3">3 Tage</option><option value="7" selected>7 Tage</option><option value="14">14 Tage</option><option value="30">30 Tage</option></select></div>
+          <div class="hint" style="margin-top:6px">Gemessener Regen der DWD-Stationen, nach Entfernung interpoliert — Summe über den gewählten Zeitraum in mm. Zeichnet sich beim Verschieben nach.</div>
+          <div class="skala"><div class="balken" style="background:linear-gradient(90deg,#be1e1e,#e15a19,#f5aa14,#50be28,#149628,#00641e)"></div>
+            <div class="marken"><span>0</span><span>10</span><span>20</span><span>30</span><span>40 mm+</span></div></div>
+          <div class="hint" id="regen-note"></div>
+        </div>
+      </div>
  
       <h2>Weitere Ebene</h2>
       <label for="wms-url">WMS-Adresse</label>
@@ -475,7 +489,7 @@ function zeigeDienste(){
   el.textContent = t.join(' · ') || 'Noch keine Datenabfrage.';
 }
 // ---- Protokoll ----
-var VERSION = '2026-09-22.5';
+var VERSION = '2026-09-22.7';
 var LOG = [];
 function logZeile(art, text){
   var z = new Date(), t = z.toTimeString().slice(0, 8) + '.' + String(z.getMilliseconds()).padStart(3, '0');
@@ -549,8 +563,8 @@ var EBENEN = [
   {id:'dichte', titel:'Kronendichte 2018 (Copernicus)', rolle:'dichte', art:'wms',
    url:'https://image.discomap.eea.europa.eu/arcgis/services/GioLandPublic/HRL_TreeCoverDensity_2018/ImageServer/WMSServer?', layers:null,
    bevorzugt:/./, kandidaten:['0','HRL_TreeCoverDensity_2018'], an:false, deck:55, misch:'multiply', attr:'© European Union, Copernicus Land Monitoring Service, EEA'},
-  {id:'radar', titel:'Regen 24 h (DWD-Radar)', art:'wms', url:'https://maps.dwd.de/geoserver/dwd/wms?', layers:'dwd:SF-Produkt',
-   an:false, deck:60, misch:'normal', attr:'© Deutscher Wetterdienst'},
+  {id:'radar', titel:'Regen 24 h (DWD-Radar, gleitende Summe)', art:'wms', url:'https://maps.dwd.de/geoserver/dwd/wms?', layers:'dwd:SF-Produkt',
+   an:false, deck:60, misch:'normal', attr:'© Deutscher Wetterdienst', legende:true, erkl:'Angeeichter Radarniederschlag der letzten 24 Stunden in mm, 1 km Auflösung, stündlich aktualisiert. Transparent = unter 0,1 mm.'},
   {id:'topo', titel:'OpenTopoMap', art:'xyz', url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', an:false, deck:60, misch:'normal', attr:'© OpenTopoMap'}
 ];
 var rollen = {boden:null, baum:null, dichte:null};
@@ -579,7 +593,9 @@ function baueEbene(e, entfernbar){
     + '<div class="op">' + (e.layers === null ? '<select class="lsel"><option value="">Layer wird ermittelt …</option></select>' : '')
     + '<input type="range" class="deck" min="0" max="100" value="' + e.deck + '">'
     + '<div class="row"><label>Mischmodus</label><select class="misch"><option value="normal">Normal</option><option value="multiply">Multiplizieren</option>'
-    + '<option value="overlay">Überlagern</option><option value="screen">Aufhellen</option><option value="luminosity">Helligkeit</option></select></div></div>';
+    + '<option value="overlay">Überlagern</option><option value="screen">Aufhellen</option><option value="luminosity">Helligkeit</option></select></div>'
+    + (e.legende ? '<div class="legende"><div class="hint" style="margin:6px 0 4px">' + (e.erkl || '') + '</div><img alt="Legende" style="max-width:100%;border-radius:6px;background:#fff;padding:4px"></div>' : '')
+    + '</div>';
   box.querySelector('label').textContent = e.titel;
   if(e.rolle) box.querySelector('.rolle').textContent = {boden:'Boden', baum:'Baumart', dichte:'Dichte'}[e.rolle];
   var cb = box.querySelector('input[type=checkbox]'), rg = box.querySelector('.deck'), ms = box.querySelector('.misch');
@@ -596,6 +612,11 @@ function baueEbene(e, entfernbar){
     if(e.rolle && rollen[e.rolle] && rollen[e.rolle].url === e.url) rollen[e.rolle] = null;
   });
   if(e.an){ e.layer.addTo(map); mischeModus(e.layer, e.misch); }
+  if(e.legende){
+    var li = box.querySelector('.legende img'), laden = function(){ if(!li.src && e.layers) li.src = wmsBase(e.url) + 'SERVICE=WMS&VERSION=1.1.1&REQUEST=GetLegendGraphic&FORMAT=image/png&LAYER=' + encodeURIComponent(e.layers) + '&LEGEND_OPTIONS=fontColor:0x1d2119;fontSize:11;bgColor:0xffffff'; };
+    cb.addEventListener('change', function(){ if(cb.checked) laden(); }); if(e.an) laden();
+    li.addEventListener('error', function(){ li.replaceWith(Object.assign(document.createElement('div'), {className:'hint', textContent:'Legende vom Dienst nicht abrufbar.'})); });
+  }
   $('layers').appendChild(box);
   if(e.layers === null) ermittleLayer(e, box.querySelector('.lsel'));
 }
@@ -1867,6 +1888,45 @@ async function ausleseStandort(){
   note.textContent = (m.length ? 'Erkannt: ' + m.join(' · ') : '') + (fehler.length ? (m.length ? ' — ' : '') + 'Nicht erkannt: ' + fehler.join(', ') : '');
   btn.disabled = false; btn.textContent = 'Standort erneut auslesen';
 }
+ 
+// ============ Regenfeld-Ebene (aus dem Stationsnetz, ohne Überblick) ============
+var regenOverlay = null, regenTimer = null, regenLaeuft = false;
+async function zeichneRegenfeld(){
+  if(!$('c-regen').checked || regenLaeuft) return;
+  regenLaeuft = true;
+  try{
+    var b = map.getBounds(), mitte = b.getCenter(), rKm = Math.max(map.distance(b.getNorthWest(), b.getNorthEast()), map.distance(b.getNorthWest(), b.getSouthWest())) / 2000;
+    var netz = await stationsNetz(mitte, Math.min(120, rKm + 10));
+    if(!netz.length){ $('regen-note').textContent = 'Keine Stationsdaten für diesen Ausschnitt.'; regenLaeuft = false; return; }
+    var tage = +$('regen-tage').value, heute = new Date(); heute.setHours(12, 0, 0, 0);
+    var daten = []; for(var t = 1; t <= tage; t++) daten.push(isoTag(new Date(heute.getTime() - t * 864e5)));
+    var NX = 72, NY = Math.max(24, Math.round(72 * map.distance(b.getNorthWest(), b.getSouthWest()) / map.distance(b.getNorthWest(), b.getNorthEast())));
+    var latN = b.getNorth(), latS = b.getSouth(), lngW = b.getWest(), lngE = b.getEast(), dLat = (latN - latS) / NY, dLng = (lngE - lngW) / NX;
+    var cv = document.createElement('canvas'); cv.width = NX; cv.height = NY; var cx = cv.getContext('2d'), img = cx.createImageData(NX, NY), d = img.data, mx = 0;
+    for(var i = 0; i < NY; i++) for(var j = 0; j < NX; j++){
+      var lat = latN - (i + .5) * dLat, lng = lngW + (j + .5) * dLng, sum = 0, ok = false;
+      for(var k = 0; k < daten.length; k++){ var v = stationsRegenAm(lat, lng, daten[k], netz); if(v !== null){ sum += v; ok = true; } }
+      var o = (i * NX + j) * 4; if(!ok) continue;
+      if(sum > mx) mx = sum;
+      var f = farbeGrob(Math.min(100, sum * 2.5)).match(/\d+/g); d[o] = +f[0]; d[o+1] = +f[1]; d[o+2] = +f[2]; d[o+3] = 255;
+    }
+    cx.putImageData(img, 0, 0);
+    var F = 4, big = document.createElement('canvas'); big.width = NX * F; big.height = NY * F; var bx = big.getContext('2d'); bx.imageSmoothingEnabled = true; bx.imageSmoothingQuality = 'high';
+    try{ bx.filter = 'blur(' + (F * .8) + 'px)'; }catch(e){} bx.drawImage(cv, 0, 0, NX * F, NY * F);
+    if(regenOverlay) map.removeLayer(regenOverlay);
+    regenOverlay = L.imageOverlay(big.toDataURL('image/png'), b, {opacity:+$('o-regen').value / 100, interactive:false}).addTo(map);
+    $('regen-note').textContent = netz.length + ' Stationen · Höchstwert im Ausschnitt ' + Math.round(mx) + ' mm in ' + tage + ' Tagen · Tipp auf die Karte zeigt den Wert am Pin.';
+  }catch(e){ $('regen-note').textContent = 'Regenfeld nicht berechenbar: ' + (e.message || e); }
+  regenLaeuft = false;
+}
+$('c-regen').addEventListener('change', function(){
+  $('l-regen').classList.toggle('on', this.checked);
+  if(this.checked) zeichneRegenfeld(); else if(regenOverlay){ map.removeLayer(regenOverlay); regenOverlay = null; }
+});
+$('o-regen').addEventListener('input', function(){ if(regenOverlay) regenOverlay.setOpacity(this.value / 100); });
+$('regen-tage').addEventListener('change', zeichneRegenfeld);
+map.on('moveend', function(){ if(!$('c-regen').checked) return; clearTimeout(regenTimer); regenTimer = setTimeout(zeichneRegenfeld, 500); });
+document.querySelector('#l-regen label').addEventListener('click', function(){ var c = $('c-regen'); c.checked = !c.checked; c.dispatchEvent(new Event('change')); });
  
 // ============ Bereich bewerten ============
 var rasterGruppe = L.layerGroup().addTo(map), rasterLaeuft = false;
