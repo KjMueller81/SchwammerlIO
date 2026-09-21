@@ -1,3 +1,6 @@
+
+
+Schwammerl karte · HTML
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -21,13 +24,13 @@
   body{background:var(--humus);color:var(--papier);font-family:"Avenir Next","Segoe UI",system-ui,sans-serif;font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
   #app{display:flex;flex-direction:column;height:100vh;height:100dvh;height:-webkit-fill-available}
   html{height:-webkit-fill-available}
-
+ 
   header{padding:8px 14px;border-bottom:1px solid var(--linie);display:flex;align-items:center;gap:10px;background:var(--humus-2)}
   header h1{margin:0;font-size:16px;font-weight:600;flex:1}
   .chip{font-size:11.5px;color:var(--papier-2);border:1px solid var(--linie);border-radius:99px;padding:2px 9px;white-space:nowrap}
   #fehler{display:none;padding:8px 14px;background:#4a2418;color:#ffd9c9;font-size:12.5px;border-bottom:1px solid var(--linie)}
   #map{flex:1 1 auto;min-height:180px;background:#151810}
-
+ 
   .sheet{background:var(--humus-2);border-top:1px solid var(--linie);overflow-y:auto;padding:0 14px 0;transition:max-height .22s ease;
     max-height:46vh;flex:0 0 auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
   .sheet .pane{padding-bottom:calc(90px + env(safe-area-inset-bottom, 0px))}
@@ -65,7 +68,7 @@
   .tabs .griff{flex:0 0 40px;font-size:16px}
   .pane{display:none;padding-top:12px}
   .pane.on{display:block}
-
+ 
   h2{font-size:13.5px;margin:18px 0 6px;font-weight:600;color:var(--moos-hell);text-transform:uppercase;letter-spacing:.4px}
   .pane h2:first-child{margin-top:4px}
   p.hint{color:var(--papier-2);font-size:12.5px;margin:2px 0 10px}
@@ -77,7 +80,7 @@
   .row{display:flex;gap:10px}
   .row>*{flex:1;min-width:0}
   .inl{display:flex;align-items:center;gap:7px;margin:0;color:var(--papier);font-size:13.5px}
-
+ 
   .layer{border:1px solid var(--linie);border-radius:9px;padding:8px 10px;margin-bottom:7px}
   .layer .top{display:flex;align-items:center;gap:9px}
   .layer .top label{margin:0;color:var(--papier);font-size:14px;flex:1;cursor:pointer}
@@ -89,13 +92,13 @@
   .layer .op select{padding:5px 8px;font-size:13px}
   .weg{background:transparent;color:var(--papier-2);border:1px solid var(--linie);border-radius:6px;padding:3px 9px;font:inherit;font-size:12px;cursor:pointer}
   .weg:hover{color:var(--rot)}
-
+ 
   button.act{width:100%;padding:11px;margin-top:12px;font:inherit;font-size:14.5px;font-weight:600;background:var(--moos);color:#fff;border:none;border-radius:8px;cursor:pointer}
   button.act:hover{background:#587e45}
   button.act[disabled]{opacity:.55;cursor:default}
   button.ghost{background:transparent;color:var(--papier-2);border:1px solid var(--linie)}
   button.ghost:hover{background:#20251b;color:var(--papier)}
-
+ 
   .prog{display:flex;gap:3px;margin:8px 0 2px}
   .prog .pt{flex:1;text-align:center;border:1px solid var(--linie);border-radius:6px;padding:4px 1px;min-width:0}
   .prog .pt.u{opacity:.6;border-style:dashed}
@@ -127,13 +130,13 @@
   
   ul.why{margin:10px 0 0;padding-left:17px;font-size:13px;color:var(--papier-2)}
   ul.why li{margin-bottom:3px}
-
+ 
   .fort{height:5px;border-radius:3px;background:#2c3126;overflow:hidden;margin-top:8px;display:none}
   .fort i{display:block;height:100%;width:0;background:var(--moos-hell);transition:width .25s}
   .note{font-size:12px;color:var(--papier-2);border-left:2px solid var(--linie);padding-left:10px;margin-top:12px}
   .note code{font-size:11.5px;color:var(--moos-hell);word-break:break-all}
   .warn{color:var(--pfiff)}
-
+ 
   .spot{border:1px solid var(--linie);border-radius:9px;padding:9px 11px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start}
   .spot .b{flex:1;min-width:0;cursor:pointer}
   .spot .nm{font-weight:600;font-size:14px}
@@ -148,7 +151,7 @@
   .spot .notiz.leer{color:var(--papier-2);font-style:normal;opacity:.7}
   .spot .fund button.ts{border-color:var(--moos);color:var(--moos-hell)}
   .spot .fund button[disabled]{cursor:default}
-
+ 
   .leaflet-container{background:#151810;font-family:inherit}
   .leaflet-popup-content-wrapper{background:var(--humus-2);color:var(--papier);border-radius:9px;box-shadow:0 4px 18px rgba(0,0,0,.45)}
   .leaflet-popup-tip{background:var(--humus-2)}
@@ -207,7 +210,7 @@
       <div class="tr-skala"><span>Heute</span><span>+1</span><span>+2</span><span>+3</span><span>Trend</span></div>
     </div>
   </div>
-
+ 
   <div class="sheet" id="sheet">
     <div class="tabs" role="tablist">
       <button role="tab" aria-selected="true" data-p="karten">Karten</button>
@@ -215,12 +218,12 @@
       <button role="tab" aria-selected="false" data-p="stellen">Stellen</button>
       <button class="griff" id="griff" title="Bedienfeld: zu / halb / voll">▾</button>
     </div>
-
+ 
     <!-- KARTEN -->
     <section class="pane on" id="p-karten">
       <h2>Ebenen</h2>
       <div id="layers"></div>
-
+ 
       <h2>Weitere Ebene</h2>
       <label for="wms-url">WMS-Adresse</label>
       <input type="text" id="wms-url" placeholder="https://…/wms?" autocapitalize="off" spellcheck="false">
@@ -235,10 +238,10 @@
         <label class="inl"><input type="radio" name="rolle" value="baum"> Baumart</label>
       </div>
       <button class="act" id="add-wms">Ebene hinzufügen</button>
-
+ 
       <div class="note" id="diagnose">Luftbild DOP20: wartet</div>
       <div class="note" id="dienste">Noch keine Datenabfrage.</div>
-
+ 
       <h2>Diagnose</h2>
       <p class="hint">Protokoll aller Datenabfragen und Fehler. „Bericht kopieren" erzeugt einen Text, den du direkt weiterschicken kannst.</p>
       <div class="row">
@@ -251,7 +254,7 @@
         Luftbild &amp; Relief: Bayerische Vermessungsverwaltung · Boden: LfU Bayern (ÜBK25) · Baumarten: Thünen-Institut (Sentinel, 2017/18) · Kronendichte: Copernicus HRL 2018 (EEA) · Wetter: Open-Meteo, DWD-Radar (RADOLAN SF) und Bright Sky · Höhen: Open-Meteo / EU-DEM · alle CC BY 4.0
       </div>
     </section>
-
+ 
     <!-- PUNKT -->
     <section class="pane" id="p-punkt">
       <p class="hint">Auf die Karte tippen — der Standort wird ausgelesen, die Bewertung erscheint am Pin. Hier lässt sich alles nachjustieren.</p>
@@ -263,7 +266,7 @@
         <div class="card som"><div class="n" id="s-som">–</div><div class="k">Sommer&shy;steinpilz</div><div class="bar"><i id="b-som"></i></div><div class="t" id="t-som"></div></div>
       </div>
       <ul class="why" id="why"></ul>
-
+ 
       <h2>Aus Karten &amp; Wetter erkannt</h2>
       <div class="row">
         <div>
@@ -310,7 +313,7 @@
       <input type="range" id="f-mm" min="0" max="120" value="25">
       <label for="f-regen">Tage seit kräftigem Regen <b id="f-regen-v">6</b></label>
       <input type="range" id="f-regen" min="0" max="21" value="6">
-
+ 
       <h2>Selbst einschätzen</h2>
       <div class="row">
         <div>
@@ -340,7 +343,7 @@
         <option value="aussen">Außenrand (Feld, Straße, Siedlung)</option>
         <option value="innen" selected>Bestandsinneres</option>
       </select>
-
+ 
       <h2>Umkreis bewerten</h2>
       <p class="hint">Bewertet alle Waldzellen um den Pin und markiert die fünf besten Stellen.</p>
       <div class="row" style="align-items:flex-end">
@@ -359,7 +362,7 @@
         </div>
         <div>
           <label for="g-art">Pilz</label>
-          <select id="g-art"><option value="best">Beste der drei</option><option value="pf">Pfifferling</option><option value="st">Fichtensteinpilz</option><option value="som">Sommersteinpilz</option></select>
+          <select id="g-art"><option value="best">Beste der drei</option><option value="pf">Pfifferling</option><option value="st">Fichtensteinpilz</option><option value="som">Sommersteinpilz</option><option value="mm7">Wetter: Regen 7 Tage</option><option value="feu">Wetter: Streufeuchte</option></select>
         </div>
         <div>
           <label for="g-tag">Tag</label>
@@ -370,7 +373,7 @@
       <input type="range" id="g-min" min="0" max="80" step="5" value="40">
       <button class="act" id="g-los">Region bewerten</button>
       <div class="note" id="g-note">Noch nicht berechnet.</div>
-
+ 
       <h2>Sichtbaren Ausschnitt bewerten</h2>
       <p class="hint">Färbt jede Rasterzelle des sichtbaren Ausschnitts nach Bewertung. Auf unter 8 km Breite hineinzoomen.</p>
       <div class="row">
@@ -380,7 +383,7 @@
             <option value="best">Beste der drei</option>
             <option value="pf">Pfifferling</option>
             <option value="st">Fichtensteinpilz</option>
-            <option value="som">Sommersteinpilz</option>
+            <option value="som">Sommersteinpilz</option><option value="mm7">Wetter: Regen 7 Tage</option><option value="feu">Wetter: Streufeuchte</option>
           </select>
         </div>
         <div>
@@ -404,7 +407,7 @@
       <div class="layer on" id="r-layer" style="margin-top:10px;display:none">
         <div class="top"><input type="checkbox" id="r-an" checked><label for="r-an">Bewertungsraster</label><button class="weg" id="r-weg">Löschen</button></div>
         <div class="op">
-          <div class="row"><label>Anzeige</label><select id="r-art2"><option value="best">Beste der drei</option><option value="pf">Pfifferling</option><option value="st">Fichtensteinpilz</option><option value="som">Sommersteinpilz</option></select></div>
+          <div class="row"><label>Anzeige</label><select id="r-art2"><option value="best">Beste der drei</option><option value="pf">Pfifferling</option><option value="st">Fichtensteinpilz</option><option value="som">Sommersteinpilz</option><option value="mm7">Wetter: Regen 7 Tage</option><option value="feu">Wetter: Streufeuchte</option></select></div>
           <input type="range" id="r-deck" min="10" max="100" value="65">
           <div class="hint" style="margin-top:6px">
             <span style="display:inline-block;width:110px;height:9px;vertical-align:middle;border-radius:3px;background:linear-gradient(90deg,#be1e1e,#e15a19,#f5aa14,#50be28,#149628,#00641e)"></span>
@@ -412,8 +415,8 @@
           </div>
         </div>
       </div>
-
-
+ 
+ 
       <button class="act ghost" id="wetter-neu">Nur Wetter erneut laden</button>
       <button class="act ghost" id="auslesen">Standort erneut auslesen</button>
       <div class="note" id="auslesen-note">Antippen der Karte liest automatisch aus.</div>
@@ -421,7 +424,7 @@
       <input type="text" id="f-name" placeholder="z. B. Nordrand Ebersberger Forst">
       <button class="act" id="save">Speichern</button>
     </section>
-
+ 
     <!-- STELLEN -->
     <section class="pane" id="p-stellen">
       <p class="hint">Antippen springt zum Punkt. Navigation öffnet Google Maps zur nächsten befahrbaren Straße.</p>
@@ -435,12 +438,12 @@
     </section>
   </div>
 </div>
-
+ 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script>
 (function(){
 'use strict';
-
+ 
 // ============ Fehler & Hilfen ============
 var toastT = null;
 function toast(msg){ var t = $('toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(toastT); toastT = setTimeout(function(){ t.style.display = 'none'; }, 2600); }
@@ -471,7 +474,7 @@ function zeigeDienste(){
   el.textContent = t.join(' · ') || 'Noch keine Datenabfrage.';
 }
 // ---- Protokoll ----
-var VERSION = '2026-09-19.4';
+var VERSION = '2026-09-21.1';
 var LOG = [];
 function logZeile(art, text){
   var z = new Date(), t = z.toTimeString().slice(0, 8) + '.' + String(z.getMilliseconds()).padStart(3, '0');
@@ -481,7 +484,7 @@ function logZeile(art, text){
 function kurzUrl(u){ try{ var x = new URL(u); var q = x.search.replace(/[?&](latitude|longitude|BBOX|bbox|geometry|locations)=[^&]*/g, ''); return x.hostname + x.pathname + (q.length > 90 ? q.slice(0, 90) + '…' : q); }catch(e){ return String(u).slice(0, 120); } }
 window.addEventListener('error', function(e){ logZeile('JS ', e.message + ' @' + e.lineno); });
 window.addEventListener('unhandledrejection', function(e){ logZeile('PRM', String(e.reason && e.reason.message || e.reason)); });
-
+ 
 // fetch-Hülle: Erfolg und Fehler je Dienst verbuchen, Dauer und Status protokollieren
 var _fetch = window.fetch.bind(window);
 window.fetch = function(u, o){
@@ -492,7 +495,7 @@ window.fetch = function(u, o){
   }, function(e){ logZeile('NET', Math.round(performance.now() - t0) + 'ms ' + kurzUrl(url) + ' → ' + (e.message || e)); merkeBlockade(e, d); throw e; });
 };
 function wmsBase(url){ if(url.indexOf('?') === -1) return url + '?'; return /[?&]$/.test(url) ? url : url + '&'; }
-
+ 
 async function frageLayer(url){
   var res = await fetch(wmsBase(url) + 'SERVICE=WMS&REQUEST=GetCapabilities');
   if(!res.ok) throw new Error(res.status);
@@ -520,7 +523,7 @@ async function featureInfo(url, layer, ll){
   var res = await fetch(u); if(!res.ok) throw new Error(res.status);
   return await res.text();
 }
-
+ 
 // ============ Karte & Ebenen ============
 var MUC = [48.1372, 11.5756];
 var MOBIL = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) || window.innerWidth < 700;
@@ -530,7 +533,7 @@ var canvas = L.canvas({padding:.3});
 var map = L.map('map', {center: MUC, zoom: 9, renderer: canvas, preferCanvas: true, zoomAnimation: !MOBIL, fadeAnimation: !MOBIL, zoomControl: !MOBIL, closePopupOnClick: false});
 var KACHEL = {updateWhenIdle: MOBIL, updateWhenZooming: false, keepBuffer: MOBIL ? 1 : 2, detectRetina: false};
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', Object.assign({maxZoom:19, attribution:'© OpenStreetMap'}, KACHEL)).addTo(map);
-
+ 
 var EBENEN = [
   {id:'dop', titel:'Luftbild DOP20', art:'wms', url:'https://geoservices.bayern.de/od/wms/dop/v1/dop20?', layers:'by_dop20c', format:'image/jpeg',
    an:false, deck:100, misch:'normal', attr:'Bayerische Vermessungsverwaltung, CC BY 4.0'},
@@ -557,7 +560,7 @@ async function kronendichte(ll){
   var j = await res.json(), v = parseFloat(j.value);
   return isNaN(v) || v > 100 ? null : v;
 }
-
+ 
 function mischeModus(layer, modus){
   var c = layer.getContainer && layer.getContainer();
   if(c) c.style.mixBlendMode = modus; else setTimeout(function(){ mischeModus(layer, modus); }, 300);
@@ -567,7 +570,7 @@ function baueEbene(e, entfernbar){
     ? L.tileLayer(e.url, Object.assign({maxZoom:17, opacity:e.deck/100, attribution:e.attr}, KACHEL))
     : L.tileLayer.wms(e.url, Object.assign({layers:e.layers || '', format:e.format || 'image/png', transparent:e.format !== 'image/jpeg', version:'1.1.1', opacity:e.deck/100, maxZoom:20, attribution:e.attr}, KACHEL));
   if(e.rolle && e.layers) rollen[e.rolle] = {url:e.url, layer:e.layers};
-
+ 
   var box = document.createElement('div');
   box.className = 'layer' + (e.an ? ' on' : '');
   box.innerHTML = '<div class="top"><input type="checkbox"' + (e.an ? ' checked' : '') + '><label></label>'
@@ -620,7 +623,7 @@ if(MOBIL){ $('r-n').value = LANGSAM ? '8' : '16'; }
 $('diagnose').textContent = 'Startkarte: OpenStreetMap. Luftbild bei Bedarf einschalten.';
 EBENEN[0].layer.on('tileload', function(){ $('diagnose').textContent = 'Luftbild DOP20: lädt'; });
 EBENEN[0].layer.on('tileerror', function(){ $('diagnose').textContent = 'Luftbild DOP20: blockiert — Datei lokal öffnen oder hosten'; });
-
+ 
 $('version').textContent = 'v' + VERSION;
 function bericht(){
   var z = [];
@@ -670,9 +673,9 @@ $('add-wms').addEventListener('click', function(){
   baueEbene({id:'c'+Date.now(), titel:lay, art:'wms', url:url, layers:lay, rolle:rolle, an:true, deck:60, misch:'multiply', attr:''}, true);
   $('wms-url').value = ''; $('wms-layer-manual').value = '';
 });
-
+ 
 // (Feste Revier-Marker entfernt — der Regionen-Überblick zeigt jetzt datenbasiert, wo es sich lohnt.)
-
+ 
 // ---- Eigener Standort: dauerhaft anzeigen und mitführen ----
 var standortGruppe = L.layerGroup().addTo(map), standortPunkt = null, standortKreis = null, standortWatch = null, standortLL = null, folgen = false, folgeBtn = null;
 function zeigeStandort(p){
@@ -689,7 +692,7 @@ function starteStandort(){
   standortWatch = navigator.geolocation.watchPosition(zeigeStandort, function(e){ logZeile('GPS', e.message); }, {enableHighAccuracy:true, maximumAge:4000, timeout:15000});
 }
 map.on('dragstart', function(){ if(folgen){ folgen = false; if(folgeBtn) folgeBtn.style.background = '#fff'; } });
-
+ 
 // Knopf 1: Pin auf meinen Standort setzen und auslesen
 var Gps = L.Control.extend({
   onAdd: function(){
@@ -728,7 +731,7 @@ new Folge({position:'topright'}).addTo(map);
 if(navigator.permissions && navigator.permissions.query){
   navigator.permissions.query({name:'geolocation'}).then(function(r){ if(r.state === 'granted') starteStandort(); }).catch(function(){});
 }
-
+ 
 // ============ Tabs & Griff ============
 var tabs = document.querySelectorAll('.tabs button[role=tab]');
 // Schublade: zu → halb → voll
@@ -757,7 +760,7 @@ $('griff').addEventListener('click', function(){ setzeStufe((stufe + 1) % 3); })
     if(dy < -30) setzeStufe(stufe + 1); else if(dy > 30) setzeStufe(stufe - 1); }, {passive:true});
 })();
 setzeStufe(stufe);
-
+ 
 // ============ Bewertungsmodell ============
 // Einheitliche Skala: rot schlecht → orange → gelb → grün gut
 var SKALA = [[0,[176,48,40]],[20,[200,74,44]],[35,[224,138,42]],[50,[230,194,41]],[62,[176,196,60]],[75,[112,168,70]],[90,[52,138,60]]];
@@ -770,7 +773,7 @@ function farbeStetig(score){
   }
   return 'rgb(' + SKALA[SKALA.length-1][1].join(',') + ')';
 }
-
+ 
 var W = {
   baum: { fichte:{pf:6,st:9,som:2}, fichte_licht:{pf:9,st:7,som:2}, misch:{pf:7,st:10,som:7}, buche:{pf:4,st:8,som:10}, kiefer:{pf:8,st:5,som:3}, laub_jung:{pf:2,st:2,som:3} },
   // Dickung/Stangenholz (5–15 m, geschlossen) ist Steinpilz-Kernrevier; Kultur (<5 m) zu jung; alt und hoch trocknet aus
@@ -783,7 +786,7 @@ var W = {
 var SAISON = { sommer:{pf:.95,st:.45,som:1}, herbst:{pf:.85,st:1,som:.3} };
 var ARTEN = ['pf','st','som'];
 var ARTNAME = {pf:'Pfifferling', st:'Fichtensteinpilz', som:'Sommersteinpilz'};
-
+ 
 // Wirkung eines Regentags nach d Tagen — artspezifisch.
 // Fichtensteinpilz 7–14 Tage, Sommersteinpilz 5–10, Pfifferling 10–20 Tage Vorlauf.
 var KERN = {
@@ -815,6 +818,10 @@ function wirksamerRegen(art, w, versatz, hoehe, dichte, alter){
   var S = wasserBilanz(w.tw, w.et0 || [], h, dz, al, w.tmax), s = S[n - 1], e = (w.et0 && w.et0[n - 1]) || 2, ea = etAnteil(w.tmax ? w.tmax[n - 1] : undefined);
   for(var t = 0; t < versatz; t++) s = Math.max(0, s - ea * e / dehn);
   var halte = Math.min(1, Math.max(.25, (s + 3) / 12));
+  if(w.bodenF !== null && w.bodenF !== undefined && versatz === 0){
+    var hb = Math.min(1, Math.max(.25, (w.bodenF - .10) / .22));
+    halte = .6 * halte + .4 * hb;
+  }
   if(fingerprobe && versatz === 0 && (hoehe === undefined || hoehe === hoehePunkt)) halte = FINGER_HALTE[fingerprobe];   // Tastbefund gilt für den Pin, heute
   return trigger * halte;
 }
@@ -827,7 +834,7 @@ function _unused(){
 function interp(x, pts){ if(x <= pts[0][0]) return pts[0][1]; for(var i = 1; i < pts.length; i++) if(x <= pts[i][0]){ var t = (x - pts[i-1][0]) / (pts[i][0] - pts[i-1][0]); return pts[i-1][1] + t * (pts[i][1] - pts[i-1][1]); } return pts[pts.length-1][1]; }
 function faktorAusWirksam(w){ return interp(w, [[0,.1],[4,.15],[10,.4],[16,.7],[24,.92],[32,1],[45,1],[60,.85]]); }
 var hoehePunkt = null;   // Höhe des gesetzten Punkts
-
+ 
 // Temperaturfaktor je Art aus den letzten Tagen (tmin/tmax-Arrays, letztes Element = heute)
 function tempFaktor(art, tmin, tmax){
   if(!tmin || !tmin.length) return {f:1, text:null};
@@ -855,7 +862,7 @@ function tempFaktor(art, tmin, tmax){
   }
   return {f:f, text:t.join(', ')};
 }
-
+ 
 var wetter = null;   // {tw, tmin, tmax, mm7, tage, maxTag} vom Dienst, sonst null → Regler
 var fingerprobe = null;   // null | 'trocken' | 'maessig' | 'feucht' — Tastbefund vor Ort, überschreibt die berechnete Streufeuchte
 var FINGER_HALTE = {trocken:.25, maessig:.6, feucht:1};
@@ -908,7 +915,7 @@ function lerne(spots){
   });
 }
 function lernFaktor(k, opt, a){ return (lernAktiv && LERN[k] && LERN[k][opt] && LERN[k][opt][a]) || 1; }
-
+ 
 // Standortgüte als gewichtetes geometrisches Mittel: ein schwacher Faktor zieht
 // das Ergebnis stärker herunter als bei einer Summe (Liebig-Prinzip).
 var GEW = {baum:1.2, boden:1.2, unter:1.0, lage:.8, alter:.8, rand:.8};
@@ -1120,7 +1127,7 @@ function update(){
   $(id).addEventListener('change', update); $(id).addEventListener('input', update);
 });
 ['f-regen','f-mm'].forEach(function(id){ $(id).addEventListener('input', function(){ wetter = null; letztePrognose = null; reglerHand = true; $('wetter-note').textContent = 'Wetter: Handeingabe über die Regler.'; }); });
-
+ 
 // ============ Punkt & Popup ============
 var pin = null, pos = null, pinInfo = [], pinFehler = [];
 var erkannt = {baum:null, boden:null, lage:null, wetter:null, keinWald:false};   // true = aus Daten, false = Annahme
@@ -1277,14 +1284,14 @@ map.on('click', function(e){
   if(offen){ map.closePopup(); return; }                                // erster Tipp schließt nur
   setzePunkt(e.latlng);
 });
-
+ 
 // ============ Auslesen ============
 async function pool(aufgaben, breite){
   var idx = 0, erg = new Array(aufgaben.length);
   async function arbeiter(){ while(idx < aufgaben.length){ var k = idx++; try{ erg[k] = await aufgaben[k](); }catch(e){ erg[k] = null; } } }
   var w = []; for(var i = 0; i < breite; i++) w.push(arbeiter()); await Promise.all(w); return erg;
 }
-
+ 
 var hoehenQuelle = 'Open-Meteo';
 async function hoehenErsatz(punkte){
   // Open Topo Data, EU-DEM 25 m — öffentlicher Dienst, höchstens eine Anfrage pro Sekunde
@@ -1475,13 +1482,13 @@ function quellenAbgleich(w){
     if(q.station && q.station[i] !== null && q.station[i] !== undefined){ werte.push(q.station[i]); namen.push('Station'); }
     if(q.radar && q.radar[i] !== null && q.radar[i] !== undefined){ werte.push(q.radar[i]); namen.push('Radar'); }
     if(!werte.length) continue;
-    var mess = werte.slice(1);                                             // Messungen (Station/Radar) vor dem Modell
+    var mess = werte.slice(1), messNamen = namen.slice(1);                 // Messungen (Station/Radar); Modell nur, wenn keine Messung
     w.tw[i] = mess.length ? Math.min.apply(null, mess) : werte[0];
-    if(i >= n - 15){                                                       // Widerspruch nur in den letzten 14 Tagen zählen
-      var mx = Math.max.apply(null, werte), mn = Math.min.apply(null, werte);
-      if(mx >= 5 && (mx - mn) / mx > .5){ streit += (mx - mn); konflikte.push({tag:n - 1 - i, werte:werte, namen:namen}); }
+    if(i >= n - 15 && mess.length >= 2){                                   // Widerspruch nur zwischen Messungen zählen
+      var mx = Math.max.apply(null, mess), mn = Math.min.apply(null, mess);
+      if(mx >= 5 && (mx - mn) / mx > .5){ streit += (mx - mn); konflikte.push({tag:n - 1 - i, werte:mess, namen:messNamen}); }
       tage14 += mx;
-    }
+    } else if(i >= n - 15) tage14 += w.tw[i];
   }
   w.unsicher = tage14 > 0 ? Math.min(1, streit / tage14) : 0;
   w.konflikte = konflikte;
@@ -1604,7 +1611,7 @@ async function holeWetterMulti(punkte, hoehen){
 }
 async function holeWetterHaupt(ll, hoehe){
   var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + ll.lat.toFixed(4) + '&longitude=' + ll.lng.toFixed(4)
-    + '&daily=precipitation_sum,temperature_2m_max,temperature_2m_min,et0_fao_evapotranspiration,precipitation_probability_max&past_days=35&forecast_days=8&timezone=Europe%2FBerlin'
+    + '&daily=precipitation_sum,temperature_2m_max,temperature_2m_min,et0_fao_evapotranspiration,precipitation_probability_max&hourly=soil_moisture_0_to_7cm&past_days=35&forecast_days=8&timezone=Europe%2FBerlin'
     + (hoehe !== null && hoehe !== undefined ? '&elevation=' + Math.round(hoehe) : '');
   var res, j;
   for(var versuch = 0; versuch < 3; versuch++){
@@ -1616,13 +1623,19 @@ async function holeWetterHaupt(ll, hoehe){
   }
   if(!j || !j.daily) throw new Error('Wetterdienst überlastet, gleich nochmal versuchen');
   var d = j.daily, z = function(a){ return (a || []).map(function(x){ return x === null ? 0 : x; }); };
+  var bodenF = null;
+  if(j.hourly && j.hourly.soil_moisture_0_to_7cm){
+    var hm = j.hourly.soil_moisture_0_to_7cm, jetztIdx = 35 * 24 + new Date().getHours(), vals = [];
+    for(var q = Math.max(0, jetztIdx - 24); q <= jetztIdx && q < hm.length; q++) if(hm[q] !== null) vals.push(hm[q]);
+    if(vals.length) bodenF = vals.reduce(function(a, b){ return a + b; }, 0) / vals.length;
+  }
   var P = 36;   // 35 Tage + heute
   var alle = {tw:z(d.precipitation_sum), tmax:z(d.temperature_2m_max), tmin:z(d.temperature_2m_min), et0:z(d.et0_fao_evapotranspiration), pp:z(d.precipitation_probability_max)};
   var tw = alle.tw.slice(0, P), tmax = alle.tmax.slice(0, P), tmin = alle.tmin.slice(0, P), et0 = alle.et0.slice(0, P);
   var f = {tw:alle.tw.slice(P), tmax:alle.tmax.slice(P), tmin:alle.tmin.slice(P), et0:alle.et0.slice(P), pp:alle.pp.slice(P)};
   var w7 = tw.slice(-8), mm7 = Math.round(w7.reduce(function(a,b){ return a+b; }, 0)), seit = 0;
   for(var i = tw.length-1; i >= 0; i--){ if(tw[i] >= 5) break; seit++; }
-  return {tw:tw, et0:et0, tmin:tmin, tmax:tmax, f:f, mm7:mm7, tage:Math.min(seit, 21), maxTag:Math.round(Math.max.apply(null, w7)), hoehe:hoehe};
+  return {tw:tw, et0:et0, tmin:tmin, tmax:tmax, f:f, mm7:mm7, tage:Math.min(seit, 21), maxTag:Math.round(Math.max.apply(null, w7)), hoehe:hoehe, bodenF:bodenF};
 }
 // Deutung der LfU-Legende: Der vorherrschende Bodentyp steht dort zuerst,
 // deshalb gewinnt das Stichwort mit der frühesten Position.
@@ -1701,7 +1714,7 @@ async function baumAmPunkt(ll){
   var wert = f.wert === 'fichte' && licht ? 'fichte_licht' : f.wert;
   return {wert:wert, text:f.art + (wert === 'fichte_licht' ? ', licht' : ''), rand:rand, licht:licht};
 }
-
+ 
 $('auslesen').addEventListener('click', ausleseStandort);
 window.__spWetter = async function(){
   if(!pos) return; var b = $('wetter-neu'); b.disabled = true; b.textContent = 'Lädt …';
@@ -1733,8 +1746,9 @@ async function ausleseStandort(){
     wetter = await holeWetterCached(pos, hoehePunkt);
     $('f-mm').value = Math.min(wetter.mm7, 120); $('f-regen').value = wetter.tage;
     var S0 = wasserBilanz(wetter.tw, wetter.et0, hoehePunkt, dichtePunkt, readForm().alter, wetter.tmax); var feuchte = S0[S0.length-1];
-    m.push(wetter.mm7 + ' mm in 7 T, letzter Regen vor ' + wetter.tage + ' T, Streufeuchte ' + Math.round(feuchte) + '/' + SPEICHER + ' mm');
-    m.push(wetter.station ? 'Regen gemessen: ' + wetter.station.name + ', ' + wetter.station.km + ' km, ' + wetter.station.tage + ' Tage' : 'Regen aus dem Modell' + (wetter.stationGrund ? ' (' + wetter.stationGrund + ')' : ''));
+    m.push(wetter.mm7 + ' mm in 7 T, letzter Regen vor ' + wetter.tage + ' T, Streufeuchte ' + Math.round(feuchte) + '/' + SPEICHER + ' mm'
+      + (wetter.bodenF !== null && wetter.bodenF !== undefined ? ' · Modell-Bodenfeuchte ' + Math.round(wetter.bodenF * 100) + ' %' + ((wetter.bodenF < .14 && feuchte > 12) || (wetter.bodenF > .28 && feuchte < 5) ? ' — widerspricht der Streubilanz, Fingerprobe empfohlen' : '') : ''));
+    m.push('Regenquelle: ' + (wetter.radar ? 'Radar ' + wetter.radar + ' T · ' : '') + (wetter.station ? 'Station ' + wetter.station.name + ' (' + wetter.station.km + ' km)' : 'Modell' + (wetter.stationGrund ? ', ' + wetter.stationGrund : '')) + ' · Vorhersage Modell');
     if(wetter.konflikte && wetter.konflikte.length){
       var kx = wetter.konflikte.slice(-3).map(function(c){ return 'vor ' + c.tag + ' T: ' + c.namen.map(function(nm, q){ return nm + ' ' + Math.round(c.werte[q]); }).join(' / '); }).join(' · ');
       m.push('Quellen widersprechen sich (' + kx + ') — niedrigster Wert genommen, Unsicherheit ' + Math.round((wetter.unsicher || 0) * 100) + ' %');
@@ -1772,7 +1786,7 @@ async function ausleseStandort(){
   note.textContent = (m.length ? 'Erkannt: ' + m.join(' · ') : '') + (fehler.length ? (m.length ? ' — ' : '') + 'Nicht erkannt: ' + fehler.join(', ') : '');
   btn.disabled = false; btn.textContent = 'Standort erneut auslesen';
 }
-
+ 
 // ============ Bereich bewerten ============
 var rasterGruppe = L.layerGroup().addTo(map), rasterLaeuft = false;
 var rasterCache = null;      // {zellen:[{i,j,rr,v,hoehe,artText,geschaetzt}], N, latN, lngW, dLat, dLng, zellM, hinweise}
@@ -1796,13 +1810,18 @@ function zeichneRaster(){
   var C = rasterCache, art = $('r-art').value, min = +$('r-min').value, deck = +$('r-deck').value / 100, grob = !!C.grob, trend = !!C.trend;
   rasterGruppe.clearLayers();
   var gezeigt = 0, summe = 0, top = 0;
-  var sc = function(rr){ return art === 'best' ? Math.max(rr.pf, rr.st, rr.som) : rr[art]; };
+  var wetterKarte = art === 'mm7' || art === 'feu';
+  var sc = function(rr){ return art === 'best' ? Math.max(rr.pf, rr.st, rr.som) : (wetterKarte ? 0 : rr[art]); };
   C.zellen.forEach(function(z){
     var score, diff = 0;
-    if(trend && z.rrT){ var s0 = sc(z.rrT[0]), s3 = sc(z.rrT[3]); diff = s3 - s0; score = Math.max(s0, s3); }
+    if(wetterKarte){
+      if(z[art] === null || z[art] === undefined) return;
+      score = art === 'mm7' ? Math.round(Math.min(100, z.mm7 * 2.5)) : Math.round(Math.min(100, z.feu * 4));
+    }
+    else if(trend && z.rrT){ var s0 = sc(z.rrT[0]), s3 = sc(z.rrT[3]); diff = s3 - s0; score = Math.max(s0, s3); }
     else score = sc(z.rr);
     summe += score; if(score > top) top = score;
-    if(score < min) return;
+    if(!wetterKarte && score < min) return;
     gezeigt++;
     var basis = grob ? 0.9 : 0.3 + 0.55 * Math.min(1, score / 90), sw = C.latN - z.i*C.dLat, we = C.lngW + z.j*C.dLng;
     var farbe = trend ? farbeGrob(50 + Math.max(-50, Math.min(50, diff * 1.4))) : (grob ? farbeGrob(score) : farbeStetig(score));
@@ -1811,7 +1830,7 @@ function zeichneRaster(){
     rect.on('click', function(ev){
       L.DomEvent.stop(ev);
       if(grob){
-        var zt = (z.artText || LT[z.v.baum]) + ' · Boden ' + LB[z.v.boden] + ' · Pf ' + z.rr.pf + ' St ' + z.rr.st + ' So ' + z.rr.som;
+        var zt = (z.artText || LT[z.v.baum]) + ' · Boden ' + LB[z.v.boden] + ' · Pf ' + z.rr.pf + ' St ' + z.rr.st + ' So ' + z.rr.som + (z.mm7 !== null && z.mm7 !== undefined ? ' · Regen 7 T ' + Math.round(z.mm7) + ' mm · Streu ' + Math.round(z.feu) + '/25' : '');
         toast(trend && z.rrT ? 'Heute ' + sc(z.rrT[0]) + ' → +3 Tage ' + sc(z.rrT[3]) + ' · ' + zt : 'Zelle: ' + zt);
         setzePunkt(ev.latlng); return;
       }                         // Überblick: Tipp = Pin für die Detailansicht
@@ -1853,7 +1872,7 @@ async function bewerteBereich(b, N, kreis){
   var latS = b.getSouth(), latN = b.getNorth(), lngW = b.getWest(), lngE = b.getEast();
   var dLat = (latN - latS) / N, dLng = (lngE - lngW) / N, zellM = Math.round(map.distance(b.getNorthWest(), b.getNorthEast()) / N);
   function imKreis(i, j){ if(!kreis) return true; return map.distance(kreis.mitte, L.latLng(latN - (i+.5)*dLat, lngW + (j+.5)*dLng)) <= kreis.r; }
-
+ 
   var BR = null; note.textContent = 'Baumartenkarte …'; fort(0.02);
   if(rollen.baum){ try{
     var px = await pixelBild(rollen.baum.url, rollen.baum.layer, b, N); BR = [];
@@ -1862,24 +1881,24 @@ async function bewerteBereich(b, N, kreis){
       var f = naechsteFarbe(px[o], px[o+1], px[o+2]); BR[i].push(f ? {wald:true, wert:f.wert, art:f.art} : {wald:true, wert:null}); } }
   }catch(e){ merkeBlockade(e); BR = null; } }
   fort(.1);
-
+ 
   var zentren = [], idx = [];
   for(var i = 0; i < N; i++) for(var j = 0; j < N; j++){ if(!imKreis(i, j)) continue; if(BR && !BR[i][j].wald) continue; zentren.push([latN - (i+.5)*dLat, lngW + (j+.5)*dLng]); idx.push([i,j]); }
   if(!zentren.length) return null;
-
+ 
   var H = []; for(var i = 0; i < N; i++) H.push(new Array(N).fill(null));
   var hoehenOk = true, hoehenFehler = '';
   try{ var h = await hoehenViele(zentren, function(n, g){ note.textContent = 'Höhen ' + n + ' / ' + g; fort(.1 + .4 * n / g); }); for(var k = 0; k < h.length; k++) H[idx[k][0]][idx[k][1]] = h[k]; }
   catch(e){ merkeBlockade(e); hoehenOk = false; hoehenFehler = e.message; }
   function Hz(i, j, i0, j0){ var v = H[Math.max(0,Math.min(N-1,i))][Math.max(0,Math.min(N-1,j))]; return v === null ? H[i0][j0] : v; }
   function lageZelle(i, j){ if(!hoehenOk || H[i][j] === null) return 'eben'; return lageAusHoehen([H[i][j], Hz(i-1,j,i,j), Hz(i+1,j,i,j), Hz(i,j+1,i,j), Hz(i,j-1,i,j)]).wert; }
-
+ 
   var hM = null; if(hoehenOk){ var hs = []; idx.forEach(function(ij){ if(H[ij[0]][ij[1]] !== null) hs.push(H[ij[0]][ij[1]]); }); if(hs.length) hM = hs.reduce(function(a,b){return a+b;},0) / hs.length; }
   var wt = null;
   if(kreis && wetter && pos && map.distance(kreis.mitte, pos) < 5) wt = wetter;                    // Umkreis um den Pin: dasselbe Wetter wie im Popup
   else { try{ wt = await holeWetterCached(kreis ? kreis.mitte : b.getCenter(), hM); }catch(e){ merkeBlockade(e); } }
   fort(.55);
-
+ 
   var bodenGrid = {}, schritt = Math.max(1, Math.round(N / 8)), bodenOk = !!rollen.boden;
   if(bodenOk){
     var stuetz = [];
@@ -1897,7 +1916,7 @@ async function bewerteBereich(b, N, kreis){
     if(!treffer) bodenOk = false;
   }
   function bodenZelle(i, j){ var best = null, bd = 1e9; for(var key in bodenGrid){ var p = key.split(','), d = (p[0]-i)*(p[0]-i)+(p[1]-j)*(p[1]-j); if(d < bd){ bd = d; best = bodenGrid[key]; } } return best; }
-
+ 
   // Kronendichte auf denselben Stützstellen wie der Boden (10-m-Daten, hier auf ~Zellgröße gemittelt)
   var dichteGrid = {}, dichteOk = false;
   try{
@@ -1955,10 +1974,10 @@ async function bewerteBereich(b, N, kreis){
   }
   return {zellen:zellen, N:N, latN:latN, lngW:lngW, dLat:dLat, dLng:dLng, zellM:zellM, hinweise:hinweise, kreis:kreis, pinZelle:pinZelle, wetterQuelle: wt === wetter ? 'Pin' : (wt ? 'eigener Abruf' : 'Regler')};
 }
-
+ 
 function rasterStart(btn, text){ rasterLaeuft = true; btn.disabled = true; btn.textContent = 'Rechnet …'; map.closePopup(); ladeZeigen(text || 'Berechnung startet …'); fort(0); rasterGruppe.clearLayers(); $('r-layer').style.display = 'block'; $('r-an').checked = true; }
 function rasterEnde(btn, text){ fort(null); rasterLaeuft = false; btn.disabled = false; btn.textContent = text; }
-
+ 
 $('r-los').addEventListener('click', async function(){
   if(rasterLaeuft) return;
   var btn = $('r-los'), b = map.getBounds();
@@ -1969,7 +1988,7 @@ $('r-los').addEventListener('click', async function(){
   if(!rasterCache) $('r-note').textContent = 'Kein Wald im Ausschnitt laut Baumartenkarte.'; else zeichneRaster();
   rasterEnde(btn, 'Sichtbaren Ausschnitt bewerten');
 });
-
+ 
 // Umkreis um den Pin
 var umkreisGruppe = L.layerGroup().addTo(map), letzteTop = [];
 function topSpeichern(k){
@@ -2060,7 +2079,7 @@ async function bewerteUmkreis(rKm){
   rasterEnde(btn, 'Umkreis bewerten');
 }
 $('u-los').addEventListener('click', function(){ bewerteUmkreis(+$('u-r').value); });
-
+ 
 // Regionen-Überblick: grobes Raster über den ganzen Ausschnitt
 function warteAufKarte(){ return new Promise(function(ok){ var t = setTimeout(ok, 900); map.once('moveend', function(){ clearTimeout(t); setTimeout(ok, 120); }); }); }
 async function bewerteRegion(){
@@ -2089,7 +2108,7 @@ async function bewerteRegion(){
   var tagV = $('g-tag').value === 'trend' ? 0 : +$('g-tag').value, form = readForm();
   var latS = b.getSouth(), latN = b.getNorth(), lngW = b.getWest(), lngE = b.getEast();
   var dLat = (latN - latS) / NY, dLng = (lngE - lngW) / NX, zellM = Math.round(zellKm * 1000);
-
+ 
   // Baumarten: 2×2 Bildpunkte je Zelle — Zelle ist Wald, wenn mindestens 2 von 4 Wald sind; Art = häufigste
   var BR = null; note.textContent = 'Baumartenkarte …'; fort(.05);
   if(rollen.baum){ try{
@@ -2106,7 +2125,7 @@ async function bewerteRegion(){
     }}
   }catch(e){ merkeBlockade(e); } }
   if(!BR){ $('g-note').textContent = 'Baumartenkarte nicht lesbar — Überblick nicht möglich.'; rasterEnde(btn, 'Region bewerten'); return; }
-
+ 
   // Wetterraster G×G mit Höhe, danach bilinear zwischen den Stützpunkten
   var G = Math.max(6, Math.min(10, Math.round(Math.max(breiteKm, hoeheKm) / 10))), wp = [];
   for(var y = 0; y < G; y++) for(var x = 0; x < G; x++) wp.push([latN - (y + .5) * (latN - latS) / G, lngW + (x + .5) * (lngE - lngW) / G]);
@@ -2153,6 +2172,15 @@ async function bewerteRegion(){
   var v0 = {baum:'fichte', alter:'mittel', boden:'sauer', unter:form.unter, lage:'eben', rand:'innen', saison:form.saison, regen:form.regen, mm:form.mm};
   var WFT = null;   // WFT[tag][art][stützpunkt]
   if(WW){ WFT = []; for(var tg = 0; tg <= 3; tg++){ var WFx = {}; ARTEN.forEach(function(a){ WFx[a] = WW.map(function(w, k){ var wt = wetterAmTag(w, tg), h = WH ? WH[k] : null; return regenFaktorArt(a, v0, wt, h) * tempFaktor(a, wt.tmin, wt.tmax).f; }); }); WFT.push(WFx); } }
+  var MM7 = WW ? WW.map(function(w){ return w.tw.slice(-8).reduce(function(a, b){ return a + b; }, 0); }) : null;
+  var FEU = WW ? WW.map(function(w, k){ var S = wasserBilanz(w.tw, w.et0, WH ? WH[k] : null, 85, 'mittel', w.tmax); return S[S.length - 1]; }) : null;
+  function gridInterp(F, lat, lng){
+    if(!F) return null;
+    var gy = (latN - lat) / ((latN - latS) / G) - .5, gx = (lng - lngW) / ((lngE - lngW) / G) - .5;
+    var y0 = Math.max(0, Math.min(G - 1, Math.floor(gy))), x0 = Math.max(0, Math.min(G - 1, Math.floor(gx)));
+    var y1 = Math.min(G - 1, y0 + 1), x1 = Math.min(G - 1, x0 + 1), ty = Math.max(0, Math.min(1, gy - y0)), tx = Math.max(0, Math.min(1, gx - x0));
+    return (1-ty)*((1-tx)*F[y0*G+x0] + tx*F[y0*G+x1]) + ty*((1-tx)*F[y1*G+x0] + tx*F[y1*G+x1]);
+  }
   function wfInterp(a, lat, lng, tg){
     var WF = WFT ? WFT[tg] : null;
     if(!WF) return .7;
@@ -2163,7 +2191,7 @@ async function bewerteRegion(){
     return (1-ty)*((1-tx)*f[y0*G+x0] + tx*f[y0*G+x1]) + ty*((1-tx)*f[y1*G+x0] + tx*f[y1*G+x1]);
   }
   function hInterp(lat, lng){ if(!WH) return null; var best = 0, bd = 1e9; wp.forEach(function(p, k){ var d = (p[0]-lat)*(p[0]-lat) + (p[1]-lng)*(p[1]-lng)*0.45; if(d < bd){ bd = d; best = k; } }); return WH[best]; }
-
+ 
   // Boden auf 12×12 Stützstellen (nur Wald)
   var bodenGrid = {}, bodenOk = !!rollen.boden;
   if(bodenOk){
@@ -2180,7 +2208,7 @@ async function bewerteRegion(){
     if(!tr) bodenOk = false;
   }
   function bodenZelle(i, j){ var best = null, bd = 1e9; for(var key in bodenGrid){ var p = key.split(','), d = (p[0]-i)*(p[0]-i)+(p[1]-j)*(p[1]-j); if(d < bd){ bd = d; best = bodenGrid[key]; } } return best; }
-
+ 
   // Grundfaktoren × interpoliertes Wetter
   var zellen = [], sais = SAISON[form.saison];
   for(var i = 0; i < NY; i++) for(var j = 0; j < NX; j++){
@@ -2194,7 +2222,8 @@ async function bewerteRegion(){
       ARTEN.forEach(function(a){ var wf = wfInterp(a, lat, lng, tg); rr[a] = Math.round(Math.min(100 * sg[a] * wf * sais[a], deckel(v, a, wf, 1))); });
       rrT.push(rr);
     }
-    zellen.push({i:i, j:j, v:v, rr:rrT[Math.min(3, Math.max(0, +tagV || 0))], rrT:rrT, hoehe:hInterp(lat, lng), artText:BR[i][j].art || null, geschaetzt:!WW || !bodenOk, ll:L.latLng(lat, lng)});
+    zellen.push({i:i, j:j, v:v, rr:rrT[Math.min(3, Math.max(0, +tagV || 0))], rrT:rrT, hoehe:hInterp(lat, lng), artText:BR[i][j].art || null, geschaetzt:!WW || !bodenOk, ll:L.latLng(lat, lng),
+      mm7:gridInterp(MM7, lat, lng), feu:gridInterp(FEU, lat, lng)});
   }
   var hinweise = ['Lage „eben" und Struktur „innen" angenommen — Pin kann davon abweichen']; if(!WW) hinweise.push('Wetter fehlt'); if(!bodenOk) hinweise.push('Boden aus Formular');
   if(netz && netz.length) hinweise.push('Regen gemessen: ' + netz.length + ' DWD-Stationen, ' + netzTage + ' Tage interpoliert');
@@ -2220,7 +2249,9 @@ $('g-art').addEventListener('change', function(){
 });
 function regionMeldung(){
   var C = rasterCache; if(!C || !C.grob) return;
-  var art = $('r-art').value, min = +$('r-min').value, sc = function(z){ return art === 'best' ? Math.max(z.rr.pf, z.rr.st, z.rr.som) : z.rr[art]; };
+  var art = $('r-art').value, min = +$('r-min').value;
+  if(art === 'mm7' || art === 'feu'){ $('g-note').textContent = art === 'mm7' ? 'Wetterkarte: Regen der letzten 7 Tage aus dem Stationsnetz interpoliert (rot 0 mm → grün 40 mm+). Zelle antippen für den Wert.' : 'Wetterkarte: berechnete Streufeuchte heute (rot trocken → grün 25 mm voll). Zelle antippen für den Wert.'; return {n:0, top:0}; }
+  var sc = function(z){ return art === 'best' ? Math.max(z.rr.pf, z.rr.st, z.rr.som) : z.rr[art]; };
   var n = 0, top = 0, summe = 0, besser = 0, schlechter = 0;
   C.zellen.forEach(function(z){ var v = sc(z); summe += v; if(v > top) top = v; if(v >= min) n++; if(z.rrT){ var d = (art === 'best' ? Math.max(z.rrT[3].pf, z.rrT[3].st, z.rrT[3].som) : z.rrT[3][art]) - v; if(C.trend){ } if(d >= 8) besser++; else if(d <= -8) schlechter++; } });
   var t = C.zellen.length + ' Waldzellen à ' + (C.zellM / 1000).toFixed(1) + ' km · Bestwert ' + top + ' · Schnitt ' + Math.round(summe / C.zellen.length) + ' · ' + n + ' Zellen ab ' + min;
@@ -2264,7 +2295,7 @@ window.__spUmkreis = function(){ bewerteUmkreis(+$('u-r').value); };
 $('r-an').addEventListener('change', function(){ if(this.checked){ map.addLayer(rasterGruppe); if(rasterCache && rasterCache.grob) $('tagregler').style.display = 'block'; } else { map.removeLayer(rasterGruppe); $('tagregler').style.display = 'none'; } });
 $('r-deck').addEventListener('input', function(){ var d = this.value / 100; rasterGruppe.eachLayer(function(l){ if(l.setStyle) l.setStyle({fillOpacity: d * l.options.basis}); }); });
 $('r-weg').addEventListener('click', function(){ rasterGruppe.clearLayers(); umkreisGruppe.clearLayers(); rasterCache = null; letzteTop = []; $('u-save').style.display = 'none'; $('u-list').innerHTML = ''; $('tagregler').style.display = 'none'; $('r-layer').style.display = 'none'; $('r-note').textContent = 'Raster gelöscht.'; });
-
+ 
 // ============ Stellen ============
 var spots = [], spotGruppe = L.layerGroup().addTo(map);
 // Speicher: in der Claude-Vorschau window.storage, sonst (gehostet oder lokal) der Gerätespeicher des Browsers
@@ -2357,10 +2388,15 @@ $('export').addEventListener('click', function(){
     properties:{name:s.name, pfifferling:s.pf, fichtensteinpilz:s.st, sommersteinpilz:s.som, merkmale:s.v, fund:s.fund, besucht:s.besucht || null, quelle:s.quelle || 'manuell', wetterfaktor:s.wf || null, notiz:s.notiz || null, fingerprobe:s.finger || null}}; })};
   var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(gj, null, 2)], {type:'application/geo+json'})); a.download = 'schwammerl-stellen.geojson'; a.click();
 });
-
+ 
 update(); load();
 setTimeout(function(){ map.invalidateSize(); }, 200);
 })();
 </script>
 </body>
 </html>
+ 
+
+
+
+
