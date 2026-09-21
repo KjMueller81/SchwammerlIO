@@ -186,6 +186,9 @@
   @media (min-width:701px){ #tagregler{left:auto;right:12px;width:320px;bottom:24px} }
   #toast{position:fixed;left:50%;bottom:calc(70px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:#efeee6;color:#1d2119;padding:8px 14px;border-radius:8px;font-size:13px;z-index:2000;display:none;box-shadow:0 4px 14px rgba(0,0,0,.4);max-width:88vw}
   .leaflet-image-layer.weich{image-rendering:auto}
+  .rw table{width:100%;border-collapse:collapse;font-size:11.5px;margin:4px 0 8px;font-variant-numeric:tabular-nums}
+  .rw th,.rw td{padding:2px 4px;text-align:right;border-bottom:1px solid var(--linie)}
+  .rw td:first-child,.rw th:first-child{text-align:left;color:var(--papier-2)}
   .skala{margin-top:6px}
   .skala .balken{height:10px;border-radius:3px}
   .skala .marken{display:flex;justify-content:space-between;font-size:10px;color:var(--papier-2);margin-top:2px}
@@ -262,6 +265,7 @@
         <div><button class="act ghost" id="dbg-copy" style="margin-top:0">Bericht kopieren</button></div>
         <div><button class="act ghost" id="dbg-clear" style="margin-top:0">Protokoll leeren</button></div>
       </div>
+      <button class="act ghost" id="dbg-csv">Letztes Raster als CSV exportieren</button>
       <label class="inl" style="margin:8px 0"><input type="checkbox" id="dbg-show"> Protokoll anzeigen</label>
       <pre id="dbg-log" style="display:none;font-size:10.5px;line-height:1.35;background:var(--feld);border:1px solid var(--linie);border-radius:7px;padding:8px;max-height:240px;overflow:auto;white-space:pre-wrap;word-break:break-all;color:var(--papier-2)"></pre>
       <div class="note">
@@ -280,6 +284,8 @@
         <div class="card som"><div class="n" id="s-som">–</div><div class="k">Sommer&shy;steinpilz</div><div class="bar"><i id="b-som"></i></div><div class="t" id="t-som"></div></div>
       </div>
       <ul class="why" id="why"></ul>
+ 
+      <details id="rw-box"><summary style="cursor:pointer;color:var(--moos-hell);font-size:13px;margin:10px 0 4px">Rechenweg anzeigen</summary><div id="rechenweg" class="hint">Noch nichts berechnet.</div></details>
  
       <h2>Aus Karten &amp; Wetter erkannt</h2>
       <div class="row">
@@ -489,7 +495,7 @@ function zeigeDienste(){
   el.textContent = t.join(' · ') || 'Noch keine Datenabfrage.';
 }
 // ---- Protokoll ----
-var VERSION = '2026-09-22.7';
+var VERSION = '2026-09-22.9';
 var LOG = [];
 function logZeile(art, text){
   var z = new Date(), t = z.toTimeString().slice(0, 8) + '.' + String(z.getMilliseconds()).padStart(3, '0');
@@ -675,6 +681,18 @@ $('dbg-copy').addEventListener('click', async function(){
     if(navigator.share && MOBIL){ await navigator.share({title:'Schwammerl-Karte Diagnose', text:t}); return; }
     await navigator.clipboard.writeText(t); toast('Bericht in die Zwischenablage kopiert');
   }catch(e){ $('dbg-log').style.display = 'block'; $('dbg-show').checked = true; $('dbg-log').textContent = t; toast('Bericht unten angezeigt — markieren und kopieren'); }
+});
+$('dbg-csv').addEventListener('click', function(){
+  if(!rasterCache){ toast('Noch kein Raster berechnet.'); return; }
+  var C = rasterCache, z = ['lat;lng;baumart;bestand;boden;bodenquelle;lage;struktur;pf;st;som' + (C.grob ? ';pf_t1;st_t1;som_t1;pf_t3;st_t3;som_t3' : '') + ';regen7_mm;regenquelle;streufeuchte_mm;hoehe_m;geschaetzt'];
+  C.zellen.forEach(function(x){
+    var r = [x.ll.lat.toFixed(5), x.ll.lng.toFixed(5), (x.artText || LT[x.v.baum]), x.v.alter, x.v.boden, (x.bq || ''), x.v.lage, x.v.rand, x.rr.pf, x.rr.st, x.rr.som];
+    if(C.grob) r = r.concat(x.rrT ? [x.rrT[1].pf, x.rrT[1].st, x.rrT[1].som, x.rrT[3].pf, x.rrT[3].st, x.rrT[3].som] : ['', '', '', '', '', '']);
+    r = r.concat([x.mm7 !== null && x.mm7 !== undefined ? Math.round(x.mm7 * 10) / 10 : '', x.radZ ? 'Radar' : 'Station/Modell', x.feu !== null && x.feu !== undefined ? Math.round(x.feu * 10) / 10 : '', x.hoehe !== null && x.hoehe !== undefined ? Math.round(x.hoehe) : '', x.geschaetzt ? 1 : 0]);
+    z.push(r.map(function(c){ return String(c).replace(/;/g, ','); }).join(';'));
+  });
+  var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['\ufeff' + z.join('\n')], {type:'text/csv;charset=utf-8'})); a.download = 'schwammerl-raster-' + isoTag(new Date()) + '.csv'; a.click();
+  toast(C.zellen.length + ' Zellen exportiert');
 });
 $('dbg-clear').addEventListener('click', function(){ LOG = []; $('dbg-log').textContent = ''; toast('Protokoll geleert'); });
 $('dbg-show').addEventListener('change', function(){ var el = $('dbg-log'); el.style.display = this.checked ? 'block' : 'none'; if(this.checked){ el.textContent = LOG.slice(-120).join('\n'); el.scrollTop = el.scrollHeight; } });
@@ -961,6 +979,38 @@ function deckel(v, a, rf, tf){
   c = Math.min(c, interp(tf, [[.2,12],[.35,30],[.5,100]]));              // Temperatur-Deckel gleitend
   return c;
 }
+// Rechenweg: alle Zwischengrößen je Art, für Pin und Zelle
+function rechenweg(v, wt, hoehe, dichte, ohne){
+  var w = wt === undefined ? wetter : wt, out = {}, s = SAISON[v.saison];
+  ARTEN.forEach(function(a){
+    var fakt = {};
+    for(var k in GEW){ if(ohne && ohne.indexOf(k) >= 0) continue; var f = (k === 'boden' ? bodenGewicht(v, a) : W[k][v[k]][a]) / 10 * lernFaktor(k, v[k], a); fakt[k] = {wert:v[k], f:Math.round(f * 100) / 100, gew:GEW[k]}; }
+    var sg = standortGuete(v, a, ohne);
+    var tf = w ? tempFaktor(a, w.tmin, w.tmax) : {f:1, text:'kein Wetter'};
+    var wirk = w ? wirksamerRegen(a, w, 0, hoehe, dichte, v.alter) : null;
+    var rf = w ? regenFaktorArt(a, v, w, hoehe, dichte) : (reglerHand ? regenFaktorArt(a, v, null, hoehe) : .7);
+    var rfB = (!fingerprobe || hoehe !== hoehePunkt) ? Math.min(1, rf * bestandFeuchte(v)) : rf;
+    var roh = 100 * sg * rfB * tf.f * s[a], cap = deckel(v, a, rfB, tf.f);
+    out[a] = {faktoren:fakt, standort:Math.round(sg * 100) / 100, wirksam:wirk === null ? null : Math.round(wirk), regen:Math.round(rfB * 100) / 100, temp:Math.round(tf.f * 100) / 100, tempText:tf.text, saison:s[a], roh:Math.round(roh), deckel:Math.round(cap), ergebnis:Math.round(Math.min(roh, cap)), unsicher:w && w.unsicher ? Math.round(w.unsicher * 100) : 0};
+  });
+  return out;
+}
+function rechenwegHtml(rw, titel){
+  var h = '<div class="rw"><b>' + titel + '</b><table><tr><th></th>' + ARTEN.map(function(a){ return '<th>' + ARTKURZ[a] + '</th>'; }).join('') + '</tr>';
+  var zeile = function(name, fn){ return '<tr><td>' + name + '</td>' + ARTEN.map(function(a){ return '<td>' + fn(rw[a]) + '</td>'; }).join('') + '</tr>'; };
+  var NK = {baum:'Baumart', boden:'Boden', unter:'Unterwuchs', lage:'Lage', alter:'Bestand', rand:'Struktur'};
+  for(var k in GEW){ if(!rw.pf.faktoren[k]) continue; h += zeile(NK[k] + ' (' + rw.pf.faktoren[k].wert + ')', function(x){ return x.faktoren[k].f; }); }
+  h += zeile('<b>Standortgüte</b>', function(x){ return '<b>' + x.standort + '</b>'; });
+  h += zeile('wirksamer Regen', function(x){ return x.wirksam === null ? '–' : x.wirksam + ' mm'; });
+  h += zeile('Regenfaktor', function(x){ return x.regen; });
+  h += zeile('Temperatur', function(x){ return x.temp; });
+  h += zeile('Saison', function(x){ return x.saison; });
+  h += zeile('roh', function(x){ return x.roh; });
+  h += zeile('Deckel', function(x){ return x.deckel < 100 ? x.deckel : '–'; });
+  h += zeile('<b>Ergebnis</b>', function(x){ return '<b>' + x.ergebnis + '</b>'; });
+  h += '</table><div class="hint">' + (rw.st.tempText || '') + (rw.st.unsicher ? ' · Regen unsicher ' + rw.st.unsicher + ' %' : '') + '</div></div>';
+  return h;
+}
 function bewerte(v, wt, hoehe, ohne, dichte){
   var w = wt === undefined ? wetter : wt, out = {}, s = SAISON[v.saison];
   ARTEN.forEach(function(a){
@@ -1133,7 +1183,10 @@ function update(){
   var ul = $('why'); ul.innerHTML = '';
   begruendung(v, r).forEach(function(t){ var li = document.createElement('li'); li.textContent = t; ul.appendChild(li); });
   if(pin && pin.getPopup() && pin.isPopupOpen()) pin.setPopupContent(pinPopupHtml(''));
+  if(pos && $('rw-box').open){ try{ $('rechenweg').innerHTML = rechenwegHtml(rechenweg(v, undefined, hoehePunkt, dichtePunkt), 'Pin') + (letzteZelle ? rechenwegHtml(letzteZelle.rw, 'Zelle ' + letzteZelle.titel) : ''); }catch(e){ $('rechenweg').textContent = 'Rechenweg: ' + (e.message || e); } }
 }
+var letzteZelle = null;
+$('rw-box').addEventListener('toggle', function(){ if(this.open) update(); });
 (function(){ // Saison nach Datum
   var mon = new Date().getMonth() + 1, sommer = mon >= 6 && mon <= 8;
   $('f-saison').value = sommer ? 'sommer' : 'herbst';
@@ -1304,6 +1357,7 @@ map.on('click', function(e){
     var C = rasterCache, i = Math.floor((C.latN - e.latlng.lat) / C.dLat), j = Math.floor((e.latlng.lng - C.lngW) / C.dLng);
     var z = C.zellen.find(function(x){ return x.i === i && x.j === j; });
     if(z){ var art = $('r-art').value, sc = function(rr){ return art === 'best' ? Math.max(rr.pf, rr.st, rr.som) : rr[art]; };
+      try{ letzteZelle = {titel:(z.artText || LT[z.v.baum]) + ' / ' + LB[z.v.boden] + (z.mm7 !== null && z.mm7 !== undefined ? ' / ' + Math.round(z.mm7) + ' mm' : ''), rw:(function(){ var rw = rechenweg(z.v, null, z.hoehe, 85); ARTEN.forEach(function(a){ rw[a].ergebnis = z.rr[a]; rw[a].wirksam = z.mm7 !== null && z.mm7 !== undefined ? Math.round(z.mm7) : null; rw[a].tempText = 'Zelle: Regen/Temperatur aus dem Überblick, Standortfaktoren wie Pin-Formel'; }); return rw; })()}; }catch(e){}
       toast('Zelle: ' + (z.artText || LT[z.v.baum]) + ' · Boden ' + LB[z.v.boden] + (z.bq ? ' [' + z.bq + ']' : '') + ' · Pf ' + z.rr.pf + ' St ' + z.rr.st + ' So ' + z.rr.som + (z.mm7 !== null && z.mm7 !== undefined ? ' · Regen 7 T ' + Math.round(z.mm7) + ' mm' + (z.radZ ? ' (Radar)' : ' (Station)') : '') + (rasterCache.trend && z.rrT ? ' · heute ' + sc(z.rrT[0]) + ' → +3 T ' + sc(z.rrT[3]) : '')); }
   }
   setzePunkt(e.latlng);
@@ -1589,8 +1643,9 @@ var stationsCache = {};   // id → {tage:{datum:mm}, lat, lon, name}
 async function stationsNetz(mitte, radiusKm, melde){
   var res = await fetch('https://api.brightsky.dev/sources?lat=' + mitte.lat.toFixed(4) + '&lon=' + mitte.lng.toFixed(4) + '&max_dist=' + Math.round((radiusKm + 20) * 1000));
   var j = await res.json().catch(function(){ return {}; }); if(!res.ok || !j.sources) throw new Error('Stationsliste ' + res.status);
+  var maxSt = Math.max(14, Math.min(60, Math.round(radiusKm / 4)));          // 25 km → 14, 100 km → 25, 200 km → 50
   var st = j.sources.filter(function(x){ return x.observation_type === 'historical' && x.lat && x.lon; })
-    .sort(function(a, b){ return (a.distance || 0) - (b.distance || 0); }).slice(0, 14);
+    .sort(function(a, b){ return (a.distance || 0) - (b.distance || 0); }).slice(0, maxSt);
   var von = new Date(); von.setDate(von.getDate() - 35);
   var fertig = 0, out = [];
   var erg = await pool(st.map(function(x){ return async function(){
@@ -1610,11 +1665,11 @@ async function stationsNetz(mitte, radiusKm, melde){
 var stationsMaxAm = null;   // wird je Überblick gesetzt: datum → höchste Tagessumme im Stationsnetz
 // Gemessene Tagessumme an einem Punkt: Inverse-Distanz-Gewichtung über Stationen bis 40 km (null, wenn keine nah genug)
 // Stetige Gewichtung: nahe Stationen dominieren, ohne Sprung; Reichweite 25 km
-function stationsRegenAm(lat, lng, datum, netz){
-  var sw = 0, sv = 0, nah = 0, hier = L.latLng(lat, lng);
+function stationsRegenAm(lat, lng, datum, netz, reichweite){
+  var sw = 0, sv = 0, nah = 0, hier = L.latLng(lat, lng), rw = reichweite || 25;
   netz.forEach(function(x){
     var t = x.tage[datum]; if(!t || t.n < 12) return;
-    var d = map.distance(hier, L.latLng(x.lat, x.lon)) / 1000; if(d > 25) return;
+    var d = map.distance(hier, L.latLng(x.lat, x.lon)) / 1000; if(d > rw) return;
     var g = 1 / (d * d + 2); sw += g; sv += g * t.p; nah++;
   });
   return nah ? sv / sw : null;
@@ -1896,8 +1951,11 @@ async function zeichneRegenfeld(){
   regenLaeuft = true;
   try{
     var b = map.getBounds(), mitte = b.getCenter(), rKm = Math.max(map.distance(b.getNorthWest(), b.getNorthEast()), map.distance(b.getNorthWest(), b.getSouthWest())) / 2000;
-    var netz = await stationsNetz(mitte, Math.min(120, rKm + 10));
+    if(rKm > 175){ $('regen-note').textContent = 'Ausschnitt zu groß (' + Math.round(rKm * 2) + ' km) — auf unter 350 km Breite hineinzoomen.'; if(regenOverlay){ map.removeLayer(regenOverlay); regenOverlay = null; } regenLaeuft = false; return; }
+    $('regen-note').textContent = 'Stationen werden geladen …';
+    var netz = await stationsNetz(mitte, Math.min(180, rKm + 15));
     if(!netz.length){ $('regen-note').textContent = 'Keine Stationsdaten für diesen Ausschnitt.'; regenLaeuft = false; return; }
+    var reichweite = Math.max(25, Math.min(70, rKm * 0.5));                   // größerer Ausschnitt → weitere Interpolation
     var tage = +$('regen-tage').value, heute = new Date(); heute.setHours(12, 0, 0, 0);
     var daten = []; for(var t = 1; t <= tage; t++) daten.push(isoTag(new Date(heute.getTime() - t * 864e5)));
     var NX = 72, NY = Math.max(24, Math.round(72 * map.distance(b.getNorthWest(), b.getSouthWest()) / map.distance(b.getNorthWest(), b.getNorthEast())));
@@ -1905,7 +1963,7 @@ async function zeichneRegenfeld(){
     var cv = document.createElement('canvas'); cv.width = NX; cv.height = NY; var cx = cv.getContext('2d'), img = cx.createImageData(NX, NY), d = img.data, mx = 0;
     for(var i = 0; i < NY; i++) for(var j = 0; j < NX; j++){
       var lat = latN - (i + .5) * dLat, lng = lngW + (j + .5) * dLng, sum = 0, ok = false;
-      for(var k = 0; k < daten.length; k++){ var v = stationsRegenAm(lat, lng, daten[k], netz); if(v !== null){ sum += v; ok = true; } }
+      for(var k = 0; k < daten.length; k++){ var v = stationsRegenAm(lat, lng, daten[k], netz, reichweite); if(v !== null){ sum += v; ok = true; } }
       var o = (i * NX + j) * 4; if(!ok) continue;
       if(sum > mx) mx = sum;
       var f = farbeGrob(Math.min(100, sum * 2.5)).match(/\d+/g); d[o] = +f[0]; d[o+1] = +f[1]; d[o+2] = +f[2]; d[o+3] = 255;
@@ -1915,7 +1973,7 @@ async function zeichneRegenfeld(){
     try{ bx.filter = 'blur(' + (F * .8) + 'px)'; }catch(e){} bx.drawImage(cv, 0, 0, NX * F, NY * F);
     if(regenOverlay) map.removeLayer(regenOverlay);
     regenOverlay = L.imageOverlay(big.toDataURL('image/png'), b, {opacity:+$('o-regen').value / 100, interactive:false}).addTo(map);
-    $('regen-note').textContent = netz.length + ' Stationen · Höchstwert im Ausschnitt ' + Math.round(mx) + ' mm in ' + tage + ' Tagen · Tipp auf die Karte zeigt den Wert am Pin.';
+    $('regen-note').textContent = netz.length + ' Stationen, Reichweite ' + Math.round(reichweite) + ' km · Höchstwert im Ausschnitt ' + Math.round(mx) + ' mm in ' + tage + ' Tagen. Stärker hineinzoomen = mehr Stationen je Fläche, genaueres Bild.';
   }catch(e){ $('regen-note').textContent = 'Regenfeld nicht berechenbar: ' + (e.message || e); }
   regenLaeuft = false;
 }
