@@ -1571,7 +1571,7 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-25.5";
+        var VERSION = "2026-09-25.6";
         // Radar nur als Kartenebene; in der Bewertung zu unzuverlässig (gelernte Farbskala, leere Bilder)
         var RADAR_IM_MODELL = false;
         var LOG = [];
@@ -6259,9 +6259,15 @@
           var cx = cv.getContext("2d"),
             img = cx.createImageData(FX, FY),
             d = img.data,
+            maske = document.createElement("canvas"),
             n = 0,
             top = 0,
             gezeigt = 0;
+          maske.width = FX;
+          maske.height = FY;
+          var mx = maske.getContext("2d"),
+            mImg = mx.createImageData(FX, FY),
+            md = mImg.data;
           for (var fy = 0; fy < FY; fy++)
             for (var fx = 0; fx < FX; fx++) {
               var w = zweiWertAn(C, modus, art, fy, fx);
@@ -6291,15 +6297,23 @@
               d[o + 1] = +m[1];
               d[o + 2] = +m[2];
               d[o + 3] = Math.round(alpha * 255);
+              md[o + 3] = 255;
             }
           cx.putImageData(img, 0, 0);
+          mx.putImageData(mImg, 0, 0);
           var big = document.createElement("canvas");
           big.width = FX * 2;
           big.height = FY * 2;
           var bx = big.getContext("2d");
+          bx.imageSmoothingEnabled = false;
+          bx.drawImage(cv, 0, 0, FX * 2, FY * 2); // Grundfarbe, volle Deckung bis zur Kante
           bx.imageSmoothingEnabled = true;
           bx.imageSmoothingQuality = "high";
-          bx.drawImage(cv, 0, 0, FX * 2, FY * 2);
+          bx.drawImage(cv, 0, 0, FX * 2, FY * 2); // Farben innen geglättet
+          bx.imageSmoothingEnabled = false; // Kanten hart: ungeglättete Maske
+          bx.globalCompositeOperation = "destination-in";
+          bx.drawImage(maske, 0, 0, FX * 2, FY * 2);
+          bx.globalCompositeOperation = "source-over";
           big = inMercator(big, C.latN, C.latS);
           var bnd = L.latLngBounds([C.latS, C.lngW], [C.latN, C.lngE]);
           bildOverlay = L.imageOverlay(big.toDataURL("image/png"), bnd, {
@@ -6600,7 +6614,8 @@
           try {
             bx.filter = "none";
           } catch (e) {}
-          bx.globalCompositeOperation = "destination-in"; // nichts außerhalb des Waldes
+          bx.globalCompositeOperation = "destination-in"; // nichts außerhalb des Waldes, harte Kante
+          bx.imageSmoothingEnabled = false;
           bx.drawImage(cv, 0, 0, NX * F, NY * F);
           bx.globalCompositeOperation = "source-over";
           var b = L.latLngBounds([C.latN - NY * C.dLat, C.lngW], [C.latN, C.lngW + NX * C.dLng]);
@@ -6635,6 +6650,9 @@
               (C.FX + "×" + C.FY) +
               " Feinpixel · bestes Produkt " +
               zs.top +
+              (C.FS.unbekannt
+                ? " · " + C.FS.unbekannt + " Waldpixel mit unbekannter Bodenfarbe (Formularwert)"
+                : "") +
               (C.hinweise.length ? " — " + C.hinweise.join(", ") : "");
             return;
           }
@@ -8004,6 +8022,70 @@
                 for (var k in l.n) if (!best || l.n[k] > l.n[best]) best = k;
                 l.wert = best;
               });
+              // Gezielt nachlernen: häufige Bodenfarben ohne Zuordnung an je einem Beispielpunkt abfragen
+              var unbek = {};
+              for (var q2 = 0; q2 < BPX * BPY; q2 += 3) {
+                var o3 = q2 * 4;
+                if (BPfull[o3 + 3] < 128) continue;
+                var r3 = BPfull[o3],
+                  g3 = BPfull[o3 + 1],
+                  b3 = BPfull[o3 + 2];
+                var bekannt = legende.some(function (l) {
+                  return Math.abs(l.rgb[0] - r3) + Math.abs(l.rgb[1] - g3) + Math.abs(l.rgb[2] - b3) < 36;
+                });
+                if (bekannt) continue;
+                var k3 = (r3 >> 3) + "," + (g3 >> 3) + "," + (b3 >> 3);
+                if (!unbek[k3]) unbek[k3] = { n: 0, q: q2, rgb: [r3, g3, b3] };
+                unbek[k3].n++;
+              }
+              var liste = Object.keys(unbek)
+                .map(function (k) {
+                  return unbek[k];
+                })
+                .filter(function (u) {
+                  return u.n >= 12;
+                })
+                .sort(function (a, b) {
+                  return b.n - a.n;
+                })
+                .slice(0, 24);
+              if (liste.length) {
+                note.textContent = "Boden: " + liste.length + " unbekannte Kartenfarben nachlernen …";
+                var nachgelernt = 0;
+                await pool(
+                  liste.map(function (u) {
+                    return async function () {
+                      var sy = Math.floor(u.q / BPX),
+                        sx = u.q % BPX;
+                      var llU = L.latLng(
+                        latN - ((sy + 0.5) * (latN - latS)) / BPY,
+                        lngW + ((sx + 0.5) * (lngE - lngW)) / BPX,
+                      );
+                      var bdU = null;
+                      try {
+                        bdU = bodenDeuten(await featureInfo(rollen.boden.url, rollen.boden.layer, llU));
+                      } catch (e) {}
+                      if (bdU) {
+                        var nU = {};
+                        nU[bdU.wert] = 1;
+                        legende.push({ rgb: u.rgb, n: nU, wert: bdU.wert });
+                        nachgelernt++;
+                      }
+                    };
+                  }),
+                  6,
+                );
+                logZeile(
+                  "BOD",
+                  "Legende nachgelernt: " +
+                    nachgelernt +
+                    " von " +
+                    liste.length +
+                    " Farben, jetzt " +
+                    legende.length +
+                    " Einheiten",
+                );
+              }
             } catch (e) {
               BP = null;
             }
@@ -8043,6 +8125,8 @@
                   letzteQuelle = "Kartenfarbe";
                   return best.wert;
                 }
+                letzteQuelle = "Kartenfarbe unbekannt → Formular";
+                return null;
               }
             }
             var k = bodenNaechsteKey(i, j);
@@ -8249,7 +8333,8 @@
               baum: new Array(FX * FY),
               boden: new Array(FX * FY),
             };
-            var sgCache = {};
+            var sgCache = {},
+              unbekanntF = 0;
             for (var fy = 0; fy < FY; fy++)
               for (var fx = 0; fx < FX; fx++) {
                 var qf = fy * FX + fx,
@@ -8264,10 +8349,11 @@
                   cjF = Math.min(NX - 1, Math.floor(((fx + 0.5) * NX) / FX));
                 var boF = null;
                 if (bodenOk)
-                  boF =
-                    bodenTeil(ciF, cjF, ((fy + 0.5) * NY) / FY - ciF, ((fx + 0.5) * NX) / FX - cjF) ||
-                    bodenNaechste(ciF, cjF);
-                boF = boF || form.boden;
+                  boF = bodenTeil(ciF, cjF, ((fy + 0.5) * NY) / FY - ciF, ((fx + 0.5) * NX) / FX - cjF);
+                if (!boF) {
+                  unbekanntF++;
+                  boF = form.boden;
+                }
                 var keyF = bmF + "|" + boF;
                 if (!sgCache[keyF]) {
                   var vvF = {
@@ -8354,6 +8440,7 @@
                 }
               }
           }
+          if (FS && typeof unbekanntF === "number" && unbekanntF) FS.unbekannt = unbekanntF;
           var hinweise = [
             "Zelle = beste ihrer bis zu 4 Teilflächen (Baumart + Boden je Teilfläche)",
             'Lage „eben" und Struktur „innen" angenommen',
