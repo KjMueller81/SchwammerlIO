@@ -1329,8 +1329,20 @@
               </div>
               <label for="g-min">Zellen zeigen ab Bewertung <b id="g-min-v">40</b></label>
               <input type="range" id="g-min" min="0" max="80" step="5" value="40" />
+              <label for="g-modus">Darstellung</label>
+              <select id="g-modus">
+                <option value="zwei" selected>
+                  Wetter × Standort (Farbe = Wetter, Deckkraft = Standort)
+                </option>
+                <option value="wetter">Nur Wetterpotenzial (flächig)</option>
+                <option value="standort">Nur Standortgüte (fein, ohne Wetter)</option>
+                <option value="zellen">Zellen wie bisher (beste Teilfläche)</option>
+              </select>
               <button class="act" id="g-los">Region bewerten</button>
               <div class="note" id="g-note">Noch nicht berechnet.</div>
+              <button class="act ghost" id="g-stich">
+                Stichproben prüfen (echte Pin-Rechnung, bis 60 Punkte)
+              </button>
             </details>
             <details class="grp">
               <summary>Feinraster für den sichtbaren Ausschnitt</summary>
@@ -1551,7 +1563,7 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-25.2";
+        var VERSION = "2026-09-25.3";
         // Radar nur als Kartenebene; in der Bewertung zu unzuverlässig (gelernte Farbskala, leere Bilder)
         var RADAR_IM_MODELL = false;
         var LOG = [];
@@ -3898,7 +3910,27 @@
             map.closePopup();
             return;
           } // erster Tipp schließt nur
-          if (bildOverlay && rasterCache && rasterCache.grob) {
+          if (bildOverlay && rasterCache && rasterCache.grob && rasterCache.FS && zweiModus() !== "zellen") {
+            var CZ = rasterCache,
+              fyT = Math.floor(((CZ.latN - e.latlng.lat) / (CZ.latN - CZ.latS)) * CZ.FY),
+              fxT = Math.floor(((e.latlng.lng - CZ.lngW) / (CZ.lngE - CZ.lngW)) * CZ.FX);
+            if (fyT >= 0 && fxT >= 0 && fyT < CZ.FY && fxT < CZ.FX) {
+              var wT = zweiWertAn(CZ, "zwei", $("r-art").value, fyT, fxT),
+                qT = fyT * CZ.FX + fxT;
+              toast(
+                ARTNAME[wT.a] +
+                  ": Wetterpotenzial " +
+                  Math.round(wT.pot) +
+                  " × Standort " +
+                  (wT.wald
+                    ? wT.sg + " % (" + (CZ.FS.baum[qT] || "Wald") + ", " + (CZ.FS.boden[qT] || "?") + ")"
+                    : "— kein Wald") +
+                  " → etwa " +
+                  Math.round(wT.prod) +
+                  " auf ebenem Grund im Bestandsinneren. Der Pin ergänzt Hang, Rand und Kronendichte.",
+              );
+            }
+          } else if (bildOverlay && rasterCache && rasterCache.grob) {
             // Zelle unter dem Tipp im Flächenbild
             var C = rasterCache,
               i = Math.floor((C.latN - e.latlng.lat) / C.dLat),
@@ -5817,6 +5849,283 @@
           c.dispatchEvent(new Event("change"));
         });
 
+        // ============ Überblick als zwei Ebenen: Wetterpotenzial × Standortgüte ============
+        function zweiModus() {
+          var el = $("g-modus");
+          return el ? el.value : "zellen";
+        }
+        function potAn(C, tg, a, fy, fx) {
+          var GN = C.GN,
+            gy = ((fy + 0.5) / C.FY) * GN - 0.5,
+            gx = ((fx + 0.5) / C.FX) * GN - 0.5;
+          var y0 = Math.max(0, Math.min(GN - 1, Math.floor(gy))),
+            x0 = Math.max(0, Math.min(GN - 1, Math.floor(gx)));
+          var y1 = Math.min(GN - 1, y0 + 1),
+            x1 = Math.min(GN - 1, x0 + 1),
+            ty = Math.max(0, Math.min(1, gy - y0)),
+            tx = Math.max(0, Math.min(1, gx - x0));
+          var F = C.GW[tg][a];
+          return (
+            (1 - ty) * ((1 - tx) * F[y0 * GN + x0] + tx * F[y0 * GN + x1]) +
+            ty * ((1 - tx) * F[y1 * GN + x0] + tx * F[y1 * GN + x1])
+          );
+        }
+        // Wert an einem Feinpixel: gewählte Art (bei "beste" die mit dem höchsten Produkt), Wetter, Standort, Produkt
+        function zweiWertAn(C, modus, art, fy, fx) {
+          var q = fy * C.FX + fx,
+            wald = C.FS.pf[q] !== 255,
+            tg = C.tagIdx || 0;
+          var arten = art === "pf" || art === "st" || art === "som" ? [art] : ARTEN;
+          var best = null;
+          arten.forEach(function (a) {
+            var sg = wald ? C.FS[a][q] : 0,
+              pot = C.GW ? potAn(C, tg, a, fy, fx) : 70,
+              diff = C.trend && C.GW ? potAn(C, 3, a, fy, fx) - potAn(C, 0, a, fy, fx) : 0,
+              prod = (pot * sg) / 100,
+              key = modus === "wetter" ? pot : modus === "standort" ? sg : prod;
+            if (!best || key > best.key)
+              best = { a: a, sg: sg, pot: pot, prod: prod, diff: diff, key: key, wald: wald };
+          });
+          return best;
+        }
+        function zeichneZweiEbenen(C, modus, art, min, deck) {
+          var FX = C.FX,
+            FY = C.FY,
+            cv = document.createElement("canvas");
+          cv.width = FX;
+          cv.height = FY;
+          var cx = cv.getContext("2d"),
+            img = cx.createImageData(FX, FY),
+            d = img.data,
+            n = 0,
+            top = 0,
+            gezeigt = 0;
+          for (var fy = 0; fy < FY; fy++)
+            for (var fx = 0; fx < FX; fx++) {
+              var w = zweiWertAn(C, modus, art, fy, fx);
+              if (!w.wald && modus !== "wetter") continue;
+              if (w.wald) {
+                n++;
+                if (w.prod > top) top = w.prod;
+              }
+              var farbe, alpha;
+              if (modus === "standort") {
+                farbe = farbeGrob(w.sg);
+                alpha = 1;
+              } else {
+                farbe = C.trend
+                  ? farbeGrob(50 + Math.max(-50, Math.min(50, w.diff * 1.4)))
+                  : farbeGrob(w.pot);
+                if (modus === "wetter") alpha = w.wald ? 1 : 0.5;
+                else {
+                  if (w.prod < min) continue;
+                  alpha = Math.max(0.12, Math.min(1, (w.sg - 35) / 55));
+                }
+              }
+              if (w.wald && (modus === "standort" || w.prod >= min)) gezeigt++;
+              var m = farbe.match(/\d+/g),
+                o = (fy * FX + fx) * 4;
+              d[o] = +m[0];
+              d[o + 1] = +m[1];
+              d[o + 2] = +m[2];
+              d[o + 3] = Math.round(alpha * 255);
+            }
+          cx.putImageData(img, 0, 0);
+          var big = document.createElement("canvas");
+          big.width = FX * 2;
+          big.height = FY * 2;
+          var bx = big.getContext("2d");
+          bx.imageSmoothingEnabled = true;
+          bx.imageSmoothingQuality = "high";
+          bx.drawImage(cv, 0, 0, FX * 2, FY * 2);
+          var bnd = L.latLngBounds([C.latS, C.lngW], [C.latN, C.lngE]);
+          bildOverlay = L.imageOverlay(big.toDataURL("image/png"), bnd, {
+            opacity: deck,
+            interactive: false,
+            className: "weich",
+          });
+          rasterGruppe.addLayer(bildOverlay);
+          return { n: n, top: Math.round(top), gezeigt: gezeigt };
+        }
+        function zweiText(modus) {
+          return modus === "wetter"
+            ? "Wetterpotenzial: Was ein idealer Fichtenstandort hier heute wert wäre (rot schlecht → grün gut). Ändert sich über Kilometer."
+            : modus === "standort"
+              ? "Standortgüte ohne Wetter: Baumart, Boden, Unterwuchs aus dem Formular (rot ungeeignet → grün ideal). Etwa 100–200 m Auflösung."
+              : "Farbe = Wetterpotenzial, Deckkraft = Standortgüte. Kräftig grün = gutes Wetter auf gutem Wald; blass = Wetter gut, Wald weniger. Pin ≈ Wetter × Standort, dazu Hang und Struktur.";
+        }
+        // Stichproben: echte Pin-Rechnung an bis zu 60 Waldpunkten
+        var stichGruppe = L.layerGroup().addTo(map);
+        async function stichproben() {
+          var C = rasterCache;
+          if (!C || !C.grob) {
+            toast("Erst einen Überblick rechnen.");
+            return;
+          }
+          if (rasterLaeuft) return;
+          var btn = $("g-stich");
+          rasterLaeuft = true;
+          btn.disabled = true;
+          ladeZeigen("Stichproben …");
+          stichGruppe.clearLayers();
+          try {
+            var kand = C.zellen.filter(function (z) {
+              return z.w;
+            });
+            var N = Math.min(60, kand.length),
+              schritt = kand.length / Math.max(1, N),
+              pts = [];
+            for (var k = 0; k < N; k++) pts.push(kand[Math.floor(k * schritt + schritt / 2)]);
+            var hp = [];
+            pts.forEach(function (z) {
+              var ll = z.ll,
+                dLat = 200 / 111320,
+                dLng = 200 / (111320 * Math.cos((ll.lat * Math.PI) / 180));
+              hp.push(
+                [ll.lat, ll.lng],
+                [ll.lat + dLat, ll.lng],
+                [ll.lat - dLat, ll.lng],
+                [ll.lat, ll.lng + dLng],
+                [ll.lat, ll.lng - dLng],
+              );
+            });
+            var H = null;
+            try {
+              H = await hoehenViele(hp, function (a, b) {
+                $("l-text").textContent = "Stichproben: Höhen " + a + " / " + b;
+              });
+            } catch (e) {}
+            var fertig = 0,
+              f0 = readForm();
+            var erg = await pool(
+              pts.map(function (z, k) {
+                return async function () {
+                  var ll = z.ll,
+                    bo = null,
+                    bt = null,
+                    tcd = null;
+                  try {
+                    if (rollen.boden)
+                      bo = bodenDeuten(await featureInfo(rollen.boden.url, rollen.boden.layer, ll));
+                  } catch (e) {}
+                  try {
+                    bt = await baumAmPunkt(ll);
+                  } catch (e) {}
+                  try {
+                    tcd = await kronendichte(ll);
+                  } catch (e) {}
+                  fertig++;
+                  fort(fertig / pts.length);
+                  $("l-text").textContent = "Stichproben " + fertig + " / " + pts.length;
+                  if (bt && !bt.wert && /kein Wald/.test(bt.text)) return { z: z, keinWald: true };
+                  var h5 = H ? H.slice(k * 5, k * 5 + 5) : null,
+                    lage = h5 ? lageAusHoehen(h5).wert : "eben";
+                  var baum = bt && bt.wert ? bt.wert : z.v.baum;
+                  if (baum === "fichte" && tcd !== null && tcd < 80) baum = "fichte_licht";
+                  var v = {
+                    baum: baum,
+                    alter: f0.alter,
+                    boden: bo ? bo.wert : z.v.boden,
+                    unter: f0.unter,
+                    lage: lage,
+                    rand: (bt && bt.rand) || "innen",
+                    saison: f0.saison,
+                    regen: 0,
+                    mm: 0,
+                  };
+                  var r = bewerte(v, z.w, h5 ? h5[0] : z.hoehe, undefined, tcd === null ? 85 : tcd);
+                  return { z: z, v: v, r: r, h: h5 ? h5[0] : null, tcd: tcd, art: bt ? bt.text : null };
+                };
+              }),
+              4,
+            );
+            var art = $("r-art").value,
+              sc = function (rr) {
+                return art === "pf" || art === "st" || art === "som"
+                  ? rr[art]
+                  : Math.max(rr.pf, rr.st, rr.som);
+              },
+              abw = [];
+            erg.forEach(function (e) {
+              if (!e) return;
+              if (e.keinWald) {
+                L.circleMarker(e.z.ll, {
+                  radius: 5,
+                  color: "#fff",
+                  weight: 1,
+                  fillColor: "#777",
+                  fillOpacity: 0.8,
+                })
+                  .bindPopup("Stichprobe: kein Wald am Punkt")
+                  .addTo(stichGruppe);
+                return;
+              }
+              var s1 = sc(e.r),
+                zs = sc(e.z.rr);
+              abw.push(s1 - zs);
+              L.circleMarker(e.z.ll, {
+                radius: 7,
+                color: "#fff",
+                weight: 2,
+                fillColor: farbeStetig(s1),
+                fillOpacity: 1,
+              })
+                .bindPopup(
+                  "<b>Stichprobe " +
+                    s1 +
+                    "</b> (Zelle " +
+                    zs +
+                    ")<br>" +
+                    (e.art || LT[e.v.baum]) +
+                    " · " +
+                    bodenLabel(e.v) +
+                    " · " +
+                    LG[e.v.lage] +
+                    (e.v.rand !== "innen" ? ", " + LR[e.v.rand] : "") +
+                    (e.h !== null ? " · " + Math.round(e.h) + " m" : "") +
+                    (e.tcd !== null ? " · Kronen " + Math.round(e.tcd) + " %" : "") +
+                    "<br>Pf " +
+                    e.r.pf +
+                    " · St " +
+                    e.r.st +
+                    " · So " +
+                    e.r.som +
+                    '<br><a href="#" onclick="window.__spPinHier(' +
+                    e.z.ll.lat.toFixed(6) +
+                    "," +
+                    e.z.ll.lng.toFixed(6) +
+                    ');return false;" style="color:#7ea262">Pin hier setzen</a>',
+                )
+                .addTo(stichGruppe);
+            });
+            var mw = abw.length
+                ? abw.reduce(function (a, b) {
+                    return a + b;
+                  }, 0) / abw.length
+                : 0,
+              mabs = abw.length
+                ? abw.reduce(function (a, b) {
+                    return a + Math.abs(b);
+                  }, 0) / abw.length
+                : 0;
+            $("g-note").textContent =
+              abw.length +
+              " Stichproben mit echter Pin-Rechnung (Boden, Baumart, Hang, Kronendichte am Punkt) · im Mittel " +
+              (mw >= 0 ? "+" : "") +
+              Math.round(mw) +
+              " gegenüber der Zelle, mittlere Abweichung " +
+              Math.round(mabs) +
+              " Punkte. Punkte antippen für Details.";
+            toast(abw.length + " Stichproben fertig");
+          } catch (e) {
+            toast("Stichproben abgebrochen: " + (e.message || e));
+          } finally {
+            fort(null);
+            rasterLaeuft = false;
+            btn.disabled = false;
+          }
+        }
+
         // ============ Bereich bewerten ============
         var rasterGruppe = L.layerGroup().addTo(map),
           rasterLaeuft = false;
@@ -5947,6 +6256,17 @@
             trend = !!C.trend;
           rasterGruppe.clearLayers();
           bildOverlay = null;
+          if (grob && C.FS && zweiModus() !== "zellen") {
+            var zs = zeichneZweiEbenen(C, zweiModus(), art, min, deck);
+            $("r-note").textContent =
+              zweiText(zweiModus()) +
+              " · " +
+              (C.FX + "×" + C.FY) +
+              " Feinpixel · bestes Produkt " +
+              zs.top +
+              (C.hinweise.length ? " — " + C.hinweise.join(", ") : "");
+            return;
+          }
           if (grob && $("r-weich").checked) {
             var st = zeichneWeich(C, art, min, deck, trend);
             $("r-note").textContent =
@@ -7539,6 +7859,130 @@
                 radZ: radZ,
               });
             }
+          // ---- Zwei-Ebenen-Darstellung: Standortgüte fein (ohne Wetter) und Wetterpotenzial flächig ----
+          var FS = null,
+            FX = 0,
+            FY = 0,
+            GW = null,
+            GN = 48;
+          try {
+            note.textContent = "Standortgüte fein …";
+            FX = Math.min(NX * 4, 600);
+            FY = Math.max(8, Math.round((FX * NY) / NX));
+            var bbF = L.latLngBounds([latS, lngW], [latN, lngE]);
+            var pxF = await pixelBild(rollen.baum.url, rollen.baum.layer, bbF, FX, FY);
+            FS = {
+              pf: new Uint8Array(FX * FY),
+              st: new Uint8Array(FX * FY),
+              som: new Uint8Array(FX * FY),
+              baum: new Array(FX * FY),
+              boden: new Array(FX * FY),
+            };
+            var sgCache = {};
+            for (var fy = 0; fy < FY; fy++)
+              for (var fx = 0; fx < FX; fx++) {
+                var qf = fy * FX + fx,
+                  of = qf * 4;
+                if (pxF[of + 3] < 128) {
+                  FS.pf[qf] = FS.st[qf] = FS.som[qf] = 255;
+                  continue;
+                }
+                var fcF = naechsteFarbe(pxF[of], pxF[of + 1], pxF[of + 2]);
+                var bmF = fcF ? fcF.wert : form.baum;
+                var ciF = Math.min(NY - 1, Math.floor(((fy + 0.5) * NY) / FY)),
+                  cjF = Math.min(NX - 1, Math.floor(((fx + 0.5) * NX) / FX));
+                var boF = null;
+                if (bodenOk)
+                  boF =
+                    bodenTeil(ciF, cjF, ((fy + 0.5) * NY) / FY - ciF, ((fx + 0.5) * NX) / FX - cjF) ||
+                    bodenNaechste(ciF, cjF);
+                boF = boF || form.boden;
+                var keyF = bmF + "|" + boF;
+                if (!sgCache[keyF]) {
+                  var vvF = {
+                    baum: bmF,
+                    alter: "mittel",
+                    boden: boF,
+                    unter: form.unter,
+                    lage: "eben",
+                    rand: "innen",
+                    saison: form.saison,
+                  };
+                  sgCache[keyF] = {
+                    pf: Math.round(standortGuete(vvF, "pf") * 100),
+                    st: Math.round(standortGuete(vvF, "st") * 100),
+                    som: Math.round(standortGuete(vvF, "som") * 100),
+                  };
+                }
+                FS.pf[qf] = sgCache[keyF].pf;
+                FS.st[qf] = sgCache[keyF].st;
+                FS.som[qf] = sgCache[keyF].som;
+                FS.baum[qf] = fcF ? fcF.art : null;
+                FS.boden[qf] = boF;
+              }
+          } catch (e) {
+            FS = null;
+            logZeile("JS ", "Standortgüte fein: " + (e.message || e));
+          }
+          if (WW) {
+            note.textContent = "Wetterpotenzial …";
+            GW = [];
+            var vIdeal = {
+              baum: "fichte",
+              alter: "mittel",
+              boden: "sauer",
+              unter: form.unter,
+              lage: "eben",
+              rand: "innen",
+              saison: form.saison,
+              regen: form.regen,
+              mm: form.mm,
+            };
+            for (var tgW = 0; tgW <= 3; tgW++)
+              GW.push({
+                pf: new Float32Array(GN * GN),
+                st: new Float32Array(GN * GN),
+                som: new Float32Array(GN * GN),
+              });
+            for (var gy = 0; gy < GN; gy++)
+              for (var gx = 0; gx < GN; gx++) {
+                var laG = latN - ((gy + 0.5) * (latN - latS)) / GN,
+                  loG = lngW + ((gx + 0.5) * (lngE - lngW)) / GN;
+                var wbG = WW[naechsterPunkt(laG, loG)];
+                if (netz && netz.length) {
+                  var gwG = stationsGewichte(laG, loG, netz, 30);
+                  if (gwG.length) {
+                    var twG = wbG.tw.slice(),
+                      nG = twG.length;
+                    for (var izG = Math.max(0, nG - 35); izG < nG - 1; izG++) {
+                      var vG = stationsRegenMitGewichten(gwG, DATUM[nG - 1 - izG], netz);
+                      if (vG !== null) twG[izG] = vG;
+                    }
+                    wbG = {
+                      tw: twG,
+                      et0: wbG.et0,
+                      tmin: wbG.tmin,
+                      tmax: wbG.tmax,
+                      f: wbG.f,
+                      hoehe: wbG.hoehe,
+                      bodenF: wbG.bodenF,
+                    };
+                  }
+                }
+                var hG = hInterp(laG, loG);
+                hG = hG === undefined ? null : hG;
+                for (var tgG = 0; tgG <= 3; tgG++) {
+                  var wtG = wetterAmTag(wbG, tgG);
+                  for (var ka = 0; ka < ARTEN.length; ka++) {
+                    var aG = ARTEN[ka],
+                      fkG = wetterFaktorenArt(aG, vIdeal, wtG, hG, 85);
+                    GW[tgG][aG][gy * GN + gx] = Math.round(
+                      100 * Math.min(1, fkG.rf) * fkG.tf * SAISON[form.saison][aG],
+                    );
+                  }
+                }
+              }
+          }
           var hinweise = [
             "Zelle = beste ihrer bis zu 4 Teilflächen (Baumart + Boden je Teilfläche)",
             'Lage „eben" und Struktur „innen" angenommen',
@@ -7592,6 +8036,14 @@
             pinZelle: null,
             wetterQuelle: WW ? "Raster " + G + "×" + G + " interpoliert, Tag +" + tagV : "fehlt",
             grob: true,
+            latS: latS,
+            lngE: lngE,
+            FS: FS,
+            FX: FX,
+            FY: FY,
+            GW: GW,
+            GN: GN,
+            tagIdx: 0,
           };
           $("r-art").value = $("g-art").value;
           $("r-art2").value = $("g-art").value;
@@ -7614,6 +8066,16 @@
           if (MOBIL && rm && rm.n) setzeStufe(0);
           rasterEnde(btn, "Region bewerten");
         }
+        $("g-modus").addEventListener("change", function () {
+          if (rasterCache && rasterCache.grob) {
+            zeichneRaster();
+            regionMeldung();
+          }
+        });
+        $("g-stich").addEventListener("click", stichproben);
+        $("r-weg").addEventListener("click", function () {
+          stichGruppe.clearLayers();
+        });
         $("g-los").addEventListener("click", async function () {
           try {
             await bewerteRegion();
@@ -7643,6 +8105,21 @@
         function regionMeldung() {
           var C = rasterCache;
           if (!C || !C.grob) return;
+          if (C.FS && zweiModus() !== "zellen") {
+            var topZ = 0,
+              nZ = 0,
+              minZ = +$("r-min").value;
+            for (var fyZ = 0; fyZ < C.FY; fyZ += 2)
+              for (var fxZ = 0; fxZ < C.FX; fxZ += 2) {
+                var wZ = zweiWertAn(C, zweiModus(), $("r-art").value, fyZ, fxZ);
+                if (!wZ.wald) continue;
+                if (wZ.prod > topZ) topZ = wZ.prod;
+                if (wZ.prod >= minZ) nZ++;
+              }
+            $("g-note").textContent =
+              zweiText(zweiModus()) + " Bestes Produkt im Ausschnitt: " + Math.round(topZ) + ".";
+            return { n: nZ, top: Math.round(topZ) };
+          }
           var art = $("r-art").value,
             min = +$("r-min").value;
           if (art === "mm7" || art === "feu") {
@@ -7733,6 +8210,7 @@
             if (z.rrT) z.rr = z.rrT[tg];
           });
           rasterCache.trend = val === "trend";
+          rasterCache.tagIdx = tg;
           rasterCache.wetterQuelle = (rasterCache.wetterQuelle || "").replace(
             /Tag \+\d|Trend/,
             val === "trend" ? "Trend" : "Tag +" + tg,
