@@ -1551,7 +1551,7 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-25.1";
+        var VERSION = "2026-09-25.2";
         // Radar nur als Kartenebene; in der Bewertung zu unzuverlässig (gelernte Farbskala, leere Bilder)
         var RADAR_IM_MODELL = false;
         var LOG = [];
@@ -2960,22 +2960,29 @@
             "</div></div>";
           return h;
         }
+        // Einzige Endformel: Standortgüte × Regen × Temperatur × Saison, mit Deckeln. Pin, Umkreis und Überblick nutzen sie.
+        function endwert(v, a, rf, tf, hoehe, ohne) {
+          if (!fingerprobe || hoehe !== hoehePunkt) rf = Math.min(1, rf * bestandFeuchte(v)); // Tastbefund hat Vorrang
+          var roh = 100 * standortGuete(v, a, ohne) * rf * tf * SAISON[v.saison][a];
+          return Math.round(Math.min(roh, deckel(v, a, rf, tf)));
+        }
+        function wetterFaktorenArt(a, v, w, hoehe, dichte) {
+          var tf = w ? tempFaktor(a, w.tmin, w.tmax) : { f: 1, text: null };
+          // Ohne Wetterdaten und ohne bewusste Handeingabe: Standortgüte allein, Wetterfaktor neutral (0,7)
+          var rf = w
+            ? regenFaktorArt(a, v, w, hoehe, dichte)
+            : reglerHand
+              ? regenFaktorArt(a, v, null, hoehe)
+              : 0.7;
+          return { rf: rf, tf: tf.f, text: tf.text };
+        }
         function bewerte(v, wt, hoehe, ohne, dichte) {
           var w = wt === undefined ? wetter : wt,
-            out = {},
-            s = SAISON[v.saison];
+            out = {};
           ARTEN.forEach(function (a) {
-            var tf = w ? tempFaktor(a, w.tmin, w.tmax) : { f: 1, text: null };
-            // Ohne Wetterdaten und ohne bewusste Handeingabe: Standortgüte allein, Wetterfaktor neutral (0,7)
-            var rf = w
-              ? regenFaktorArt(a, v, w, hoehe, dichte)
-              : reglerHand
-                ? regenFaktorArt(a, v, null, hoehe)
-                : 0.7;
-            if (!fingerprobe || hoehe !== hoehePunkt) rf = Math.min(1, rf * bestandFeuchte(v)); // Tastbefund hat Vorrang vor der Schätzung
-            var roh = 100 * standortGuete(v, a, ohne) * rf * tf.f * s[a];
-            out[a] = Math.round(Math.min(roh, deckel(v, a, rf, tf.f)));
-            out[a + "_temp"] = tf.text;
+            var fk = wetterFaktorenArt(a, v, w, hoehe, dichte);
+            out[a] = endwert(v, a, fk.rf, fk.tf, hoehe, ohne);
+            out[a + "_temp"] = fk.text;
           });
           return out;
         }
@@ -6916,8 +6923,22 @@
                     if (k[0] === "_") continue;
                     if (!best || arten[k] > arten[best]) best = k;
                   }
+                  // Teilproben (2×2) mitführen, damit jede Teilfläche einzeln bewertet werden kann
+                  var subs = [];
+                  for (var dy2 = 0; dy2 < 2; dy2++)
+                    for (var dx2 = 0; dx2 < 2; dx2++) {
+                      var o2 = ((i * 2 + dy2) * SX + (j * 2 + dx2)) * 4;
+                      if (px[o2 + 3] < 128) {
+                        subs.push(null);
+                        continue;
+                      }
+                      var f2 = naechsteFarbe(px[o2], px[o2 + 1], px[o2 + 2]);
+                      subs.push(f2 ? { wert: f2.wert, art: f2.art, dy: dy2, dx: dx2 } : null);
+                    }
                   BR[i].push(
-                    best ? { wald: true, wert: best, art: arten["_" + best] } : { wald: true, wert: null },
+                    best
+                      ? { wald: true, wert: best, art: arten["_" + best], subs: subs }
+                      : { wald: true, wert: null, subs: subs },
                   );
                 }
               }
@@ -7342,6 +7363,31 @@
             return bodenGrid[k];
           }
 
+          // Boden einer Teilfläche (fy, fx ∈ [0,1) innerhalb der Zelle) aus dem feinen Bodenbild
+          function bodenTeil(i, j, fy, fx) {
+            if (BPfull && legende.length) {
+              var sy = Math.min(BPY - 1, Math.floor(((i + fy) * BPY) / NY)),
+                sx = Math.min(BPX - 1, Math.floor(((j + fx) * BPX) / NX)),
+                o = (sy * BPX + sx) * 4;
+              if (BPfull[o + 3] >= 128) {
+                var best = null,
+                  bd = 1e9;
+                legende.forEach(function (l) {
+                  var d =
+                    Math.abs(l.rgb[0] - BPfull[o]) +
+                    Math.abs(l.rgb[1] - BPfull[o + 1]) +
+                    Math.abs(l.rgb[2] - BPfull[o + 2]);
+                  if (d < bd) {
+                    bd = d;
+                    best = l;
+                  }
+                });
+                if (best && bd < 36) return best.wert;
+              }
+            }
+            return null;
+          }
+
           // Datumsschlüssel je "Tage zurück" einmal vorbereiten
           var DATUM = [];
           (function () {
@@ -7411,14 +7457,44 @@
                 wz = RAD ? wetterMitRadar(wb, i, j) : wb;
                 if (wz.radarZelle) radZ = wz.radarZelle;
               }
+              // Teilflächen der Zelle: je Baumart-Probe der Boden an derselben Stelle
+              var teile = [];
+              (BR[i][j].subs || []).forEach(function (sb) {
+                if (!sb) return;
+                var bt = bodenOk ? bodenTeil(i, j, (sb.dy + 0.5) / 2, (sb.dx + 0.5) / 2) : null;
+                teile.push({ baum: sb.wert, art: sb.art, boden: bt || boden });
+              });
+              if (!teile.length) teile.push({ baum: baum, art: BR[i][j].art, boden: boden });
+              var besterTeil = null;
               for (var tg = 0; tg <= 3; tg++) {
-                // exakt dieselbe Bewertungsfunktion wie am Pin (Kronendichte fest 85 %)
+                // dieselbe Endformel wie am Pin; Wetter einmal je Zelle, Standort je Teilfläche; Zelle = beste Teilfläche
                 var rr;
                 if (wz) {
                   var wt = wetterAmTag(wz, tg),
-                    hz = hInterp(lat, lng);
-                  var bw = bewerte(v, wt, hz === undefined ? null : hz, undefined, 85);
-                  rr = { pf: bw.pf, st: bw.st, som: bw.som };
+                    hz = hInterp(lat, lng),
+                    hzz = hz === undefined ? null : hz;
+                  rr = { pf: 0, st: 0, som: 0 };
+                  ARTEN.forEach(function (a) {
+                    var fk = wetterFaktorenArt(a, v, wt, hzz, 85);
+                    teile.forEach(function (tp) {
+                      var vp = {
+                        baum: tp.baum,
+                        alter: v.alter,
+                        boden: tp.boden,
+                        unter: v.unter,
+                        lage: v.lage,
+                        rand: v.rand,
+                        saison: v.saison,
+                        regen: v.regen,
+                        mm: v.mm,
+                      };
+                      var e = endwert(vp, a, fk.rf, fk.tf, hzz);
+                      if (e > rr[a]) {
+                        rr[a] = e;
+                        if (tg === 0 && (!besterTeil || e > besterTeil.e)) besterTeil = { e: e, tp: tp };
+                      }
+                    });
+                  });
                 } else {
                   rr = {};
                   ARTEN.forEach(function (a) {
@@ -7428,15 +7504,29 @@
                 }
                 rrT.push(rr);
               }
+              if (besterTeil) {
+                v = {
+                  baum: besterTeil.tp.baum,
+                  alter: v.alter,
+                  boden: besterTeil.tp.boden,
+                  unter: v.unter,
+                  lage: v.lage,
+                  rand: v.rand,
+                  saison: v.saison,
+                  regen: v.regen,
+                  mm: v.mm,
+                };
+              }
               zellen.push({
                 i: i,
                 j: j,
                 v: v,
+                teile: teile.length,
                 rr: rrT[Math.min(3, Math.max(0, +tagV || 0))],
                 rrT: rrT,
                 hoehe: hInterp(lat, lng),
                 w: wz,
-                artText: BR[i][j].art || null,
+                artText: (besterTeil && besterTeil.tp.art) || BR[i][j].art || null,
                 geschaetzt: !WW || !bodenOk,
                 ll: L.latLng(lat, lng),
                 mm7: wz
@@ -7449,7 +7539,10 @@
                 radZ: radZ,
               });
             }
-          var hinweise = ['Lage „eben" und Struktur „innen" angenommen — Pin kann davon abweichen'];
+          var hinweise = [
+            "Zelle = beste ihrer bis zu 4 Teilflächen (Baumart + Boden je Teilfläche)",
+            'Lage „eben" und Struktur „innen" angenommen',
+          ];
           if (!WW) hinweise.push("Wetter fehlt");
           if (!bodenOk) hinweise.push("Boden aus Formular");
           if (BP && legende.length)
