@@ -74,6 +74,7 @@ const EXPORT = [
   "stellenImport",
   "besuchWert",
   "BEGLEIT",
+  "zweiRaster",
 ];
 const kern = js.replace(
   start,
@@ -241,6 +242,68 @@ pruefe("(d) Besuch nur mit Marone ergibt für st und pf 0,5", () => {
     T.BEGLEIT.marone.zeigt.st === 0.5 &&
     T.besuchWert({ ts: 1, fund: ["st", "marone"] }, "st") === 1 &&
     T.besuchWert({ ts: 1, fund: [] }, "st") === 0
+  );
+});
+
+// ---- Regionen-Überblick: Darstellung ohne Wetter und mit unbekanntem Boden ----
+// Kleines Feinraster 4×1: Standortgüte 60, 30, Wald mit unbekanntem Boden (254), kein Wald (255)
+function ueberblick(mitWetter) {
+  const code = [60, 30, 254, 255],
+    GN = 2,
+    gw = () => ({
+      pf: new Float32Array(GN * GN).fill(80),
+      st: new Float32Array(GN * GN).fill(80),
+      som: new Float32Array(GN * GN).fill(80),
+    });
+  return {
+    FX: 4,
+    FY: 1,
+    GN,
+    tagIdx: 0,
+    trend: false,
+    FS: {
+      pf: Uint8Array.from(code),
+      st: Uint8Array.from(code),
+      som: Uint8Array.from(code),
+      baum: [],
+      boden: [],
+    },
+    GW: mitWetter ? [gw(), gw(), gw(), gw()] : null,
+  };
+}
+const deckend = (R) => Array.from(R.maske).filter((m) => m).length;
+
+// (a) ohne Wetterraster kein Wetterpotenzial: „Wetter × Standort“ wird zu „Nur Standort“, „Nur Wetter“ bleibt leer
+pruefe("(a) Überblick ohne Wetter zeichnet kein Wetterpotenzial", () => {
+  const C = ueberblick(false),
+    zwei = T.zweiRaster(C, "zwei", "best", 0),
+    wet = T.zweiRaster(C, "wetter", "best", 0),
+    mit = T.zweiRaster(ueberblick(true), "zwei", "best", 0);
+  return (
+    zwei.modus === "standort" &&
+    zwei.ohneWetter === true &&
+    deckend(zwei) === 3 && // zwei Standorte + ein graues Pixel, nichts für „kein Wald“
+    wet.modus === "wetter" &&
+    deckend(wet) === 0 &&
+    mit.modus === "zwei" &&
+    mit.ohneWetter === false
+  );
+});
+
+// (b) unbekannter Boden: grau, nicht in Bestwert, Anzahl und Perzentilen
+pruefe("(b) Unbekannter Boden fließt nicht in die Standortgüte-Statistik ein", () => {
+  const R = T.zweiRaster(ueberblick(false), "standort", "best", 0),
+    o = 2 * 4; // Pixel 2 = unbekannter Boden
+  return (
+    R.n === 2 &&
+    R.unbekannt === 1 &&
+    R.top === 60 &&
+    R.p10 >= 30 &&
+    R.p90 <= 60 &&
+    R.rgba[o] === 128 &&
+    R.rgba[o + 1] === 128 &&
+    R.rgba[o + 2] === 120 &&
+    R.maske[3] === 0 // kein Wald bleibt leer
   );
 });
 

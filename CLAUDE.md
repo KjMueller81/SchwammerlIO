@@ -8,7 +8,7 @@ Bewertet Waldstandorte für **Pfifferling (pf)**, **Fichtensteinpilz (st)** und 
 aus Geodaten (Baumart, Boden, Kronendichte, Gelände) und gemessenem Wetter. Nutzer: ein Sammler,
 Bedienung meist am iPhone im Wald, Auswertung am Windows-Rechner.
 
-Stand dieser Datei: v2026-09-26.7. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
+Stand dieser Datei: v2026-09-26.8. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
 
 ---
 
@@ -74,7 +74,9 @@ Stand dieser Datei: v2026-09-26.7. Die Entwicklung bis v2026-09-26.4 lief in ein
 **Geodaten**
 - Baumarten: Thünen-WMS, Klasse per Pixelfarbe (`naechsteFarbe`, `baumAmPunkt`).
 - Boden: LfU ÜBK25 GetFeatureInfo (`bodenDeuten`); im Überblick Bodenbild + aus Stützstellen gelernte
-  Farblegende (`bodenLegende`), unbekannte Farben werden gezielt nachgelernt.
+  Farblegende (`bodenLegende`), unbekannte Farben werden gezielt nachgelernt. Das Bodenbild kommt über
+  `pixelBildFein` in Kacheln bis 2048 px mit höchstens 35 m/Pixel (sonst liefert die LfU ein leeres Bild).
+  Ohne bekannte Kartenfarbe ist der Boden **unbekannt** (keine Nachbar-Stützstelle mehr).
 - Kronendichte: Copernicus HRL 2018 (`kronendichte`). Höhe/Hang: Open-Meteo Elevation (`lageAusHoehen`,
   erkennt Nord/Süd/Ost/West/Senke).
 
@@ -97,6 +99,14 @@ Stand dieser Datei: v2026-09-26.7. Die Entwicklung bis v2026-09-26.4 lief in ein
   Feld beim Pin-Setzen ein; der Knopf „Region“ ist unter 900 px ausgeblendet, solange ein Popup offen ist
   (`#map.popup-offen`), weil er über der Kartenebene liegt. Zellen im `rasterCache` bleiben für
   Stichproben, Kontrollzeile und CSV.
+- Überblick ehrlich: Unterwuchs im Überblick und in den Stichproben neutral (`UNTER_FERN` = Pseudoklasse
+  `W.unter.mittel`, Mittel aller Klassen, ohne Kraut-/Brombeer-Deckel); der Pin nutzt die echte Eingabe.
+  Feinraster-Code `FS` 255 = kein Wald, 254 = Wald mit unbekanntem Boden (grau, nicht in Bestwert/Statistik).
+  `zweiRaster(C, modus, art, min)` rechnet die Darstellung ohne Leinwand (testbar), `zeichneZweiEbenen` malt.
+  Standortgüte-Farben relativ zum Ausschnitt (10.–90. Perzentil, Legende `#rg-legende` mit echten Werten).
+  Ohne Wetterraster (`GW = null`): „Wetter × Standort“ zeigt nur den Standort (`zweiModusFuer`) mit Warnung
+  im Region-Feld, „Nur Wetter“ zeichnet nichts. `holeWetterMulti` fasst bei 429/5xx zweimal nach.
+  Stichproben holen ihr Wetter selbst (`holeWetterMulti`), wenn die Zellen keins haben.
 - `zoomAufUmkreis(rKm)`: zoomt genau auf den Kreis um Pin → GPS-Standort → Kartenmitte (Viertel-
   Zoomstufen), zeigt ihn gestrichelt (`regionKreis`) und rechnet verdeckte Flächen (`verdeckteRaender`:
   Region-Feld, Ladeanzeige, Schublade/Seitenleiste falls überlappend) als `paddingTopLeft/BottomRight` ein.
@@ -147,6 +157,15 @@ Stand dieser Datei: v2026-09-26.7. Die Entwicklung bis v2026-09-26.4 lief in ein
   Sonst ist der Knopf beim Kartenklick schon aus dem DOM gelöst, Leaflet hält ihn für einen Kartenklick
   und schließt das Popup (am Rechner setzt der nächste Klick sogar einen neuen Pin). Neu zeichnen über
   `pinInhalt()` – hält Scrollstand und begrenzt die Höhe auf die sichtbare Karte.
+- **LfU-Bodenkarte hat einen ScaleHint (max. 99 m Pixeldiagonale):** gröber als ~45 m/Pixel kommt Status 200
+  mit einem **leeren** PNG – kein Fehler, nur keine Farben. Gemessen: 42 m/px gezeichnet, 48 m/px leer.
+  Deshalb `pixelBildFein` mit 35 m/px. Folge des Fehlers war „unbekannte Bodenfarbe“ für fast alle Waldpixel.
+- **Open-Meteo-Mehrpunktabrufe** zählen je Ort und Tagespanne; zwei Überblicke kurz hintereinander liefen ins
+  Minutenlimit (429) → „Wetter fehlt“. `holeWetterMulti` wartet und wiederholt, das Protokoll nennt den Grund.
+- **Interne Leaflet-Funktionen:** `mdZu()` ruft nach dem Schließen einer Mehrfach-Liste `popup._updateLayout()`
+  und `popup._updatePosition()` auf, damit das Popup ohne Neuzeichnen schrumpft. Beides ist nicht öffentliche
+  Leaflet-API (1.9.4) und kann bei einem Leaflet-Update wegfallen oder sich ändern – dann bleibt unten im
+  Popup eine Leerfläche (der Aufruf ist mit `if (pp._updateLayout)` abgesichert). Beim Update prüfen.
 
 ---
 

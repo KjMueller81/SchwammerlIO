@@ -1198,6 +1198,33 @@
         max-height: 30vh;
         overflow-y: auto;
       }
+      .rg-note.warn {
+        color: #e8a516;
+        font-weight: 600;
+      }
+      .rg-legende {
+        margin-top: 4px;
+        font-size: 11px;
+        color: var(--papier-2);
+      }
+      .rg-legende:empty {
+        display: none;
+      }
+      .rg-balken {
+        display: inline-block;
+        width: 70px;
+        height: 8px;
+        border-radius: 3px;
+        vertical-align: middle;
+      }
+      .rg-grau {
+        display: inline-block;
+        width: 10px;
+        height: 8px;
+        border-radius: 2px;
+        vertical-align: middle;
+        background: rgb(128, 128, 120);
+      }
       .rg-link {
         background: none;
         border: none;
@@ -1324,6 +1351,7 @@
             </div>
           </div>
           <div class="rg-note" id="g-note" title="Antippen für den ganzen Text">Noch nicht berechnet.</div>
+          <div class="rg-legende" id="rg-legende"></div>
           <button class="rg-link" id="g-stich">Stichproben prüfen</button>
           <input type="hidden" id="g-r" value="50" />
           <input type="hidden" id="g-art" value="best" />
@@ -1733,7 +1761,7 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-26.7";
+        var VERSION = "2026-09-26.8";
         // Radar nur als Kartenebene; in der Bewertung zu unzuverlässig (gelernte Farbskala, leere Bilder)
         var RADAR_IM_MODELL = false;
         var LOG = [];
@@ -2971,6 +2999,20 @@
         var SAISON = { sommer: { pf: 0.95, st: 0.45, som: 1 }, herbst: { pf: 0.85, st: 1, som: 0.3 } };
         var ARTEN = ["pf", "st", "som"];
         var ARTNAME = { pf: "Pfifferling", st: "Fichtensteinpilz", som: "Sommersteinpilz" };
+        // Überblick: Unterwuchs ist aus der Ferne unbekannt → Pseudoklasse „mittel“ = Mittelwert aller sechs Klassen.
+        // Als eigene Klasse, damit weder Kraut-Abwertung noch Brombeer-Deckel greifen. Der Pin nutzt die echte Eingabe.
+        W.unter.mittel = (function () {
+          var k = Object.keys(W.unter),
+            m = {};
+          ARTEN.forEach(function (a) {
+            m[a] =
+              k.reduce(function (s, c) {
+                return s + W.unter[c][a];
+              }, 0) / k.length;
+          });
+          return m;
+        })();
+        var UNTER_FERN = "mittel";
 
         // Wirkung eines Regentags nach d Tagen — artspezifisch.
         // Fichtensteinpilz 7–14 Tage, Sommersteinpilz 5–10, Pfifferling 10–20 Tage Vorlauf.
@@ -4954,19 +4996,27 @@
               fyT = Math.floor(((CZ.latN - e.latlng.lat) / (CZ.latN - CZ.latS)) * CZ.FY),
               fxT = Math.floor(((e.latlng.lng - CZ.lngW) / (CZ.lngE - CZ.lngW)) * CZ.FX);
             if (fyT >= 0 && fxT >= 0 && fyT < CZ.FY && fxT < CZ.FX) {
-              var wT = zweiWertAn(CZ, "zwei", $("r-art").value, fyT, fxT),
+              var wT = zweiWertAn(CZ, zweiModusFuer(CZ, zweiModus()), $("r-art").value, fyT, fxT),
                 qT = fyT * CZ.FX + fxT;
               toast(
-                ARTNAME[wT.a] +
-                  ": Wetterpotenzial " +
-                  Math.round(wT.pot) +
-                  " × Standort " +
-                  (wT.wald
-                    ? wT.sg + " % (" + (CZ.FS.baum[qT] || "Wald") + ", " + (CZ.FS.boden[qT] || "?") + ")"
-                    : "— kein Wald") +
-                  " → etwa " +
-                  Math.round(wT.prod) +
-                  " auf ebenem Grund im Bestandsinneren. Der Pin ergänzt Hang, Rand und Kronendichte.",
+                !wT.wald
+                  ? "Kein Wald laut Baumartenkarte."
+                  : wT.unbekannt
+                    ? (CZ.FS.baum[qT] || "Wald") + ": Boden unbekannt — hier keine Standortgüte."
+                    : ARTNAME[wT.a] +
+                      ": " +
+                      (wT.pot === null
+                        ? "Wetter nicht verfügbar · "
+                        : "Wetterpotenzial " + Math.round(wT.pot) + " × ") +
+                      "Standort " +
+                      wT.sg +
+                      " % (" +
+                      (CZ.FS.baum[qT] || "Wald") +
+                      ", " +
+                      CZ.FS.boden[qT] +
+                      ")" +
+                      (wT.prod === null ? "" : " → etwa " + Math.round(wT.prod)) +
+                      " auf ebenem Grund im Bestandsinneren. Der Pin ergänzt Hang, Rand und Kronendichte.",
               );
             }
           } else if (bildOverlay && rasterCache && rasterCache.grob) {
@@ -6181,7 +6231,7 @@
               out = out.concat(
                 await holeWetterMulti(punkte.slice(i, i + 50), hoehen ? hoehen.slice(i, i + 50) : null),
               );
-              if (i + 50 < punkte.length) await pause(300);
+              if (i + 50 < punkte.length) await pause(1000); // Open-Meteo zählt jeden Ort als eigenen Abruf
             }
             return out;
           }
@@ -6207,10 +6257,18 @@
                   .join(",")
               : "") +
             "&daily=precipitation_sum,temperature_2m_max,temperature_2m_min,et0_fao_evapotranspiration,precipitation_probability_max&past_days=35&forecast_days=8&timezone=Europe%2FBerlin";
-          var res = await fetch(url),
+          // Bei Minutenlimit (429) oder Serverfehler zweimal mit Pause nachfassen – sonst fehlte im Überblick das Wetter
+          var res = null,
+            j = null;
+          for (var versuch = 0; versuch < 3; versuch++) {
+            res = await fetch(url);
             j = await res.json().catch(function () {
               return null;
             });
+            if (res.ok && j) break;
+            if (res.status !== 429 && res.status < 500) break;
+            if (versuch < 2) await pause(4000 * (versuch + 1));
+          }
           if (!res.ok || !j) throw new Error((j && j.reason) || "HTTP " + res.status);
           var arr = Array.isArray(j) ? j : [j];
           // Modell-Bodenfeuchte 0–7 cm (Mittel der letzten 24 h) wie am Pin — eigener, kleiner Abruf
@@ -6461,6 +6519,63 @@
             });
           }
           return cx.getImageData(0, 0, N, H).data; // wirft bei fehlender CORS-Freigabe
+        }
+        // Bild in so feinen Kacheln holen, dass ein Pixel höchstens maxM Meter abdeckt, dann nächster Nachbar auf W×H.
+        // Grund: Die LfU zeichnet die ÜBK25 nur bis ScaleHint 99 m Pixeldiagonale (gemessen: ≤ 42 m/px ja,
+        // ≥ 48 m/px leeres PNG mit Status 200). Kacheln bis 2048 px; fehlt eine Kachel, bleibt ihr Teil durchsichtig.
+        async function pixelBildFein(url, layer, b, W, H, maxM, melde) {
+          var latS = b.getSouth(),
+            latN = b.getNorth(),
+            lngW = b.getWest(),
+            lngE = b.getEast(),
+            mitte = (latS + latN) / 2,
+            breiteM = kmSchnell(mitte, lngW, mitte, lngE) * 1000,
+            hoeheM = kmSchnell(latS, lngW, latN, lngW) * 1000;
+          if (breiteM / W <= maxM && hoeheM / H <= maxM) return pixelBild(url, layer, b, W, H);
+          var TX = Math.max(1, Math.ceil(breiteM / (maxM * 2048))),
+            TY = Math.max(1, Math.ceil(hoeheM / (maxM * 2048))),
+            tw = Math.min(2048, Math.ceil(breiteM / TX / maxM)),
+            th = Math.min(2048, Math.ceil(hoeheM / TY / maxM)),
+            out = new Uint8ClampedArray(W * H * 4),
+            fertig = 0,
+            fehler = 0,
+            aufgaben = [];
+          for (var ty = 0; ty < TY; ty++)
+            for (var tx = 0; tx < TX; tx++)
+              (function (ty, tx) {
+                aufgaben.push(async function () {
+                  var tb = L.latLngBounds(
+                    [latN - ((ty + 1) * (latN - latS)) / TY, lngW + (tx * (lngE - lngW)) / TX],
+                    [latN - (ty * (latN - latS)) / TY, lngW + ((tx + 1) * (lngE - lngW)) / TX],
+                  );
+                  try {
+                    var px = await pixelBild(url, layer, tb, tw, th);
+                    for (var y = 0; y < H; y++) {
+                      var fy = ((y + 0.5) / H) * TY - ty;
+                      if (fy < 0 || fy >= 1) continue;
+                      var sy = Math.min(th - 1, Math.floor(fy * th));
+                      for (var x = 0; x < W; x++) {
+                        var fx = ((x + 0.5) / W) * TX - tx;
+                        if (fx < 0 || fx >= 1) continue;
+                        var so = (sy * tw + Math.min(tw - 1, Math.floor(fx * tw))) * 4,
+                          o = (y * W + x) * 4;
+                        out[o] = px[so];
+                        out[o + 1] = px[so + 1];
+                        out[o + 2] = px[so + 2];
+                        out[o + 3] = px[so + 3];
+                      }
+                    }
+                  } catch (e) {
+                    fehler++;
+                  }
+                  fertig++;
+                  if (melde) melde(fertig, TX * TY);
+                });
+              })(ty, tx);
+          await pool(aufgaben, 2); // große Kacheln: höchstens zwei gleichzeitig (Speicher am Handy)
+          if (fehler) logZeile("NET", "Bodenbild: " + fehler + " von " + TX * TY + " Kacheln fehlen");
+          if (fehler === TX * TY) throw new Error("Bodenbild nicht ladbar");
+          return out;
         }
         async function baumAmPunkt(ll) {
           if (!rollen.baum) return null;
@@ -6964,73 +7079,176 @@
             ty * ((1 - tx) * F[y1 * GN + x0] + tx * F[y1 * GN + x1])
           );
         }
-        // Wert an einem Feinpixel: gewählte Art (bei "beste" die mit dem höchsten Produkt), Wetter, Standort, Produkt
+        // Wert an einem Feinpixel: gewählte Art (bei "beste" die mit dem höchsten Schlüssel), Wetter, Standort, Produkt.
+        // FS-Code 255 = kein Wald, 254 = Wald mit unbekanntem Boden. Ohne Wetterraster (GW) ist pot/prod null.
         function zweiWertAn(C, modus, art, fy, fx) {
           var q = fy * C.FX + fx,
-            wald = C.FS.pf[q] !== 255,
+            code = C.FS.pf[q],
+            wald = code !== 255,
+            unbekannt = code === 254,
             tg = C.tagIdx || 0;
           var arten = art === "pf" || art === "st" || art === "som" ? [art] : ARTEN;
           var best = null;
           arten.forEach(function (a) {
-            var sg = wald ? C.FS[a][q] : 0,
-              pot = C.GW ? potAn(C, tg, a, fy, fx) : 70,
+            var sg = wald && !unbekannt ? C.FS[a][q] : 0,
+              pot = C.GW ? potAn(C, tg, a, fy, fx) : null,
               diff = C.trend && C.GW ? potAn(C, 3, a, fy, fx) - potAn(C, 0, a, fy, fx) : 0,
-              prod = (pot * sg) / 100,
-              key = modus === "wetter" ? pot : modus === "standort" ? sg : prod;
+              prod = pot === null ? null : (pot * sg) / 100,
+              key = modus === "wetter" ? pot || 0 : modus === "standort" ? sg : prod || 0;
             if (!best || key > best.key)
-              best = { a: a, sg: sg, pot: pot, prod: prod, diff: diff, key: key, wald: wald };
+              best = {
+                a: a,
+                sg: sg,
+                pot: pot,
+                prod: prod,
+                diff: diff,
+                key: key,
+                wald: wald,
+                unbekannt: unbekannt,
+              };
           });
           return best;
         }
+        // Wirksame Darstellung: ohne Wetterraster gibt es kein Wetterpotenzial → „Wetter × Standort“ zeigt nur den Standort
+        function zweiModusFuer(C, modus) {
+          return !C.GW && modus === "zwei" ? "standort" : modus;
+        }
+        var GRAU_UNBEKANNT = [128, 128, 120],
+          FARBE_GROB = [];
+        function farbeGrobRgb(s) {
+          var k = Math.max(0, Math.min(100, Math.round(s)));
+          if (!FARBE_GROB[k]) FARBE_GROB[k] = farbeGrob(k).match(/\d+/g).map(Number);
+          return FARBE_GROB[k];
+        }
+        function perzentil(sortiert, p) {
+          return sortiert.length
+            ? sortiert[Math.min(sortiert.length - 1, Math.round(p * (sortiert.length - 1)))]
+            : null;
+        }
+        // Reine Rechnung der Überblicksdarstellung (ohne Leinwand, testbar): Farbe je Feinpixel und Statistik.
+        // Standortgüte-Skala = 10.–90. Perzentil im Ausschnitt (nur bekannter Boden); unbekannter Boden grau, nicht gezählt.
+        function zweiRaster(C, modus, art, min) {
+          var eff = zweiModusFuer(C, modus),
+            FX = C.FX,
+            FY = C.FY,
+            N = FX * FY,
+            erg = {
+              modus: eff,
+              ohneWetter: !C.GW,
+              n: 0,
+              ueber: 0,
+              top: 0,
+              gezeigt: 0,
+              unbekannt: 0,
+              p10: null,
+              p90: null,
+              rgba: new Uint8ClampedArray(N * 4),
+              maske: new Uint8Array(N),
+            };
+          if (eff === "wetter" && !C.GW) return erg; // ohne Wetter kein Wetterbild
+          var ST = new Uint8Array(N), // 0 kein Wald, 1 Wald, 2 Wald mit unbekanntem Boden
+            SG = new Float32Array(N),
+            POT = new Float32Array(N),
+            PROD = new Float32Array(N),
+            DIFF = new Float32Array(N),
+            sgs = [];
+          for (var fy = 0; fy < FY; fy++)
+            for (var fx = 0; fx < FX; fx++) {
+              var q = fy * FX + fx,
+                w = zweiWertAn(C, eff, art, fy, fx);
+              POT[q] = w.pot || 0;
+              DIFF[q] = w.diff;
+              if (!w.wald) continue;
+              if (w.unbekannt) {
+                ST[q] = 2;
+                erg.unbekannt++;
+                continue;
+              }
+              ST[q] = 1;
+              SG[q] = w.sg;
+              PROD[q] = w.prod || 0;
+              sgs.push(w.sg);
+              erg.n++;
+              var key = eff === "standort" ? w.sg : eff === "wetter" ? POT[q] : PROD[q];
+              if (key > erg.top) erg.top = key;
+              if (key >= min) erg.ueber++;
+            }
+          sgs.sort(function (a, b) {
+            return a - b;
+          });
+          var p10 = perzentil(sgs, 0.1),
+            p90 = perzentil(sgs, 0.9);
+          if (p10 !== null && p90 - p10 < 6) {
+            var mt = (p10 + p90) / 2;
+            p10 = mt - 3;
+            p90 = mt + 3;
+          }
+          erg.p10 = p10;
+          erg.p90 = p90;
+          var norm = function (x) {
+            return p10 === null ? 0.5 : Math.max(0, Math.min(1, (x - p10) / (p90 - p10)));
+          };
+          var d = erg.rgba;
+          for (var q2 = 0; q2 < N; q2++) {
+            var st = ST[q2],
+              farbe,
+              alpha;
+            if (eff === "wetter") {
+              if (!st) {
+                farbe = farbeGrobRgb(POT[q2]);
+                alpha = 0.5;
+              } else {
+                farbe = C.trend
+                  ? farbeGrobRgb(50 + Math.max(-50, Math.min(50, DIFF[q2] * 1.4)))
+                  : farbeGrobRgb(POT[q2]);
+                alpha = 1;
+              }
+            } else if (!st) continue;
+            else if (st === 2) {
+              farbe = GRAU_UNBEKANNT;
+              alpha = 0.55;
+            } else if (eff === "standort") {
+              farbe = farbeGrobRgb(100 * norm(SG[q2]));
+              alpha = 1;
+              erg.gezeigt++;
+            } else {
+              if (PROD[q2] < min) continue;
+              farbe = C.trend
+                ? farbeGrobRgb(50 + Math.max(-50, Math.min(50, DIFF[q2] * 1.4)))
+                : farbeGrobRgb(POT[q2]);
+              var t = norm(SG[q2]);
+              alpha = 0.06 + 0.94 * t * t; // stark gespreizt: schwache Standorte deutlich blasser
+              erg.gezeigt++;
+            }
+            var o = q2 * 4;
+            d[o] = farbe[0];
+            d[o + 1] = farbe[1];
+            d[o + 2] = farbe[2];
+            d[o + 3] = Math.round(alpha * 255);
+            erg.maske[q2] = 255;
+          }
+          erg.top = Math.round(erg.top);
+          return erg;
+        }
         function zeichneZweiEbenen(C, modus, art, min, deck) {
-          var FX = C.FX,
+          var R = zweiRaster(C, modus, art, min),
+            FX = C.FX,
             FY = C.FY,
             cv = document.createElement("canvas");
+          C.darstellung = R;
+          regionLegende(R);
+          if (R.modus === "wetter" && R.ohneWetter) return R; // nichts zeichnen
           cv.width = FX;
           cv.height = FY;
           var cx = cv.getContext("2d"),
             img = cx.createImageData(FX, FY),
-            d = img.data,
-            maske = document.createElement("canvas"),
-            n = 0,
-            top = 0,
-            gezeigt = 0;
+            maske = document.createElement("canvas");
+          img.data.set(R.rgba);
           maske.width = FX;
           maske.height = FY;
           var mx = maske.getContext("2d"),
-            mImg = mx.createImageData(FX, FY),
-            md = mImg.data;
-          for (var fy = 0; fy < FY; fy++)
-            for (var fx = 0; fx < FX; fx++) {
-              var w = zweiWertAn(C, modus, art, fy, fx);
-              if (!w.wald && modus !== "wetter") continue;
-              if (w.wald) {
-                n++;
-                if (w.prod > top) top = w.prod;
-              }
-              var farbe, alpha;
-              if (modus === "standort") {
-                farbe = farbeGrob(w.sg);
-                alpha = 1;
-              } else {
-                farbe = C.trend
-                  ? farbeGrob(50 + Math.max(-50, Math.min(50, w.diff * 1.4)))
-                  : farbeGrob(w.pot);
-                if (modus === "wetter") alpha = w.wald ? 1 : 0.5;
-                else {
-                  if (w.prod < min) continue;
-                  alpha = Math.max(0.12, Math.min(1, (w.sg - 35) / 55));
-                }
-              }
-              if (w.wald && (modus === "standort" || w.prod >= min)) gezeigt++;
-              var m = farbe.match(/\d+/g),
-                o = (fy * FX + fx) * 4;
-              d[o] = +m[0];
-              d[o + 1] = +m[1];
-              d[o + 2] = +m[2];
-              d[o + 3] = Math.round(alpha * 255);
-              md[o + 3] = 255;
-            }
+            mImg = mx.createImageData(FX, FY);
+          for (var q = 0; q < FX * FY; q++) mImg.data[q * 4 + 3] = R.maske[q];
           cx.putImageData(img, 0, 0);
           mx.putImageData(mImg, 0, 0);
           var big = document.createElement("canvas");
@@ -7054,13 +7272,42 @@
             className: "weich",
           });
           rasterGruppe.addLayer(bildOverlay);
-          return { n: n, top: Math.round(top), gezeigt: gezeigt };
+          return R;
+        }
+        // Kleine Legende im Region-Feld mit den echten Werten der Skala
+        function regionLegende(R) {
+          var el = $("rg-legende");
+          if (!el) return;
+          var balken =
+            '<span class="rg-balken" style="background:linear-gradient(90deg,' +
+            [0, 25, 50, 75, 100]
+              .map(function (x) {
+                return farbeGrob(x);
+              })
+              .join(",") +
+            ')"></span>';
+          var grau = R.unbekannt
+            ? ' · <span class="rg-grau"></span> Boden unbekannt (' +
+              (function (pz) {
+                return pz < 1 ? "< 1" : Math.round(pz);
+              })((100 * R.unbekannt) / Math.max(1, R.unbekannt + R.n)) +
+              " %)"
+            : "";
+          var sk = R.p10 === null ? "" : Math.round(R.p10) + " " + balken + " " + Math.round(R.p90) + " %";
+          el.innerHTML =
+            R.modus === "wetter"
+              ? R.ohneWetter
+                ? ""
+                : "Wetterpotenzial: schlecht " + balken + " gut"
+              : R.modus === "standort"
+                ? "Standortgüte " + sk + grau
+                : "Farbe = Wetter " + balken + " · Deckkraft = Standort " + sk + grau;
         }
         function zweiText(modus) {
           return modus === "wetter"
             ? "Wetterpotenzial: Was ein idealer Fichtenstandort hier heute wert wäre (rot schlecht → grün gut). Ändert sich über Kilometer."
             : modus === "standort"
-              ? "Standortgüte ohne Wetter: Baumart, Boden, Unterwuchs aus dem Formular (rot ungeeignet → grün ideal). Etwa 100–200 m Auflösung."
+              ? "Standortgüte ohne Wetter: Baumart und Boden aus den Karten, Unterwuchs neutral; Farben relativ zum Ausschnitt (10.–90. Perzentil). Etwa 100–200 m Auflösung."
               : "Farbe = Wetterpotenzial, Deckkraft = Standortgüte. Kräftig grün = gutes Wetter auf gutem Wald; blass = Wetter gut, Wald weniger. Pin ≈ Wetter × Standort, dazu Hang und Struktur.";
         }
         // Stichproben: echte Pin-Rechnung an bis zu 60 Waldpunkten
@@ -7079,9 +7326,19 @@
           ladeZeigen("Stichproben …");
           stichGruppe.clearLayers();
           try {
-            var kand = C.zellen.filter(function (z) {
+            // Zellen mit Wetter bevorzugen; fehlt das Wetter im Überblick, holen die Stichproben es selbst
+            var mitWetter = C.zellen.some(function (z) {
               return z.w;
             });
+            var kand = C.zellen.filter(function (z) {
+              return !z.bodenUnbekannt && (!mitWetter || z.w);
+            });
+            if (!kand.length) {
+              $("g-note").textContent =
+                "Stichproben nicht möglich: keine Waldzelle mit bekanntem Boden im Ausschnitt.";
+              toast("Keine Waldzelle für Stichproben");
+              return;
+            }
             var N = Math.min(60, kand.length),
               schritt = kand.length / Math.max(1, N),
               pts = [];
@@ -7105,6 +7362,38 @@
                 $("l-text").textContent = "Stichproben: Höhen " + a + " / " + b;
               });
             } catch (e) {}
+            var WP = null; // eigenes Wetter je Stichprobe (nur wenn die Zellen keins haben)
+            if (!mitWetter) {
+              $("l-text").textContent = "Stichproben: Wetter für " + pts.length + " Punkte …";
+              var hMitte = H
+                ? pts.map(function (z, k) {
+                    return H[k * 5];
+                  })
+                : null;
+              if (
+                hMitte &&
+                hMitte.some(function (h) {
+                  return h === null || h === undefined;
+                })
+              )
+                hMitte = null; // unvollständige Höhen nicht als 0 m schicken
+              try {
+                WP = await holeWetterMulti(
+                  pts.map(function (z) {
+                    return [z.ll.lat, z.ll.lng];
+                  }),
+                  hMitte,
+                );
+              } catch (e) {
+                logZeile("NET", "Stichproben-Wetter: " + (e.message || e));
+                $("g-note").textContent =
+                  "Stichproben nicht möglich: Wetter weder im Überblick noch für die Stichprobenpunkte abrufbar (" +
+                  (e.message || e) +
+                  "). Später erneut versuchen.";
+                toast("Stichproben: Wetter nicht abrufbar");
+                return;
+              }
+            }
             var fertig = 0,
               f0 = readForm();
             var erg = await pool(
@@ -7136,14 +7425,20 @@
                     baum: baum,
                     alter: f0.alter,
                     boden: bo ? bo.wert : z.v.boden,
-                    unter: f0.unter,
+                    unter: UNTER_FERN, // wie die Zellen: Unterwuchs aus der Ferne unbekannt
                     lage: lage,
                     rand: (bt && bt.rand) || "innen",
                     saison: f0.saison,
                     regen: 0,
                     mm: 0,
                   };
-                  var r = bewerte(v, z.w, h5 ? h5[0] : z.hoehe, undefined, tcd === null ? 85 : tcd);
+                  var r = bewerte(
+                    v,
+                    WP ? WP[k] : z.w,
+                    h5 ? h5[0] : z.hoehe,
+                    undefined,
+                    tcd === null ? 85 : tcd,
+                  );
                   return { z: z, v: v, r: r, h: h5 ? h5[0] : null, tcd: tcd, art: bt ? bt.text : null };
                 };
               }),
@@ -7155,7 +7450,8 @@
                   ? rr[art]
                   : Math.max(rr.pf, rr.st, rr.som);
               },
-              abw = [];
+              abw = [],
+              ohneVergleich = 0;
             erg.forEach(function (e) {
               if (!e) return;
               if (e.keinWald) {
@@ -7172,7 +7468,8 @@
               }
               var s1 = sc(e.r),
                 zs = sc(e.z.rr);
-              abw.push(s1 - zs);
+              if (mitWetter) abw.push(s1 - zs);
+              else ohneVergleich++;
               L.circleMarker(e.z.ll, {
                 radius: 7,
                 color: "#fff",
@@ -7183,9 +7480,9 @@
                 .bindPopup(
                   "<b>Stichprobe " +
                     s1 +
-                    "</b> (Zelle " +
-                    zs +
-                    ")<br>" +
+                    "</b>" +
+                    (mitWetter ? " (Zelle " + zs + ")" : " (eigenes Wetter)") +
+                    "<br>" +
                     (e.art || LT[e.v.baum]) +
                     " · " +
                     bodenLabel(e.v) +
@@ -7218,21 +7515,28 @@
                     return a + Math.abs(b);
                   }, 0) / abw.length
                 : 0;
-            $("g-note").textContent =
-              abw.length +
-              " Stichproben mit echter Pin-Rechnung (Boden, Baumart, Hang, Kronendichte am Punkt) · im Mittel " +
-              (mw >= 0 ? "+" : "") +
-              Math.round(mw) +
-              " gegenüber der Zelle, mittlere Abweichung " +
-              Math.round(mabs) +
-              " Punkte. Punkte antippen für Details.";
+            var nStich = abw.length + ohneVergleich;
+            $("g-note").textContent = !nStich
+              ? "Stichproben: an keinem der " + pts.length + " Punkte Wald gefunden."
+              : mitWetter
+                ? abw.length +
+                  " Stichproben mit echter Pin-Rechnung (Boden, Baumart, Hang, Kronendichte am Punkt) · im Mittel " +
+                  (mw >= 0 ? "+" : "") +
+                  Math.round(mw) +
+                  " gegenüber der Zelle, mittlere Abweichung " +
+                  Math.round(mabs) +
+                  " Punkte. Punkte antippen für Details."
+                : nStich +
+                  " Stichproben mit echter Pin-Rechnung und eigenem Wetterabruf (der Überblick hat kein Wetter," +
+                  " daher kein Vergleich mit den Zellen). Punkte antippen für Details.";
             letzteStich = {
-              n: abw.length,
+              n: nStich,
+              eigenesWetter: !mitWetter,
               mittel: Math.round(mw),
               mittelAbs: Math.round(mabs),
               zeit: new Date().toISOString(),
             };
-            toast(abw.length + " Stichproben fertig");
+            toast(nStich ? nStich + " Stichproben fertig" : "Stichproben: kein Wald an den Punkten");
           } catch (e) {
             toast("Stichproben abgebrochen: " + (e.message || e));
           } finally {
@@ -7377,14 +7681,13 @@
           if (grob && C.FS && zweiModus() !== "zellen") {
             var zs = zeichneZweiEbenen(C, zweiModus(), art, min, deck);
             $("r-note").textContent =
-              zweiText(zweiModus()) +
+              (zs.ohneWetter ? "Wetter nicht verfügbar — nur Standort angezeigt. " : "") +
+              zweiText(zs.modus) +
               " · " +
               (C.FX + "×" + C.FY) +
-              " Feinpixel · bestes Produkt " +
+              " Feinpixel · Bestwert " +
               zs.top +
-              (C.FS.unbekannt
-                ? " · " + C.FS.unbekannt + " Waldpixel mit unbekannter Bodenfarbe (Formularwert)"
-                : "") +
+              (zs.unbekannt ? " · " + zs.unbekannt + " Waldpixel mit unbekanntem Boden (grau)" : "") +
               (C.hinweise.length ? " — " + C.hinweise.join(", ") : "");
             return;
           }
@@ -8474,6 +8777,7 @@
             WW = await holeWetterMulti(wp, WH);
           } catch (e) {
             merkeBlockade(e);
+            logZeile("NET", "Wetterraster (Open-Meteo, " + wp.length + " Punkte): " + (e.message || e));
             WW = null;
           }
           // Messnetz: gemessener Regen der DWD-Stationen im Umkreis, je Rasterpunkt interpoliert (ersetzt den Modellregen der Vergangenheit)
@@ -8581,7 +8885,7 @@
             baum: "fichte",
             alter: "mittel",
             boden: "sauer",
-            unter: form.unter,
+            unter: UNTER_FERN,
             lage: "eben",
             rand: "innen",
             saison: form.saison,
@@ -8755,19 +9059,6 @@
             });
             if (!tr) bodenOk = false;
           }
-          function bodenNaechste(i, j) {
-            var best = null,
-              bd = 1e9;
-            for (var key in bodenGrid) {
-              var p = key.split(","),
-                d = (p[0] - i) * (p[0] - i) + (p[1] - j) * (p[1] - j);
-              if (d < bd) {
-                bd = d;
-                best = bodenGrid[key];
-              }
-            }
-            return best;
-          }
           // Bodenkarte als Bild: Legende aus den Stützstellen lernen (Farbe → Klasse), dann jede Zelle nach Farbe
           var BP = null,
             legende = bodenLegende,
@@ -8776,7 +9067,17 @@
             try {
               var BPX = Math.min(NX * 3, 600),
                 BPY = Math.min(NY * 3, 600),
-                BPfull = await pixelBild(rollen.boden.url, rollen.boden.layer, b, BPX, BPY);
+                BPfull = await pixelBildFein(
+                  rollen.boden.url,
+                  rollen.boden.layer,
+                  b,
+                  BPX,
+                  BPY,
+                  35,
+                  function (a, n) {
+                    note.textContent = "Bodenkarte " + a + " / " + n + " Kacheln";
+                  },
+                );
               // Mittelpixel je Zelle in ein NX×NY-Raster übernehmen (keine Farbmischung)
               BP = new Uint8ClampedArray(NX * NY * 4);
               for (var i = 0; i < NY; i++)
@@ -8885,19 +9186,6 @@
             }
           }
           var letzteQuelle = "";
-          function bodenNaechsteKey(i, j) {
-            var best = null,
-              bd = 1e9;
-            for (var key in bodenGrid) {
-              var p = key.split(","),
-                d = (p[0] - i) * (p[0] - i) + (p[1] - j) * (p[1] - j);
-              if (d < bd) {
-                bd = d;
-                best = key;
-              }
-            }
-            return best;
-          }
           function bodenZelle(i, j) {
             if (BP && legende.length) {
               var o = (i * NX + j) * 4;
@@ -8919,17 +9207,9 @@
                   letzteQuelle = "Kartenfarbe";
                   return best.wert;
                 }
-                letzteQuelle = "Kartenfarbe unbekannt → Formular";
-                return null;
               }
             }
-            var k = bodenNaechsteKey(i, j);
-            if (!k) return null;
-            var p = k.split(","),
-              dist =
-                Math.round(Math.sqrt((p[0] - i) * (p[0] - i) + (p[1] - j) * (p[1] - j)) * zellKm * 10) / 10;
-            letzteQuelle = "Stützstelle " + dist + " km: „" + (bodenGridRoh[k] || "").slice(0, 60) + '"';
-            return bodenGrid[k];
+            return null; // keine bekannte Kartenfarbe: Boden unbekannt (nicht die nächste Stützstelle raten)
           }
 
           // Boden einer Teilfläche (fy, fx ∈ [0,1) innerhalb der Zelle) aus dem feinen Bodenbild
@@ -8973,14 +9253,16 @@
               var lat = latN - (i + 0.5) * dLat,
                 lng = lngW + (j + 0.5) * dLng;
               letzteQuelle = "";
+              // Boden unbekannt: nur zur Rechnung der Zelle mit dem Formularwert, aber markiert und aus der Statistik raus
               var baum = BR[i][j].wert || form.baum,
-                boden = (bodenOk && bodenZelle(i, j)) || form.boden,
-                bq = letzteQuelle || "Formular";
+                bodenZ = bodenOk ? bodenZelle(i, j) : null,
+                boden = bodenZ || form.boden,
+                bq = bodenZ ? letzteQuelle || "Kartenfarbe" : "unbekannt";
               var v = {
                 baum: baum,
                 alter: "mittel",
                 boden: boden,
-                unter: form.unter,
+                unter: UNTER_FERN,
                 lage: "eben",
                 rand: "innen",
                 saison: form.saison,
@@ -9105,6 +9387,7 @@
                   : gridInterp(MM7, lat, lng),
                 feu: gridInterp(FEU, lat, lng),
                 bq: bq,
+                bodenUnbekannt: !bodenZ,
                 radZ: radZ,
               });
             }
@@ -9145,8 +9428,12 @@
                 if (bodenOk)
                   boF = bodenTeil(ciF, cjF, ((fy + 0.5) * NY) / FY - ciF, ((fx + 0.5) * NX) / FX - cjF);
                 if (!boF) {
+                  // Wald ohne bekannte Bodenfarbe: grau, nicht mit dem Formularwert rechnen
                   unbekanntF++;
-                  boF = form.boden;
+                  FS.pf[qf] = FS.st[qf] = FS.som[qf] = 254;
+                  FS.baum[qf] = fcF ? fcF.art : null;
+                  FS.boden[qf] = null;
+                  continue;
                 }
                 var keyF = bmF + "|" + boF;
                 if (!sgCache[keyF]) {
@@ -9154,7 +9441,7 @@
                     baum: bmF,
                     alter: "mittel",
                     boden: boF,
-                    unter: form.unter,
+                    unter: UNTER_FERN,
                     lage: "eben",
                     rand: "innen",
                     saison: form.saison,
@@ -9240,7 +9527,8 @@
             'Lage „eben" und Struktur „innen" angenommen',
           ];
           if (!WW) hinweise.push("Wetter fehlt");
-          if (!bodenOk) hinweise.push("Boden aus Formular");
+          if (!bodenOk) hinweise.push("Boden nicht verfügbar (grau)");
+          hinweise.push("Unterwuchs neutral (Mittel aller Klassen)");
           if (BP && legende.length)
             hinweise.push(
               "Boden nach Kartenfarbe (" +
@@ -9306,7 +9594,7 @@
           setzeTag($("g-tag").value);
           toast(
             rm && rm.n
-              ? rm.n + " Zellen ab " + $("r-min").value + " eingefärbt, Bestwert " + rm.top
+              ? rm.n + " Waldpixel ab " + $("r-min").value + " eingefärbt, Bestwert " + rm.top
               : "Keine Zelle über " +
                   $("r-min").value +
                   " — Bestwert " +
@@ -9343,20 +9631,22 @@
         function regionMeldung() {
           var C = rasterCache;
           if (!C || !C.grob) return;
-          if (C.FS && zweiModus() !== "zellen") {
-            var topZ = 0,
-              nZ = 0,
-              minZ = +$("r-min").value;
-            for (var fyZ = 0; fyZ < C.FY; fyZ += 2)
-              for (var fxZ = 0; fxZ < C.FX; fxZ += 2) {
-                var wZ = zweiWertAn(C, zweiModus(), $("r-art").value, fyZ, fxZ);
-                if (!wZ.wald) continue;
-                if (wZ.prod > topZ) topZ = wZ.prod;
-                if (wZ.prod >= minZ) nZ++;
-              }
-            $("g-note").textContent =
-              zweiText(zweiModus()) + " Bestes Produkt im Ausschnitt: " + Math.round(topZ) + ".";
-            return { n: nZ, top: Math.round(topZ) };
+          if (C.FS) {
+            var R = C.darstellung || zweiRaster(C, zweiModus(), $("r-art").value, +$("r-min").value),
+              gn = $("g-note");
+            gn.classList.toggle("warn", R.ohneWetter);
+            gn.textContent =
+              (R.ohneWetter
+                ? R.modus === "wetter"
+                  ? "Wetter nicht verfügbar — Wetterbild leer. "
+                  : "Wetter nicht verfügbar — nur Standort angezeigt. "
+                : "") +
+              zweiText(R.modus) +
+              (R.n ? " Bestwert im Ausschnitt: " + R.top + "." : "") +
+              (R.unbekannt
+                ? " " + R.unbekannt + " Waldpixel ohne bekannten Boden sind grau und nicht mitgezählt."
+                : "");
+            return { n: R.ueber, top: R.top };
           }
           var art = $("r-art").value,
             min = +$("r-min").value;
@@ -9376,6 +9666,7 @@
             besser = 0,
             schlechter = 0;
           C.zellen.forEach(function (z) {
+            if (z.bodenUnbekannt) return; // unbekannter Boden zählt nicht
             var v = sc(z);
             summe += v;
             if (v > top) top = v;
@@ -9466,7 +9757,7 @@
         function tagInfo(rm) {
           $("tr-info").textContent =
             rm && rasterCache && !rasterCache.trend
-              ? rm.n + " Zellen ab " + $("r-min").value + " · Best " + rm.top
+              ? rm.n + " Waldpixel ab " + $("r-min").value + " · Best " + rm.top
               : "";
         }
         L.DomEvent.disableClickPropagation($("tagregler"));
