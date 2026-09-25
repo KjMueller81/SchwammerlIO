@@ -39,6 +39,7 @@ function stub(name) {
   });
 }
 const store = {};
+let netzAbfragen = 0;
 const env = {
   window: stub("window"),
   document: stub("document"),
@@ -50,7 +51,11 @@ const env = {
     setItem: (k, v) => (store[k] = String(v)),
     removeItem: (k) => delete store[k],
   },
-  fetch: () => new Promise(() => {}),
+  // zählt Netzabfragen (Test i: Schicht 4 darf keine machen)
+  fetch: () => {
+    netzAbfragen++;
+    return new Promise(() => {});
+  },
   setTimeout: () => 0,
   setInterval: () => 0,
   requestAnimationFrame: () => 0,
@@ -78,10 +83,21 @@ const EXPORT = [
   "zweiWertAn",
   "wetterPotenzial",
   "standortGuete",
+  "standortFeldBauen",
+  "wetterFeldBauen",
+  "wetterAusTageswetter",
+  "regionAusGrundstock",
+  "bewertungAn",
+  "UNTER_FERN",
+  "daten",
+  "rasterCache",
 ];
+// als Getter, damit auch später gesetzte Variablen (rasterCache) aktuell gelesen werden
 const kern = js.replace(
   start,
-  "\nglobalThis.__T = {" + EXPORT.map((k) => k + ": " + k).join(", ") + "}; return;\n",
+  "\nglobalThis.__T = {" +
+    EXPORT.map((k) => "get " + k + "() { return " + k + "; }").join(", ") +
+    "}; return;\n",
 );
 
 let t, T;
@@ -409,6 +425,95 @@ pruefe("(g) Regen ±10 % ändert das Wetterpotenzial höchstens um 12 (Ebersberg
     return T.wetterPotenzial("st", w, 568, "herbst").pot;
   });
   return pot.every((x, i) => i === 0 || (x >= pot[i - 1] && x - pot[i - 1] <= 12));
+});
+
+// ---- Grundstock-Weg (Schicht 2–4) am Ebersberger Pin ----
+// Ausschnitt aus Grundstock + Tageswetter (werkzeuge/testausschnitt.js), Schicht 2/3 wie im Worker
+const A = JSON.parse(fs.readFileSync(path.join(__dirname, "daten", "ebersberg.json"), "utf8"));
+const grundA = {};
+Object.keys(A.grund).forEach((k) => (grundA[k] = Uint8Array.from(A.grund[k])));
+let C = null;
+const ausschnitt = () => {
+  if (C) return C;
+  const d = T.daten,
+    M = A.meta.raster;
+  d.meta = A.meta;
+  d.grund = grundA;
+  d.wetter = { stand: A.wetter.stand };
+  d.SG = T.standortFeldBauen(grundA, A.meta);
+  d.WF = T.wetterFeldBauen(A.wetter, grundA, A.meta, null, A.wetter.stand);
+  d.bereit = true;
+  const b = {
+    getNorth: () => M.latN,
+    getSouth: () => M.latN - M.NY * M.dLat,
+    getWest: () => M.lngW,
+    getEast: () => M.lngW + M.NX * M.dLng,
+  };
+  netzAbfragen = 0;
+  T.regionAusGrundstock(b, 25);
+  C = T.rasterCache;
+  C.saison = "herbst"; // Formular gibt es im Test nicht
+  return C;
+};
+
+// (h) Überblick aus Grundstock + wetter.json = Pin-Rechnung mit denselben Daten (Bewertung und Spanne ±3)
+pruefe("(h) Ebersberger Pin: Überblick aus Grundstock = Pin-Rechnung (±3, Bewertung und Spanne)", () => {
+  const C = ausschnitt(),
+    fy = Math.floor((C.latN - A.pin[0]) / C.dLat),
+    fx = Math.floor((A.pin[1] - C.lngW) / C.dLng),
+    q = fy * C.FX + fx,
+    lat = C.latN - (fy + 0.5) * C.dLat,
+    lng = C.lngW + (fx + 0.5) * C.dLng;
+  if (!C.FS.bwert[q]) throw new Error("Pin-Pixel ohne Wald");
+  const w = T.wetterAusTageswetter(A.wetter, lat, lng, C.H[q], A.wetter.stand),
+    v = {
+      baum: C.FS.bwert[q],
+      alter: "mittel",
+      boden: C.FS.boden[q],
+      unter: T.UNTER_FERN,
+      lage: C.FS.lage[q],
+      rand: "innen",
+      saison: "herbst",
+    },
+    pin = T.bewerte(v, w, C.H[q], undefined, C.D[q]);
+  const zeilen = [];
+  const ok = ["pf", "st", "som"].every((a) => {
+    const u = [
+        T.bewertungAn(C, 0, a, q, fy, fx),
+        T.bewertungAn(C, 0, a, q, fy, fx, "rfMin"),
+        T.bewertungAn(C, 0, a, q, fy, fx, "rfMax"),
+      ],
+      p = [pin[a], pin[a + "_min"], pin[a + "_max"]];
+    zeilen.push(
+      a + " " + u[0] + " (" + u[1] + "–" + u[2] + ") / Pin " + p[0] + " (" + p[1] + "–" + p[2] + ")",
+    );
+    return u.every((x, i) => Math.abs(x - p[i]) <= 3);
+  });
+  console.log(
+    "     Ebersberg " +
+      [v.baum, v.boden, v.lage].join("/") +
+      ", Kronen " +
+      C.D[q] +
+      " %: " +
+      zeilen.join(" · "),
+  );
+  return ok;
+});
+
+// (i) Schicht 4 (Ausschnitt + Zeichnen in allen Darstellungen, Arten und Tagen) macht keine einzige Netzabfrage
+pruefe("(i) Überblick aus Grundstock ohne Netzabfrage", () => {
+  const C = ausschnitt();
+  let n = 0;
+  ["zwei", "wetter", "standort"].forEach((modus) =>
+    ["best", "pf", "st", "som"].forEach((art) =>
+      [0, 1, 2, 3].forEach((tg) => {
+        C.tagIdx = tg;
+        n += T.zweiRaster(C, modus, art, 0).n;
+      }),
+    ),
+  );
+  C.tagIdx = 0;
+  return netzAbfragen === 0 && n > 0;
 });
 
 t.zeilen.forEach((z) => console.log(z));

@@ -8,7 +8,7 @@ Bewertet Waldstandorte für **Pfifferling (pf)**, **Fichtensteinpilz (st)** und 
 aus Geodaten (Baumart, Boden, Kronendichte, Gelände) und gemessenem Wetter. Nutzer: ein Sammler,
 Bedienung meist am iPhone im Wald, Auswertung am Windows-Rechner.
 
-Stand dieser Datei: v2026-09-26.14. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
+Stand dieser Datei: v2026-09-26.15. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
 
 ---
 
@@ -32,6 +32,8 @@ Stand dieser Datei: v2026-09-26.14. Die Entwicklung bis v2026-09-26.4 lief in ei
 9. **Vor jedem Commit `node tests/selbsttest.js` ausführen – muss grün sein** (Exitcode 0).
    Das Skript prüft die Syntax im strikten Modus und rechnet `selbsttest()` ohne Browser;
    Exitcode 1 = Syntax-/Ladefehler, 2 = Fall oder Regel weicht ab.
+   Tests (h)/(i) rechnen den Grundstock-Weg auf `tests/daten/ebersberg.json` (Ausschnitt um den Ebersberger Pin,
+   erzeugt mit `werkzeuge/testausschnitt.js`; nach neuem Grundstock oder geänderter `wetter.json`-Form neu erzeugen).
 
 ---
 
@@ -96,6 +98,17 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
   26 h (außer offline) oder Mitte außerhalb des Gebiets – der Grund steht im Region-Feld (`#rg-stand`).
 - Region-Feld zeigt den Datenstand („Wetter: heute 5:30 · Grundlage: Sept. 2026“). Ohne Pin/GPS nimmt der Umkreis
   die letzte Region-Mitte, solange sie im Bild ist (sonst wanderte die Mitte mit jedem Einpassen nach Süden).
+- Ist `wetter.json` von einem früheren Tag, rücken Pin und Wetterfeld die Reihen gleich vor
+  (`tageswetterVorruecken`, fehlende Tage aus der damaligen Vorhersage, höchstens 4 Tage).
+
+### Offline-Betrieb
+- `sw.js` (Service Worker, nur über https/localhost): App-Seite Netz zuerst, Leaflet Speicher zuerst, angesehene
+  OSM-/OpenTopoMap-Kacheln (höchstens 3 000) aus dem Speicher. Grundstock und `wetter.json` hält die App selbst
+  (`schwammerl-daten-v1`). Neue Cache-Namen in `sw.js` räumen alte Stände beim Aktivieren weg.
+- Pin ohne Netz (`navigator.onLine` false): Baumart, Boden, Hang, Höhe, Kronendichte aus dem Grundstock
+  (`grundstockAmPunkt`, 150 m), Wetter aus dem Tageswetter (`wetterAusTageswetter` über `wetterAusDaten`,
+  Quelle „offline — Wetter vom …“). Mit Netz, aber ohne Open-Meteo und Bright Sky, greift das Tageswetter vor
+  Gerätearchiv und Reanalyse. Region-Feld: „offline — Wetter vom … · Grundlage: …“. Besuche speichern geht offline.
 
 ## Architektur (Funktionen in index.html)
 
@@ -149,8 +162,8 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
 - `quellenAbgleich` – bei widersprüchlichen Messungen gilt der niedrigere Wert.
 - `RADAR_IM_MODELL = false` – DWD-Radar (RADOLAN SF) nur als Kartenebene, **nicht** in der Bewertung
   (gelernte Farbskala unzuverlässig, leere Bilder wurden als 0 mm gelesen).
-- Rückfallkette in `holeWetter`: Open-Meteo+Station → Bright Sky komplett → Gerätearchiv (≤ 3 Tage alt)
-  → ERA5-Land-Reanalyse.
+- Rückfallkette in `holeWetter`: (offline → Tageswetter) Open-Meteo+Station → Bright Sky komplett → Tageswetter
+  (`wetter.json`) → Gerätearchiv (≤ 3 Tage alt) → ERA5-Land-Reanalyse.
 
 **Geodaten**
 - Baumarten: Thünen-WMS, Klasse per Pixelfarbe (`naechsteFarbe`, `baumAmPunkt`).

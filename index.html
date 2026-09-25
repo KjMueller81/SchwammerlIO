@@ -1864,7 +1864,7 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-26.14";
+        var VERSION = "2026-09-26.15";
         // Radar nur als Kartenebene; in der Bewertung zu unzuverlässig (gelernte Farbskala, leere Bilder)
         var RADAR_IM_MODELL = false;
         var LOG = [];
@@ -3923,7 +3923,7 @@
         var WF_STUFE = 250,
           WF_WERTE = 4, // rf, rfMin, rfMax, tf
           WF_DICHTE = [60, 85, 100]; // Kronendichte-Klassen: Zellen interpolieren zwischen den beiden nächsten
-        function wetterFeldBauen(wj, grund, meta, melde) {
+        function wetterFeldBauen(wj, grund, meta, melde, jetzt) {
           var RG = wj.regen,
             OM = wj.om,
             R = meta.raster,
@@ -3986,6 +3986,7 @@
                 w = omMischen(OM, wj.omDaten, lat, lng, hl);
               // Regen der Vergangenheit aus dem Stationsnetz (Tage 1–35 zurück), heute bleibt Modell – wie am Pin
               for (var t = 1; t <= 35; t++) if (stat[t - 1] >= 0) w.tw[35 - t] = stat[t - 1] / 10;
+              tageswetterVorruecken(w, wj.stand, jetzt);
               for (var tg = 0; tg <= 3; tg++) {
                 var wt = wetterAmTag(w, tg);
                 for (var di = 0; di < WF_DICHTE.length; di++)
@@ -4085,6 +4086,102 @@
             hoehe: h,
             bodenF: bw ? bf / bw : null,
           };
+        }
+        // Tageswetter von einem früheren Tag (offline): Reihen um die fehlenden Tage auf heute vorrücken, die Lücke
+        // füllt die damalige Vorhersage (höchstens so weit, wie sie reicht). Pin und Wetterfeld rücken gleich vor.
+        function tageswetterVorruecken(w, stand, jetzt) {
+          var d = new Date(stand),
+            h = jetzt ? new Date(jetzt) : new Date();
+          h.setHours(0, 0, 0, 0);
+          var alter = Math.max(
+            0,
+            Math.min(
+              w.f.tw.length - 3,
+              Math.round((h - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 864e5),
+            ),
+          );
+          if (alter) {
+            ["tw", "et0", "tmin", "tmax"].forEach(function (k) {
+              w[k] = w[k].slice(alter).concat(w.f[k].slice(0, alter));
+              w.f[k] = w.f[k].slice(alter);
+            });
+            w.f.pp = w.f.pp.slice(alter);
+          }
+          w.vergangen = w.tw.length - alter; // vorgerückte Tage sind Vorhersage → nicht im Ensemble skalieren
+          return alter;
+        }
+        // Pin-Wetter aus dem Tageswetter (wetter.json) – offline oder wenn alle Dienste ausfallen.
+        // Open-Meteo bilinear (`omMischen`), Regen der Vergangenheit bilinear aus dem Stationsraster (wie Schicht 3).
+        // Ist die Datei von einem früheren Tag, rücken die Reihen vor (`tageswetterVorruecken`).
+        // null = Ort außerhalb des Tageswetter-Gebiets.
+        function wetterAusTageswetter(wj, lat, lng, hoehe, jetzt) {
+          var OM = wj.om,
+            RG = wj.regen;
+          if (
+            lat > RG.latN ||
+            lng < RG.lngW ||
+            lat < RG.latN - (RG.NY - 1) * RG.schritt ||
+            lng > RG.lngW + (RG.NX - 1) * RG.schritt
+          )
+            return null;
+          if (hoehe === null || hoehe === undefined) {
+            var ny = Math.max(0, Math.min(OM.NY - 1, Math.round((OM.latN - lat) / OM.schritt))),
+              nx = Math.max(0, Math.min(OM.NX - 1, Math.round((lng - OM.lngW) / OM.schritt)));
+            hoehe = wj.omDaten[ny * OM.NX + nx].e || 0;
+          }
+          var w = omMischen(OM, wj.omDaten, lat, lng, hoehe),
+            gy = (RG.latN - lat) / RG.schritt,
+            gx = (lng - RG.lngW) / RG.schritt,
+            y0 = Math.min(RG.NY - 2, Math.floor(gy)),
+            x0 = Math.min(RG.NX - 2, Math.floor(gx)),
+            ty = gy - y0,
+            tx = gx - x0,
+            ecken = [
+              [y0 * RG.NX + x0, (1 - ty) * (1 - tx)],
+              [y0 * RG.NX + x0 + 1, (1 - ty) * tx],
+              [(y0 + 1) * RG.NX + x0, ty * (1 - tx)],
+              [(y0 + 1) * RG.NX + x0 + 1, ty * tx],
+            ],
+            n = w.tw.length,
+            stTage = 0;
+          for (var t = 1; t <= 35 && t < n; t++) {
+            var sm = 0,
+              sg = 0;
+            ecken.forEach(function (e) {
+              var v = wj.regenDaten[e[0]][t - 1];
+              if (v >= 0) {
+                sm += e[1] * v;
+                sg += e[1];
+              }
+            });
+            if (sg > 0.01) {
+              w.tw[n - 1 - t] = Math.round(sm / sg) / 10;
+              stTage++;
+            }
+          }
+          var alter = tageswetterVorruecken(w, wj.stand, jetzt);
+          var r = function (x) {
+            return Math.round(x * 10) / 10;
+          };
+          ["tw", "et0", "tmin", "tmax"].forEach(function (k) {
+            w[k] = w[k].map(r);
+          });
+          var w7 = w.tw.slice(-8),
+            seit = 0;
+          for (var i = w.tw.length - 1; i >= 0; i--) {
+            if (w.tw[i] >= 5) break;
+            seit++;
+          }
+          w.mm7 = Math.round(
+            w7.reduce(function (a, b) {
+              return a + b;
+            }, 0),
+          );
+          w.tage = Math.min(seit, 21);
+          w.maxTag = Math.round(Math.max.apply(null, w7));
+          w.tageswetter = { stand: wj.stand, alterTage: alter, stationsTage: stTage };
+          w.quelle = "Tageswetter (Stationsraster + Open-Meteo 0,2°)";
+          return w;
         }
         // Wetterfaktoren an einem Ort (Schicht 4): bilinear über 4 Knoten, linear über die Höhenstufen und zwischen den
         // beiden nächsten Kronendichte-Klassen (unbekannt = 85 %). Nur Rechnen.
@@ -4330,6 +4427,16 @@
             });
             if (eff.length) o.push("Aus deinen Funden gelernt: " + eff.slice(0, 4).join(", ") + ".");
           }
+          if (wetter && wetter.tageswetter)
+            o.push(
+              "Wetter aus dem gespeicherten Tageswetter (" +
+                wetter.quelle +
+                ")" +
+                (wetter.tageswetter.alterTage
+                  ? "; die letzten " + wetter.tageswetter.alterTage + " Tag(e) sind Vorhersage von damals."
+                  : ".") +
+                " Die Messungen der Stationen sind eingerechnet.",
+            );
           if (wetter && wetter.archivAlter)
             o.push(
               "Wetter aus dem Gerätearchiv, " +
@@ -6722,8 +6829,21 @@
             reserve: true,
           };
         }
+        function wetterAusDaten(ll, hoehe, grund) {
+          if (!daten.wetterRoh) return null;
+          var w = wetterAusTageswetter(daten.wetterRoh, ll.lat, ll.lng, hoehe);
+          if (!w) return null;
+          w.quelle = grund + " — Wetter vom " + standKurz(daten.wetterRoh.stand);
+          w.offline = grund === "offline";
+          wetterQuelle = w.quelle;
+          return w;
+        }
         async function holeWetter(ll, hoehe) {
           var fehler = [];
+          if (!navigator.onLine) {
+            var wo = wetterAusDaten(ll, hoehe, "offline");
+            if (wo) return wo;
+          }
           try {
             var w = await holeWetterHaupt(ll, hoehe);
             w.quelle = "Open-Meteo";
@@ -6795,6 +6915,13 @@
           } catch (e2) {
             fehler.push("DWD/Bright Sky: " + e2.message);
           }
+          // Tageswetter (ganzes Gebiet, gemessen) vor dem Punkt-Archiv und der groben Reanalyse
+          var wd = wetterAusDaten(
+            ll,
+            hoehe,
+            !navigator.onLine || daten.offline ? "offline" : "Dienste nicht erreichbar",
+          );
+          if (wd) return wd;
           var wa = await archivLesen(ll);
           if (wa && wa.archivAlter <= 3) {
             wetterQuelle = wa.quelle;
@@ -7293,27 +7420,36 @@
             $("l-fill").style.width = Math.round(p * 100) + "%";
           };
           var m = [],
-            fehler = [];
-          try {
-            var dLat = 200 / 111320,
-              dLng = 200 / (111320 * Math.cos((pos.lat * Math.PI) / 180));
-            var h = await hoehen([
-              [pos.lat, pos.lng],
-              [pos.lat + dLat, pos.lng],
-              [pos.lat - dLat, pos.lng],
-              [pos.lat, pos.lng + dLng],
-              [pos.lat, pos.lng - dLng],
-            ]);
-            var lage = lageAusHoehen(h);
-            $("f-lage").value = lage.wert;
-            hoehePunkt = h[0];
+            fehler = [],
+            // ohne Netz: Baumart, Boden, Lage, Höhe und Kronendichte aus dem Grundstock (150 m)
+            gp = navigator.onLine ? null : grundstockAmPunkt(pos);
+          if (gp) {
+            m.push("offline: Standort aus dem Grundstock (150 m)");
+            hoehePunkt = gp.hoehe;
+            $("f-lage").value = gp.lage;
             erkannt.lage = true;
-            if (hoehenDehnung(h[0]) > 1.05) m.push("Berglage: Regen wirkt länger");
-          } catch (e) {
-            merkeBlockade(e);
-            erkannt.lage = false;
-            fehler.push("Höhe");
-          }
+            if (gp.dichte !== null) dichtePunkt = gp.dichte;
+          } else
+            try {
+              var dLat = 200 / 111320,
+                dLng = 200 / (111320 * Math.cos((pos.lat * Math.PI) / 180));
+              var h = await hoehen([
+                [pos.lat, pos.lng],
+                [pos.lat + dLat, pos.lng],
+                [pos.lat - dLat, pos.lng],
+                [pos.lat, pos.lng + dLng],
+                [pos.lat, pos.lng - dLng],
+              ]);
+              var lage = lageAusHoehen(h);
+              $("f-lage").value = lage.wert;
+              hoehePunkt = h[0];
+              erkannt.lage = true;
+              if (hoehenDehnung(h[0]) > 1.05) m.push("Berglage: Regen wirkt länger");
+            } catch (e) {
+              merkeBlockade(e);
+              erkannt.lage = false;
+              fehler.push("Höhe");
+            }
           schritt("Wetter, Station, Radar …", 0.25);
           try {
             wetter = await holeWetterCached(pos, hoehePunkt);
@@ -7416,7 +7552,29 @@
             $("wetter-note").textContent = "Wetter nicht abrufbar: " + e.message + " — Regler unten gelten.";
           }
           schritt("Boden …", 0.65);
-          if (rollen.boden) {
+          if (gp) {
+            if (gp.boden) {
+              $("f-boden").value = gp.boden;
+              erkannt.boden = true;
+            } else {
+              erkannt.boden = false;
+              fehler.push("Boden (Grundstock unbekannt)");
+            }
+            if (gp.baum) {
+              var bw =
+                gp.baum.wert === "fichte" && gp.dichte !== null && gp.dichte < 80
+                  ? "fichte_licht"
+                  : gp.baum.wert;
+              $("f-baum").value = bw;
+              $("f-rand").value = "innen";
+              erkannt.baum = true;
+              m.push(gp.baum.art + (bw === "fichte_licht" ? ", licht" : "") + ", Boden " + (gp.boden || "?"));
+            } else {
+              erkannt.keinWald = true;
+              erkannt.baum = true;
+              m.push("kein Wald laut Grundstock");
+            }
+          } else if (rollen.boden) {
             try {
               var b = bodenDeuten(await featureInfo(rollen.boden.url, rollen.boden.layer, pos));
               if (b) {
@@ -7439,15 +7597,18 @@
           }
           schritt("Kronendichte und Baumart …", 0.8);
           var tcd = null;
-          try {
-            tcd = await kronendichte(pos);
-            if (tcd !== null) {
-              dichtePunkt = tcd;
+          if (!gp)
+            try {
+              tcd = await kronendichte(pos);
+              if (tcd !== null) {
+                dichtePunkt = tcd;
+              }
+            } catch (e) {
+              merkeBlockade(e);
             }
-          } catch (e) {
-            merkeBlockade(e);
-          }
-          if (rollen.baum) {
+          if (gp) {
+            // schon oben aus dem Grundstock gesetzt
+          } else if (rollen.baum) {
             try {
               var bt = await baumAmPunkt(pos);
               if (bt && bt.wert && tcd !== null) {
@@ -9721,10 +9882,33 @@
           if (!el) return;
           var offline = !navigator.onLine || daten.offline;
           el.textContent =
-            (offline && daten.wetter ? "offline — Wetter vom " + standKurz(daten.wetter.stand) + " · " : "") +
-            (datenStandText() || (daten.fehler ? "Grundstock nicht verfügbar" : "Daten laden …")) +
+            (offline && daten.wetter
+              ? datenStandText().replace(/^Wetter: /, "offline — Wetter vom ")
+              : datenStandText() || (daten.fehler ? "Grundstock nicht verfügbar" : "Daten laden …")) +
             (hinweis ? " — " + hinweis : "");
           el.classList.toggle("warn", !!hinweis);
+        }
+        // Standortmerkmale am Punkt aus dem Grundstock (für den Pin ohne Netz); null = außerhalb / nicht geladen
+        function grundstockAmPunkt(ll) {
+          if (!daten.grund || !daten.meta) return null;
+          var R = daten.meta.raster,
+            i = Math.floor((R.latN - ll.lat) / R.dLat),
+            j = Math.floor((ll.lng - R.lngW) / R.dLng);
+          if (i < 0 || j < 0 || i >= R.NY || j >= R.NX) return null;
+          var q = i * R.NX + j,
+            g = daten.grund,
+            codes = daten.meta.codes,
+            name = function (o, c) {
+              for (var k in o) if (o[k] === c) return k;
+              return null;
+            };
+          return {
+            hoehe: g.hoehe[q] * 12,
+            dichte: g.dichte[q] <= 100 ? g.dichte[q] : null,
+            lage: name(codes.lage, g.lage[q]) || "eben",
+            boden: g.boden[q] ? name(codes.boden, g.boden[q]) : null,
+            baum: g.baum[q] ? codes.baum[g.baum[q] - 1] : null,
+          };
         }
         // Liegt der Mittelpunkt des Ausschnitts im Grundstock-Gebiet?
         function imGrundstock(b) {
@@ -11411,6 +11595,18 @@
         update();
         load();
         datenLaden();
+        // Offline-Betrieb: App, Leaflet und angesehene Kartenkacheln über den Service Worker (sw.js)
+        if ("serviceWorker" in navigator && window.isSecureContext)
+          navigator.serviceWorker.register("sw.js").catch(function (e) {
+            logZeile("NET", "Service Worker: " + (e.message || e));
+          });
+        window.addEventListener("online", function () {
+          daten.offline = false;
+          regionStandZeigen();
+        });
+        window.addEventListener("offline", function () {
+          regionStandZeigen();
+        });
         setTimeout(function () {
           map.invalidateSize();
         }, 200);
