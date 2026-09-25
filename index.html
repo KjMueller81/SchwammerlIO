@@ -1128,6 +1128,14 @@
             </div>
           </div>
           <button class="act ghost" id="dbg-csv">Letztes Raster als CSV exportieren</button>
+          <div class="row">
+            <div>
+              <button class="act ghost" id="dbg-test" style="margin-top: 8px">Modell-Selbsttest</button>
+            </div>
+            <div>
+              <button class="act ghost" id="dbg-fall" style="margin-top: 8px">Pin-Fall als JSON</button>
+            </div>
+          </div>
           <label class="inl" style="margin: 8px 0"
             ><input type="checkbox" id="dbg-show" /> Protokoll anzeigen</label
           >
@@ -1563,7 +1571,7 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-25.3";
+        var VERSION = "2026-09-25.5";
         // Radar nur als Kartenebene; in der Bewertung zu unzuverlässig (gelernte Farbskala, leere Bilder)
         var RADAR_IM_MODELL = false;
         var LOG = [];
@@ -1990,6 +1998,259 @@
         });
 
         $("version").textContent = "v" + VERSION;
+        // ---- Pin-Fall: alle Eingaben von Pin und Zelle darunter, zum exakten Nachrechnen ----
+        function wetterKurz(w) {
+          if (!w) return null;
+          var r1 = function (a) {
+            return (a || []).map(function (x) {
+              return Math.round(x * 10) / 10;
+            });
+          };
+          return {
+            tw: r1(w.tw),
+            et0: r1(w.et0),
+            tmin: r1(w.tmin),
+            tmax: r1(w.tmax),
+            f: w.f ? { tw: r1(w.f.tw), et0: r1(w.f.et0), tmin: r1(w.f.tmin), tmax: r1(w.f.tmax) } : null,
+            bodenF: w.bodenF === undefined ? null : w.bodenF,
+            quelle: w.quelle || null,
+            station: w.station ? w.station.name : null,
+            unsicher: w.unsicher || 0,
+          };
+        }
+        function pinFall() {
+          var v = readForm(),
+            fall = { version: VERSION, zeit: new Date().toISOString() };
+          if (pos) {
+            fall.pin = {
+              lat: +pos.lat.toFixed(5),
+              lng: +pos.lng.toFixed(5),
+              hoehe: hoehePunkt,
+              kronen: dichtePunkt,
+              fingerprobe: fingerprobe,
+              reglerHand: reglerHand,
+              merkmale: v,
+              erkannt: erkannt,
+              wetter: wetterKurz(wetter),
+            };
+            try {
+              var b = bewerte(v);
+              fall.pin.bewertung = { pf: b.pf, st: b.st, som: b.som };
+            } catch (e) {}
+          }
+          fall.lernen = { aktiv: lernAktiv, stand: lernStand };
+          if (rasterCache && rasterCache.grob && pos) {
+            var C = rasterCache,
+              i = Math.floor((C.latN - pos.lat) / C.dLat),
+              j = Math.floor((pos.lng - C.lngW) / C.dLng);
+            var z = C.zellen.find(function (x) {
+              return x.i === i && x.j === j;
+            });
+            if (z)
+              fall.zelle = {
+                merkmale: z.v,
+                hoehe: z.hoehe,
+                boden_quelle: z.bq || null,
+                teile: z.teile || null,
+                bewertung: z.rr,
+                wetter: wetterKurz(z.w),
+              };
+            fall.ueberblick = {
+              modus: typeof zweiModus === "function" ? zweiModus() : null,
+              zellen: C.zellen.length,
+              zellM: C.zellM,
+              fein: C.FS ? C.FX + "x" + C.FY : null,
+              wetterfeld: !!C.GW,
+              tag: C.tagIdx || 0,
+            };
+          }
+          if (letzteStich) fall.stichproben = letzteStich;
+          return fall;
+        }
+        // ---- Modell-Selbsttest: feste Fälle mit erwarteten Werten + Plausibilitätsregeln ----
+        var SELBSTTEST = [
+          [
+            "Hitze nach Regen: 22 mm vor 8 T, 27 °C",
+            [[8, 22]],
+            3.5,
+            13,
+            27,
+            600,
+            {},
+            { pf: 7, st: 10, som: 2 },
+          ],
+          ["Landregen 30 mm vor 9 T, kühl", [[9, 30]], 1.5, 9, 17, 600, {}, { pf: 34, st: 66, som: 5 }],
+          [
+            "Nasser Herbst, alle 3 T 10 mm",
+            [
+              [15, 10],
+              [12, 10],
+              [9, 10],
+              [6, 10],
+              [3, 10],
+            ],
+            1.2,
+            8,
+            15,
+            600,
+            {},
+            { pf: 43, st: 71, som: 3 },
+          ],
+          [
+            "Schliersee 22.9.: 13 mm vor 13 T, 31 mm vor 5 T",
+            [
+              [13, 13],
+              [5, 31],
+            ],
+            1.6,
+            9,
+            17,
+            800,
+            { lage: "nord" },
+            { pf: 30, st: 68, som: 5 },
+          ],
+          [
+            "Buche auf Kalk, Sommer, warm",
+            [
+              [12, 15],
+              [7, 20],
+            ],
+            1.5,
+            14,
+            25,
+            500,
+            { baum: "buche", boden: "kalk", saison: "sommer", lage: "sued", unter: "gras" },
+            { pf: 22, st: 21, som: 62 },
+          ],
+          ["4 Wochen trocken", [], 3, 11, 22, 600, {}, { pf: 6, st: 8, som: 1 }],
+        ];
+        function selbsttest() {
+          var alt = { fp: fingerprobe, rh: reglerHand, la: lernAktiv },
+            z = [],
+            ok = 0,
+            n = 0;
+          fingerprobe = null;
+          reglerHand = false;
+          lernAktiv = false;
+          var mk = function (rains, et, tmin, tmax) {
+            var tw = [];
+            for (var i = 0; i < 36; i++) tw.push(0);
+            rains.forEach(function (r) {
+              tw[35 - r[0]] = r[1];
+            });
+            return {
+              tw: tw,
+              et0: tw.map(function () {
+                return et;
+              }),
+              tmin: tw.map(function () {
+                return tmin;
+              }),
+              tmax: tw.map(function () {
+                return tmax;
+              }),
+              f: { tw: [], et0: [], tmin: [], tmax: [], pp: [] },
+            };
+          };
+          var V = function (o) {
+            var v = {
+              baum: "fichte",
+              alter: "mittel",
+              boden: "sauer",
+              unter: "moos",
+              lage: "eben",
+              rand: "innen",
+              saison: "herbst",
+              regen: 0,
+              mm: 0,
+            };
+            for (var k in o) v[k] = o[k];
+            return v;
+          };
+          try {
+            SELBSTTEST.forEach(function (t) {
+              var b = bewerte(V(t[6]), mk(t[1], t[2], t[3], t[4]), t[5], undefined, 85),
+                e = t[7];
+              var gut = b.pf === e.pf && b.st === e.st && b.som === e.som;
+              n++;
+              if (gut) ok++;
+              z.push(
+                (gut ? "OK   " : "ABW  ") +
+                  t[0] +
+                  " → pf " +
+                  b.pf +
+                  " st " +
+                  b.st +
+                  " som " +
+                  b.som +
+                  (gut ? "" : "  (erwartet pf " + e.pf + " st " + e.st + " som " + e.som + ")"),
+              );
+            });
+            // Plausibilitätsregeln
+            var W1 = mk([[9, 30]], 1.5, 9, 17),
+              W2 = mk([[9, 20]], 1.5, 9, 17);
+            var regeln = [
+              [
+                "Moor deckelt auf ≤ 10",
+                function () {
+                  var b = bewerte(V({ boden: "moor" }), W1, 600, undefined, 85);
+                  return b.pf <= 10 && b.st <= 10;
+                },
+              ],
+              [
+                "Kultur deckelt auf ≤ 25",
+                function () {
+                  var b = bewerte(V({ alter: "jung" }), W1, 600, undefined, 85);
+                  return b.st <= 25 && b.pf <= 25;
+                },
+              ],
+              [
+                "Mehr Regen nicht schlechter (20 → 30 mm)",
+                function () {
+                  return bewerte(V(), W1, 600, undefined, 85).st >= bewerte(V(), W2, 600, undefined, 85).st;
+                },
+              ],
+              [
+                "Nordhang ≥ Südhang im Herbst",
+                function () {
+                  return (
+                    bewerte(V({ lage: "nord" }), W1, 600, undefined, 85).st >=
+                    bewerte(V({ lage: "sued" }), W1, 600, undefined, 85).st
+                  );
+                },
+              ],
+              [
+                "Endformel = Bewertung",
+                function () {
+                  var v = V(),
+                    b = bewerte(v, W1, 600, undefined, 85),
+                    f = wetterFaktorenArt("st", v, W1, 600, 85);
+                  return endwert(v, "st", f.rf, f.tf, 600) === b.st;
+                },
+              ],
+              [
+                "Ohne Wetter kein Idealwert (≤ 80)",
+                function () {
+                  return bewerte(V(), null, 600, undefined, 85).st <= 80;
+                },
+              ],
+            ];
+            regeln.forEach(function (r) {
+              var g = false;
+              try {
+                g = r[1]();
+              } catch (e) {}
+              n++;
+              if (g) ok++;
+              z.push((g ? "OK   " : "FEHL ") + "Regel: " + r[0]);
+            });
+          } finally {
+            fingerprobe = alt.fp;
+            reglerHand = alt.rh;
+            lernAktiv = alt.la;
+          }
+          return { ok: ok, n: n, zeilen: z };
+        }
         function bericht() {
           var z = [];
           z.push("Schwammerl-Karte v" + VERSION + " · " + new Date().toISOString());
@@ -2100,6 +2361,44 @@
                 rasterCache.hinweise.join("|"),
             );
           z.push("Stellen: " + spots.length + ", Lernstand " + JSON.stringify(lernStand));
+          try {
+            var st = selbsttest();
+            z.push(
+              "Selbsttest: " +
+                st.ok +
+                "/" +
+                st.n +
+                " ok" +
+                (st.ok < st.n
+                  ? " — " +
+                    st.zeilen
+                      .filter(function (x) {
+                        return x.indexOf("OK") !== 0;
+                      })
+                      .join(" | ")
+                  : ""),
+            );
+          } catch (e) {
+            z.push("Selbsttest: Fehler " + (e.message || e));
+          }
+          if (letzteStich)
+            z.push(
+              "Stichproben: " +
+                letzteStich.n +
+                " Punkte, Mittel " +
+                letzteStich.mittel +
+                ", mittlere Abweichung " +
+                letzteStich.mittelAbs +
+                " (" +
+                letzteStich.zeit +
+                ")",
+            );
+          try {
+            z.push("--- Pin-Fall (JSON) ---");
+            z.push(JSON.stringify(pinFall()));
+          } catch (e) {
+            z.push("Pin-Fall: Fehler " + (e.message || e));
+          }
           z.push("--- Protokoll (letzte 80) ---");
           z = z.concat(LOG.slice(-80));
           return z.join("\n");
@@ -2118,6 +2417,39 @@
             $("dbg-show").checked = true;
             $("dbg-log").textContent = t;
             toast("Bericht unten angezeigt — markieren und kopieren");
+          }
+        });
+        $("dbg-test").addEventListener("click", function () {
+          var st = selbsttest(),
+            el = $("dbg-log");
+          el.style.display = "block";
+          $("dbg-show").checked = true;
+          el.textContent =
+            "Modell-Selbsttest v" + VERSION + ": " + st.ok + "/" + st.n + " ok\n" + st.zeilen.join("\n");
+          toast(
+            "Selbsttest: " +
+              st.ok +
+              " von " +
+              st.n +
+              " ok" +
+              (st.ok < st.n ? " — Abweichungen im Protokoll" : ""),
+          );
+        });
+        $("dbg-fall").addEventListener("click", async function () {
+          var t = JSON.stringify(pinFall(), null, 1);
+          try {
+            if (navigator.share && MOBIL) {
+              await navigator.share({ title: "Schwammerl Pin-Fall", text: t });
+              return;
+            }
+            await navigator.clipboard.writeText(t);
+            toast("Pin-Fall in die Zwischenablage kopiert");
+          } catch (e) {
+            var el = $("dbg-log");
+            el.style.display = "block";
+            $("dbg-show").checked = true;
+            el.textContent = t;
+            toast("Pin-Fall unten angezeigt — markieren und kopieren");
           }
         });
         $("dbg-csv").addEventListener("click", function () {
@@ -5802,6 +6134,7 @@
               bx.filter = "blur(" + F * 0.8 + "px)";
             } catch (e) {}
             bx.drawImage(cv, 0, 0, NX * F, NY * F);
+            big = inMercator(big, b.getNorth(), b.getSouth());
             if (regenOverlay) map.removeLayer(regenOverlay);
             regenOverlay = L.imageOverlay(big.toDataURL("image/png"), b, {
               opacity: +$("o-regen").value / 100,
@@ -5848,6 +6181,35 @@
           c.checked = !c.checked;
           c.dispatchEvent(new Event("change"));
         });
+
+        // Die Rasterbilder sind in gleichen Breitengrad-Schritten gerechnet (EPSG:4326), die Karte ist Web-Mercator.
+        // Leaflet streckt ein Bild linear zwischen den Ecken — ohne Umrechnung liegt die Bildmitte je nach Größe
+        // 50 m bis fast 1 km zu weit nördlich. Diese Funktion verteilt die Zeilen passend auf Mercator-Höhen.
+        function mercatorY(lat) {
+          var f = (lat * Math.PI) / 180;
+          return Math.log(Math.tan(Math.PI / 4 + f / 2));
+        }
+        function mercatorLat(y) {
+          return ((2 * Math.atan(Math.exp(y)) - Math.PI / 2) * 180) / Math.PI;
+        }
+        function inMercator(src, latN, latS) {
+          var W = src.width,
+            H = src.height,
+            out = document.createElement("canvas");
+          out.width = W;
+          out.height = H;
+          var ox = out.getContext("2d"),
+            yN = mercatorY(latN),
+            yS = mercatorY(latS);
+          ox.imageSmoothingEnabled = false;
+          for (var r = 0; r < H; r++) {
+            var lat = mercatorLat(yN + ((r + 0.5) / H) * (yS - yN)),
+              q = ((latN - lat) / (latN - latS)) * H,
+              sr = Math.max(0, Math.min(H - 1, Math.floor(q)));
+            ox.drawImage(src, 0, sr, W, 1, 0, r, W, 1);
+          }
+          return out;
+        }
 
         // ============ Überblick als zwei Ebenen: Wetterpotenzial × Standortgüte ============
         function zweiModus() {
@@ -5938,6 +6300,7 @@
           bx.imageSmoothingEnabled = true;
           bx.imageSmoothingQuality = "high";
           bx.drawImage(cv, 0, 0, FX * 2, FY * 2);
+          big = inMercator(big, C.latN, C.latS);
           var bnd = L.latLngBounds([C.latS, C.lngW], [C.latN, C.lngE]);
           bildOverlay = L.imageOverlay(big.toDataURL("image/png"), bnd, {
             opacity: deck,
@@ -5955,7 +6318,8 @@
               : "Farbe = Wetterpotenzial, Deckkraft = Standortgüte. Kräftig grün = gutes Wetter auf gutem Wald; blass = Wetter gut, Wald weniger. Pin ≈ Wetter × Standort, dazu Hang und Struktur.";
         }
         // Stichproben: echte Pin-Rechnung an bis zu 60 Waldpunkten
-        var stichGruppe = L.layerGroup().addTo(map);
+        var stichGruppe = L.layerGroup().addTo(map),
+          letzteStich = null;
         async function stichproben() {
           var C = rasterCache;
           if (!C || !C.grob) {
@@ -6116,6 +6480,12 @@
               " gegenüber der Zelle, mittlere Abweichung " +
               Math.round(mabs) +
               " Punkte. Punkte antippen für Details.";
+            letzteStich = {
+              n: abw.length,
+              mittel: Math.round(mw),
+              mittelAbs: Math.round(mabs),
+              zeit: new Date().toISOString(),
+            };
             toast(abw.length + " Stichproben fertig");
           } catch (e) {
             toast("Stichproben abgebrochen: " + (e.message || e));
@@ -6234,6 +6604,7 @@
           bx.drawImage(cv, 0, 0, NX * F, NY * F);
           bx.globalCompositeOperation = "source-over";
           var b = L.latLngBounds([C.latN - NY * C.dLat, C.lngW], [C.latN, C.lngW + NX * C.dLng]);
+          big = inMercator(big, b.getNorth(), b.getSouth());
           if (bildOverlay) {
             map.removeLayer(bildOverlay);
             bildOverlay = null;
