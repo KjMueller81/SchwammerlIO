@@ -8,7 +8,7 @@ Bewertet Waldstandorte für **Pfifferling (pf)**, **Fichtensteinpilz (st)** und 
 aus Geodaten (Baumart, Boden, Kronendichte, Gelände) und gemessenem Wetter. Nutzer: ein Sammler,
 Bedienung meist am iPhone im Wald, Auswertung am Windows-Rechner.
 
-Stand dieser Datei: v2026-09-26.5. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
+Stand dieser Datei: v2026-09-26.6. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
 
 ---
 
@@ -76,13 +76,26 @@ Stand dieser Datei: v2026-09-26.5. Die Entwicklung bis v2026-09-26.4 lief in ein
   erkennt Nord/Süd/Ost/West/Senke).
 
 **Ansichten**
-- Pin-Popup + Prognose 0–7 Tage; Rechenweg (Tab „Punkt“).
-- Umkreis (`bewerteBereich`), Regionen-Überblick (`bewerteRegion`): Darstellungen
-  „Wetter × Standort“ (Standard, `zeichneZweiEbenen`), „Nur Wetterpotenzial“, „Nur Standortgüte“,
-  „Zellen wie bisher“. Zellen bewerten bis zu 4 Teilflächen und zeigen die beste.
-- Stichproben (`stichproben`): bis 60 Punkte mit echter Pin-Rechnung zur Kontrolle.
-- Regen-Ebene 3/7/14/30 Tage aus dem Stationsnetz (`zeichneRegenfeld`).
-- Diagnose: Protokoll, `bericht()`, Pin-Fall als JSON (`pinFall`), CSV-Export des Rasters.
+- Layout: unter 900 px Karte oben, Schublade unten (`setzeStufe` zu/halb/voll, `MOBIL` ab < 700 px bzw.
+  Handy-Kennung). Ab 900 px Seitenleiste rechts (400 px, volle Höhe, Tabs oben, eigener Scroll), Karte
+  füllt den Rest; GPS-/Folgen-Knopf (Leaflet `topright`) sitzen damit am linken Rand der Seitenleiste.
+- Tab „Karten“: Ebenen, Regen-Ebene 3/7/14/30 Tage aus dem Stationsnetz (`zeichneRegenfeld`),
+  Diagnose zugeklappt (`#diag-box`: Protokoll, `bericht()`, Pin-Fall als JSON `pinFall`, CSV des Rasters,
+  Modell-Selbsttest). Eigene WMS-Ebenen gibt es nicht mehr (`frageLayer` bleibt für die festen Ebenen).
+- Tab „Punkt“: Urteil, Prognose, Begründung des Pins → „Beste Stellen im Umkreis“ (`bewerteUmkreis` →
+  `bewerteBereich`, 500 m–3 km, Top 5, `#u-list`) → zugeklappt „Merkmale & Wetter anpassen“, „Rechenweg“
+  (`#rw-box`), „Anzeige“ (Deckkraft `#r-deck`, Schwelle `#r-min`, Fläche zeigen/löschen).
+  Schwelle je Ansicht gemerkt (`SCHWELLE.region` 40, `SCHWELLE.umkreis` 20, `setzeSchwelle`).
+- Region-Überblick als Feld auf der Karte (`#region`, zugeklappt Knopf `#region-knopf`, `regionOffen`):
+  Umkreis-Knöpfe 25/50/100 km und Pilzart-Knöpfe schreiben in versteckte Felder `#g-r`/`#g-art`
+  (`knopfGruppe`), Darstellung `#g-modus` („Wetter × Standort“ `zeichneZweiEbenen`, „Wetter“,
+  „Standort“), „Region bewerten“ (`bewerteRegion`), Tagesregler `#tagregler` (Tage ohne Neuberechnung,
+  `setzeTag`), Stichproben (`stichproben`, bis 60 Punkte mit echter Pin-Rechnung). Am Handy klappt das
+  Feld beim Pin-Setzen ein. Zellen im `rasterCache` bleiben für Stichproben, Kontrollzeile und CSV.
+- `zoomAufUmkreis(rKm)`: zoomt genau auf den Kreis um Pin → GPS-Standort → Kartenmitte (Viertel-
+  Zoomstufen), zeigt ihn gestrichelt (`regionKreis`) und rechnet verdeckte Flächen (`verdeckteRaender`:
+  Region-Feld, Ladeanzeige, Schublade/Seitenleiste falls überlappend) als `paddingTopLeft/BottomRight` ein.
+  Handy: vorher Schublade zu.
 
 **Stellen und Besuche (Datenmodell)**
 - Stelle (`spots[]`, Gerätespeicher `schwammerl:spots`): `name, lat, lng, pf, st, som, v` (Merkmale), `notiz`,

@@ -910,16 +910,9 @@
         }
       }
       #tagregler {
-        position: absolute;
-        left: 10px;
-        right: 10px;
-        bottom: 28px;
-        z-index: 900;
-        background: rgba(29, 33, 25, 0.92);
-        border: 1px solid var(--linie);
-        border-radius: 10px;
-        padding: 8px 12px 6px;
-        backdrop-filter: blur(4px);
+        margin-top: 8px;
+        padding-top: 6px;
+        border-top: 1px solid var(--linie);
       }
       #tagregler .tr-kopf {
         display: flex;
@@ -945,14 +938,6 @@
         justify-content: space-between;
         font-size: 10px;
         color: var(--papier-2);
-      }
-      @media (min-width: 701px) {
-        #tagregler {
-          left: auto;
-          right: 12px;
-          width: 320px;
-          bottom: 24px;
-        }
       }
       #toast {
         position: fixed;
@@ -1045,6 +1030,156 @@
       .gps:hover {
         background: #f4f4f4;
       }
+      /* Region-Bedienfeld auf der Karte: zugeklappt nur Knopf, offen Kasten unten (Desktop unten links) */
+      .region-knopf,
+      #region {
+        position: absolute;
+        z-index: 900;
+        bottom: 28px;
+        left: 10px;
+        background: rgba(29, 33, 25, 0.94);
+        border: 1px solid var(--linie);
+        border-radius: 10px;
+        color: var(--papier);
+        font-family: inherit;
+        backdrop-filter: blur(4px);
+      }
+      .region-knopf {
+        padding: 8px 14px;
+        font-size: 13.5px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      #region {
+        right: 10px;
+        padding: 6px 10px 6px;
+        font-size: 12.5px;
+      }
+      .rg-kopf {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 4px;
+      }
+      .rg-zu {
+        background: none;
+        border: none;
+        color: var(--papier-2);
+        font-size: 20px;
+        line-height: 1;
+        padding: 0 4px;
+        cursor: pointer;
+      }
+      .rg-zeile {
+        display: flex;
+        gap: 4px;
+        margin-top: 5px;
+        align-items: stretch;
+      }
+      .rg-zeile button[data-w] {
+        flex: 1;
+        min-height: 32px;
+        padding: 4px 2px;
+        font: inherit;
+        font-size: 12.5px;
+        background: transparent;
+        color: var(--moos-hell);
+        border: 1px solid var(--moos);
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      .rg-zeile button[data-w].an {
+        background: var(--moos);
+        color: #fff;
+      }
+      .rg-zeile select {
+        flex: 1;
+        width: auto;
+        padding: 4px 6px;
+        font-size: 12.5px;
+      }
+      #region button.act {
+        flex: 1.3;
+        width: auto;
+        margin-top: 0;
+        padding: 6px 8px;
+        font-size: 13px;
+      }
+      .rg-note {
+        margin-top: 6px;
+        font-size: 11px;
+        line-height: 1.35;
+        color: var(--papier-2);
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        cursor: pointer;
+      }
+      .rg-note.offen {
+        display: block;
+        max-height: 30vh;
+        overflow-y: auto;
+      }
+      .rg-link {
+        background: none;
+        border: none;
+        padding: 4px 0 0;
+        font: inherit;
+        font-size: 11.5px;
+        color: var(--moos-hell);
+        text-decoration: underline;
+        cursor: pointer;
+      }
+      .rg-link[disabled] {
+        opacity: 0.5;
+        cursor: default;
+      }
+      /* Desktop ab 900 px: Seitenleiste rechts in voller Höhe, Karte füllt den Rest */
+      @media (min-width: 900px) {
+        #app {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) 400px;
+          grid-template-rows: auto auto minmax(0, 1fr);
+        }
+        header,
+        #fehler {
+          grid-column: 1 / -1;
+        }
+        #map {
+          grid-column: 1;
+          grid-row: 3;
+          min-height: 0;
+        }
+        .sheet,
+        .sheet.zu,
+        .sheet.voll {
+          grid-column: 2;
+          grid-row: 3;
+          max-height: none;
+          overflow-y: auto;
+          border-top: none;
+          border-left: 1px solid var(--linie);
+          transition: none;
+        }
+        .sheet .pane {
+          padding-bottom: 28px;
+        }
+        .tabs .griff,
+        .tabs::before {
+          display: none;
+        }
+        #region {
+          right: auto;
+          width: 360px;
+          bottom: 24px;
+          left: 12px;
+        }
+        .region-knopf {
+          bottom: 24px;
+          left: 12px;
+        }
+      }
       @media (prefers-reduced-motion: reduce) {
         * {
           transition: none !important;
@@ -1068,20 +1203,48 @@
           <div class="l-kopf"><span id="l-text">Lädt …</span><span id="l-rest"></span></div>
           <div class="l-bar"><i id="l-fill"></i></div>
         </div>
-        <div id="tagregler" style="display: none">
-          <div class="tr-kopf"><span id="tr-label">Heute</span><span id="tr-info"></span></div>
-          <input
-            type="range"
-            id="tr-slider"
-            min="0"
-            max="4"
-            step="1"
-            value="0"
-            aria-label="Tag der Überblicksbewertung"
-          />
-          <div class="tr-skala">
-            <span>Heute</span><span>+1</span><span>+2</span><span>+3</span><span>Trend</span>
+        <button id="region-knopf" class="region-knopf" title="Regionen-Überblick">Region</button>
+        <div id="region" style="display: none">
+          <div class="rg-kopf">
+            <b>Region</b
+            ><button class="rg-zu" id="rg-zu" title="Einklappen" aria-label="Einklappen">×</button>
           </div>
+          <div class="rg-zeile" id="rg-r">
+            <button data-w="25">25</button><button data-w="50" class="an">50</button
+            ><button data-w="100">100 km</button>
+          </div>
+          <div class="rg-zeile" id="rg-art">
+            <button data-w="best" class="an">Beste</button><button data-w="pf">Pfiff</button
+            ><button data-w="st">Stein</button><button data-w="som">Sommer</button>
+          </div>
+          <div class="rg-zeile">
+            <select id="g-modus" aria-label="Darstellung">
+              <option value="zwei" selected>Wetter × Standort</option>
+              <option value="wetter">Wetter</option>
+              <option value="standort">Standort</option>
+            </select>
+            <button class="act" id="g-los">Region bewerten</button>
+          </div>
+          <div id="tagregler" style="display: none">
+            <div class="tr-kopf"><span id="tr-label">Heute</span><span id="tr-info"></span></div>
+            <input
+              type="range"
+              id="tr-slider"
+              min="0"
+              max="4"
+              step="1"
+              value="0"
+              aria-label="Tag der Überblicksbewertung"
+            />
+            <div class="tr-skala">
+              <span>Heute</span><span>+1</span><span>+2</span><span>+3</span><span>Trend</span>
+            </div>
+          </div>
+          <div class="rg-note" id="g-note" title="Antippen für den ganzen Text">Noch nicht berechnet.</div>
+          <button class="rg-link" id="g-stich">Stichproben prüfen</button>
+          <input type="hidden" id="g-r" value="50" />
+          <input type="hidden" id="g-art" value="best" />
+          <input type="hidden" id="g-tag" value="0" />
         </div>
       </div>
 
@@ -1141,78 +1304,53 @@
             </div>
           </div>
 
-          <h2>Weitere Ebene</h2>
-          <label for="wms-url">WMS-Adresse</label>
-          <input
-            type="text"
-            id="wms-url"
-            placeholder="https://…/wms?"
-            autocapitalize="off"
-            spellcheck="false"
-          />
-          <button class="act ghost" id="ask-wms">Verfügbare Layer abfragen</button>
-          <label for="wms-layer">Layer</label>
-          <select id="wms-layer">
-            <option value="">erst Dienst abfragen</option>
-          </select>
-          <input
-            type="text"
-            id="wms-layer-manual"
-            placeholder="oder Layername von Hand"
-            autocapitalize="off"
-            spellcheck="false"
-          />
-          <label>Rolle beim Auslesen</label>
-          <div class="row" style="gap: 16px">
-            <label class="inl"><input type="radio" name="rolle" value="" checked /> keine</label>
-            <label class="inl"><input type="radio" name="rolle" value="boden" /> Boden</label>
-            <label class="inl"><input type="radio" name="rolle" value="baum" /> Baumart</label>
-          </div>
-          <button class="act" id="add-wms">Ebene hinzufügen</button>
-
           <div class="note" id="diagnose">Luftbild DOP20: wartet</div>
           <div class="note" id="dienste">Noch keine Datenabfrage.</div>
 
-          <h2>Diagnose</h2>
-          <p class="hint">
-            Protokoll aller Datenabfragen und Fehler. „Bericht kopieren" erzeugt einen Text, den du direkt
-            weiterschicken kannst.
-          </p>
-          <div class="row">
-            <div><button class="act ghost" id="dbg-copy" style="margin-top: 0">Bericht kopieren</button></div>
-            <div>
-              <button class="act ghost" id="dbg-clear" style="margin-top: 0">Protokoll leeren</button>
+          <details class="grp" id="diag-box">
+            <summary>Diagnose</summary>
+            <p class="hint">
+              Protokoll aller Datenabfragen und Fehler. „Bericht kopieren" erzeugt einen Text, den du direkt
+              weiterschicken kannst.
+            </p>
+            <div class="row">
+              <div>
+                <button class="act ghost" id="dbg-copy" style="margin-top: 0">Bericht kopieren</button>
+              </div>
+              <div>
+                <button class="act ghost" id="dbg-clear" style="margin-top: 0">Protokoll leeren</button>
+              </div>
             </div>
-          </div>
-          <button class="act ghost" id="dbg-csv">Letztes Raster als CSV exportieren</button>
-          <div class="row">
-            <div>
-              <button class="act ghost" id="dbg-test" style="margin-top: 8px">Modell-Selbsttest</button>
+            <button class="act ghost" id="dbg-csv">Letztes Raster als CSV exportieren</button>
+            <div class="row">
+              <div>
+                <button class="act ghost" id="dbg-test" style="margin-top: 8px">Modell-Selbsttest</button>
+              </div>
+              <div>
+                <button class="act ghost" id="dbg-fall" style="margin-top: 8px">Pin-Fall als JSON</button>
+              </div>
             </div>
-            <div>
-              <button class="act ghost" id="dbg-fall" style="margin-top: 8px">Pin-Fall als JSON</button>
-            </div>
-          </div>
-          <label class="inl" style="margin: 8px 0"
-            ><input type="checkbox" id="dbg-show" /> Protokoll anzeigen</label
-          >
-          <pre
-            id="dbg-log"
-            style="
-              display: none;
-              font-size: 10.5px;
-              line-height: 1.35;
-              background: var(--feld);
-              border: 1px solid var(--linie);
-              border-radius: 7px;
-              padding: 8px;
-              max-height: 240px;
-              overflow: auto;
-              white-space: pre-wrap;
-              word-break: break-all;
-              color: var(--papier-2);
-            "
-          ></pre>
+            <label class="inl" style="margin: 8px 0"
+              ><input type="checkbox" id="dbg-show" /> Protokoll anzeigen</label
+            >
+            <pre
+              id="dbg-log"
+              style="
+                display: none;
+                font-size: 10.5px;
+                line-height: 1.35;
+                background: var(--feld);
+                border: 1px solid var(--linie);
+                border-radius: 7px;
+                padding: 8px;
+                max-height: 240px;
+                overflow: auto;
+                white-space: pre-wrap;
+                word-break: break-all;
+                color: var(--papier-2);
+              "
+            ></pre>
+          </details>
           <div class="note">
             Luftbild &amp; Relief: Bayerische Vermessungsverwaltung · Boden: LfU Bayern (ÜBK25) · Baumarten:
             Thünen-Institut (Sentinel, 2017/18) · Kronendichte: Copernicus HRL 2018 (EEA) · Wetter:
@@ -1250,12 +1388,27 @@
           </div>
           <ul class="why" id="why"></ul>
 
-          <details id="rw-box">
-            <summary style="cursor: pointer; color: var(--moos-hell); font-size: 13px; margin: 10px 0 4px">
-              Rechenweg anzeigen
-            </summary>
-            <div id="rechenweg" class="hint">Noch nichts berechnet.</div>
-          </details>
+          <h2>Beste Stellen im Umkreis</h2>
+          <p class="hint">Bewertet alle Waldzellen um den Pin und markiert die fünf besten Stellen.</p>
+          <div class="row" style="align-items: flex-end">
+            <div>
+              <label for="u-r">Radius</label>
+              <select id="u-r">
+                <option value="0.5">500 m</option>
+                <option value="1" selected>1 km</option>
+                <option value="2">2 km</option>
+                <option value="3">3 km</option>
+              </select>
+            </div>
+            <div><button class="act" id="u-los" style="margin-top: 0">Umkreis bewerten</button></div>
+          </div>
+          <div class="fort" id="r-fort"><i></i></div>
+          <div class="note" id="r-note">
+            Unterwuchs, Bestandshöhe und Struktur kommen aus „Merkmale &amp; Wetter anpassen" — die stehen in
+            keiner Karte.
+          </div>
+          <div id="u-list"></div>
+          <button class="act ghost" id="u-save" style="display: none">Alle fünf speichern</button>
 
           <details class="grp">
             <summary>Merkmale &amp; Wetter anpassen</summary>
@@ -1341,174 +1494,40 @@
               <option value="innen" selected>Bestandsinneres</option>
             </select>
 
-            <details class="grp" open>
-              <summary>Umkreis &amp; Überblick</summary>
-              <h2>Umkreis bewerten</h2>
-              <p class="hint">Bewertet alle Waldzellen um den Pin und markiert die fünf besten Stellen.</p>
-              <div class="row" style="align-items: flex-end">
-                <div>
-                  <label for="u-r">Radius</label>
-                  <select id="u-r">
-                    <option value="0.5">500 m</option>
-                    <option value="1" selected>1 km</option>
-                    <option value="2">2 km</option>
-                    <option value="3">3 km</option>
-                  </select>
-                </div>
-                <div><button class="act" id="u-los" style="margin-top: 0">Umkreis bewerten</button></div>
-              </div>
-              <h2>Regionen-Überblick</h2>
-              <p class="hint">
-                Grob und großflächig, mit derselben Formel wie am Pin — Lage und Struktur gelten dabei als
-                „eben" und „Bestandsinneres". Ein Pin an einem Nordhang oder einer Wegkante liegt entsprechend
-                über der Zelle, ein Südhang darunter.
-              </p>
-              <div class="row">
-                <div>
-                  <label for="g-r">Umkreis</label>
-                  <select id="g-r">
-                    <option value="25">25 km</option>
-                    <option value="50" selected>50 km</option>
-                    <option value="100">100 km</option>
-                    <option value="0">wie Kartenausschnitt</option>
-                  </select>
-                </div>
-                <div>
-                  <label for="g-art">Pilz</label>
-                  <select id="g-art">
-                    <option value="best">Beste der drei</option>
-                    <option value="pf">Pfifferling</option>
-                    <option value="st">Fichtensteinpilz</option>
-                    <option value="som">Sommersteinpilz</option>
-                    <option value="mm7">Wetter: Regen 7 Tage</option>
-                    <option value="feu">Wetter: Streufeuchte</option>
-                  </select>
-                </div>
-                <div>
-                  <label for="g-tag">Tag</label>
-                  <select id="g-tag">
-                    <option value="0">Heute</option>
-                    <option value="1">Morgen</option>
-                    <option value="2">+2 Tage</option>
-                    <option value="3">+3 Tage</option>
-                    <option value="trend">Trend: +3 gegen heute</option>
-                  </select>
-                </div>
-              </div>
-              <label for="g-min">Zellen zeigen ab Bewertung <b id="g-min-v">40</b></label>
-              <input type="range" id="g-min" min="0" max="80" step="5" value="40" />
-              <label for="g-modus">Darstellung</label>
-              <select id="g-modus">
-                <option value="zwei" selected>
-                  Wetter × Standort (Farbe = Wetter, Deckkraft = Standort)
-                </option>
-                <option value="wetter">Nur Wetterpotenzial (flächig)</option>
-                <option value="standort">Nur Standortgüte (fein, ohne Wetter)</option>
-                <option value="zellen">Zellen wie bisher (beste Teilfläche)</option>
-              </select>
-              <button class="act" id="g-los">Region bewerten</button>
-              <div class="note" id="g-note">Noch nicht berechnet.</div>
-              <button class="act ghost" id="g-stich">
-                Stichproben prüfen (echte Pin-Rechnung, bis 60 Punkte)
-              </button>
-            </details>
-            <details class="grp">
-              <summary>Feinraster für den sichtbaren Ausschnitt</summary>
-              <h2>Sichtbaren Ausschnitt bewerten</h2>
-              <p class="hint">
-                Färbt jede Rasterzelle des sichtbaren Ausschnitts nach Bewertung. Auf unter 8 km Breite
-                hineinzoomen.
-              </p>
-              <div class="row">
-                <div>
-                  <label for="r-art">Art</label>
-                  <select id="r-art">
-                    <option value="best">Beste der drei</option>
-                    <option value="pf">Pfifferling</option>
-                    <option value="st">Fichtensteinpilz</option>
-                    <option value="som">Sommersteinpilz</option>
-                    <option value="mm7">Wetter: Regen 7 Tage</option>
-                    <option value="feu">Wetter: Streufeuchte</option>
-                  </select>
-                </div>
-                <div>
-                  <label for="r-n">Raster</label>
-                  <select id="r-n">
-                    <option value="8">8 × 8 grob</option>
-                    <option value="16" selected>16 × 16</option>
-                    <option value="24">24 × 24 fein</option>
-                    <option value="32">32 × 32</option>
-                    <option value="48">48 × 48 langsam</option>
-                  </select>
-                </div>
-              </div>
-              <label for="r-min">Zellen anzeigen ab Bewertung <b id="r-min-v">20</b></label>
-              <input type="range" id="r-min" min="0" max="80" step="5" value="20" />
-              <button class="act" id="r-los">Sichtbaren Ausschnitt bewerten</button>
-              <div id="u-list"></div>
-              <button class="act ghost" id="u-save" style="display: none">Alle fünf speichern</button>
-              <div class="fort" id="r-fort"><i></i></div>
-              <div class="note" id="r-note">
-                Unterwuchs, Bestandshöhe und Struktur kommen aus dem Tab „Punkt" — die stehen in keiner Karte.
-              </div>
-              <div class="layer on" id="r-layer" style="margin-top: 10px; display: none">
-                <div class="top">
-                  <input type="checkbox" id="r-an" checked /><label for="r-an">Bewertungsraster</label
-                  ><button class="weg" id="r-weg">Löschen</button>
-                </div>
-                <div class="op">
-                  <label class="inl" style="margin: 4px 0 6px"
-                    ><input type="checkbox" id="r-weich" checked /> Überblick weich zeichnen (Flächenbild
-                    statt Zellen)</label
-                  >
-                  <div class="row">
-                    <label>Anzeige</label
-                    ><select id="r-art2">
-                      <option value="best">Beste der drei</option>
-                      <option value="pf">Pfifferling</option>
-                      <option value="st">Fichtensteinpilz</option>
-                      <option value="som">Sommersteinpilz</option>
-                      <option value="mm7">Wetter: Regen 7 Tage</option>
-                      <option value="feu">Wetter: Streufeuchte</option>
-                    </select>
-                  </div>
-                  <input type="range" id="r-deck" min="10" max="100" value="65" />
-                  <div class="hint" style="margin-top: 6px">
-                    <span
-                      style="
-                        display: inline-block;
-                        width: 110px;
-                        height: 9px;
-                        vertical-align: middle;
-                        border-radius: 3px;
-                        background: linear-gradient(
-                          90deg,
-                          #be1e1e,
-                          #e15a19,
-                          #f5aa14,
-                          #50be28,
-                          #149628,
-                          #00641e
-                        );
-                      "
-                    ></span>
-                    &nbsp;schlecht → gut · Trend: rot = wird schlechter, gelb = stabil, grün = wird besser
-                  </div>
-                </div>
-              </div>
-            </details>
-
             <div class="row">
               <div><button class="act ghost" id="wetter-neu">Nur Wetter neu laden</button></div>
               <div><button class="act ghost" id="auslesen">Standort neu auslesen</button></div>
             </div>
             <div class="note" id="auslesen-note">Antippen der Karte liest automatisch aus.</div>
           </details>
+          <details class="grp" id="rw-box">
+            <summary>Rechenweg</summary>
+            <div id="rechenweg" class="hint">Noch nichts berechnet.</div>
+          </details>
           <details class="grp">
-            <summary>Stelle speichern (ohne Popup)</summary>
-            <label for="f-name">Name</label>
-            <input type="text" id="f-name" placeholder="z. B. Nordrand Ebersberger Forst" />
-            <button class="act" id="save">Speichern</button>
+            <summary>Anzeige</summary>
+            <label for="r-deck">Deckkraft der Bewertungsfläche</label>
+            <input type="range" id="r-deck" min="10" max="100" value="65" />
+            <label for="r-min">Zellen zeigen ab Bewertung <b id="r-min-v">20</b></label>
+            <input type="range" id="r-min" min="0" max="80" step="5" value="20" />
+            <div class="hint" style="margin-top: 6px">
+              <span
+                style="
+                  display: inline-block;
+                  width: 110px;
+                  height: 9px;
+                  vertical-align: middle;
+                  border-radius: 3px;
+                  background: linear-gradient(90deg, #be1e1e, #e15a19, #f5aa14, #50be28, #149628, #00641e);
+                "
+              ></span>
+              &nbsp;schlecht → gut · Trend: rot = wird schlechter, gelb = stabil, grün = wird besser
+            </div>
+            <label class="inl" style="margin: 10px 0 4px"
+              ><input type="checkbox" id="r-an" checked /> Bewertungsfläche zeigen</label
+            >
+            <button class="act ghost" id="r-weg">Bewertung löschen</button>
+            <input type="hidden" id="r-art" value="best" />
           </details>
         </section>
 
@@ -1631,7 +1650,7 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-26.5";
+        var VERSION = "2026-09-26.6";
         // Radar nur als Kartenebene; in der Bewertung zu unzuverlässig (gelernte Farbskala, leere Bilder)
         var RADAR_IM_MODELL = false;
         var LOG = [];
@@ -2046,9 +2065,6 @@
         EBENEN.forEach(function (e) {
           baueEbene(e, false);
         });
-        if (MOBIL) {
-          $("r-n").value = LANGSAM ? "8" : "16";
-        }
         $("diagnose").textContent = "Startkarte: OpenStreetMap. Luftbild bei Bedarf einschalten.";
         EBENEN[0].layer.on("tileload", function () {
           $("diagnose").textContent = "Luftbild DOP20: lädt";
@@ -2593,57 +2609,6 @@
             el.textContent = LOG.slice(-120).join("\n");
             el.scrollTop = el.scrollHeight;
           }
-        });
-        $("ask-wms").addEventListener("click", async function () {
-          var url = $("wms-url").value.trim(),
-            sel = $("wms-layer");
-          if (!url) {
-            toast("Erst die WMS-Adresse eintragen.");
-            return;
-          }
-          sel.innerHTML = '<option value="">wird abgefragt …</option>';
-          try {
-            var ls = await frageLayer(url);
-            sel.innerHTML = "";
-            if (!ls.length) {
-              sel.innerHTML = '<option value="">keine Layer gefunden</option>';
-              return;
-            }
-            ls.forEach(function (l) {
-              var o = document.createElement("option");
-              o.value = l.name;
-              o.textContent = l.title + "  [" + l.name + "]";
-              sel.appendChild(o);
-            });
-          } catch (e) {
-            sel.innerHTML = '<option value="">Abfrage gescheitert — Namen von Hand</option>';
-          }
-        });
-        $("add-wms").addEventListener("click", function () {
-          var url = $("wms-url").value.trim(),
-            lay = $("wms-layer").value || $("wms-layer-manual").value.trim();
-          if (!url || !lay) {
-            toast("WMS-Adresse und Layer werden beide gebraucht.");
-            return;
-          }
-          var rolle = document.querySelector("input[name=rolle]:checked").value || undefined;
-          baueEbene(
-            {
-              id: "c" + Date.now(),
-              titel: lay,
-              art: "wms",
-              url: url,
-              layers: lay,
-              rolle: rolle,
-              an: true,
-              deck: 60,
-              misch: "multiply",
-              attr: "",
-            },
-            true,
-          );
-          $("wms-url").value = "";
-          $("wms-layer-manual").value = "";
         });
 
         // (Feste Revier-Marker entfernt — der Regionen-Überblick zeigt jetzt datenbasiert, wo es sich lohnt.)
@@ -4753,6 +4718,7 @@
           fingerprobe = null;
           dichtePunkt = null;
           entwurf = null;
+          if (MOBIL) regionOffen(false); // Region-Feld würde das Popup am Handy verdecken
           erkannt = { baum: null, boden: null, lage: null, wetter: null, keinWald: false };
           if (pin) map.removeLayer(pin);
           pin = L.marker(pos).addTo(map);
@@ -6752,7 +6718,7 @@
         // ============ Überblick als zwei Ebenen: Wetterpotenzial × Standortgüte ============
         function zweiModus() {
           var el = $("g-modus");
-          return el ? el.value : "zellen";
+          return el ? el.value : "zwei";
         }
         function potAn(C, tg, a, fy, fx) {
           var GN = C.GN,
@@ -7194,7 +7160,7 @@
               (C.hinweise.length ? " — " + C.hinweise.join(", ") : "");
             return;
           }
-          if (grob && $("r-weich").checked) {
+          if (grob) {
             var st = zeichneWeich(C, art, min, deck, trend);
             $("r-note").textContent =
               C.zellen.length +
@@ -7337,16 +7303,6 @@
             (C.hinweise.length ? " — " + C.hinweise.join(", ") : "") +
             ". Art und Schwelle lassen sich ohne Neuberechnung wechseln.";
         }
-        $("r-art").addEventListener("change", function () {
-          $("r-art2").value = this.value;
-          zeichneRaster();
-          update();
-          zeichneTopListe();
-        });
-        $("r-art2").addEventListener("change", function () {
-          $("r-art").value = this.value;
-          zeichneRaster();
-        });
         var ladeStart = 0,
           ladeTimer = null,
           ladeP = 0;
@@ -7391,9 +7347,17 @@
           $("lade").classList.toggle("puls", p <= 0.02);
           $("l-fill").style.width = Math.round(p * 100) + "%";
         }
+        // Ein Schwellen-Regler (Tab Punkt, Anzeige); Überblick und Umkreis merken sich je ihren Wert
+        var SCHWELLE = { region: 40, umkreis: 20 };
+        function setzeSchwelle(w) {
+          $("r-min").value = w;
+          $("r-min-v").textContent = w;
+        }
         $("r-min").addEventListener("input", function () {
           $("r-min-v").textContent = this.value;
+          SCHWELLE[rasterCache && rasterCache.grob ? "region" : "umkreis"] = +this.value;
           zeichneRaster();
+          if (rasterCache && rasterCache.grob) tagInfo(regionMeldung());
         });
         // Kern: bewertet ein Rechteck (bounds) mit N×N Zellen, optional nur innerhalb eines Kreises
         async function bewerteBereich(b, N, kreis) {
@@ -7741,8 +7705,8 @@
           ladeZeigen(text || "Berechnung startet …");
           fort(0);
           rasterGruppe.clearLayers();
-          $("r-layer").style.display = "block";
           $("r-an").checked = true;
+          map.addLayer(rasterGruppe);
         }
         function rasterEnde(btn, text) {
           fort(null);
@@ -7750,32 +7714,6 @@
           btn.disabled = false;
           btn.textContent = text;
         }
-
-        $("r-los").addEventListener("click", async function () {
-          if (rasterLaeuft) return;
-          var btn = $("r-los"),
-            b = map.getBounds();
-          var breiteKm = map.distance(b.getNorthWest(), b.getNorthEast()) / 1000;
-          if (breiteKm > 12) {
-            $("r-note").textContent =
-              "Ausschnitt ist " + Math.round(breiteKm) + " km breit — auf unter 8 km hineinzoomen.";
-            return;
-          }
-          rasterStart(btn);
-          $("r-deck").value = 65;
-          $("g-note").textContent = "Noch nicht berechnet.";
-          $("tagregler").style.display = "none";
-          try {
-            rasterCache = await bewerteBereich(b, +$("r-n").value, null);
-            if (!rasterCache) $("r-note").textContent = "Kein Wald im Ausschnitt laut Baumartenkarte.";
-            else zeichneRaster();
-          } catch (e) {
-            logZeile("JS ", "Ausschnitt: " + (e.message || e));
-            toast("Berechnung abgebrochen: " + (e.message || e));
-          } finally {
-            rasterEnde(btn, "Sichtbaren Ausschnitt bewerten");
-          }
-        });
 
         // Umkreis um den Pin
         var umkreisGruppe = L.layerGroup().addTo(map),
@@ -7813,9 +7751,6 @@
           var box = $("u-list");
           box.innerHTML = "";
           if (!letzteTop.length) return;
-          var h2 = document.createElement("h2");
-          h2.textContent = "Beste Stellen im Umkreis";
-          box.appendChild(h2);
           if (rasterCache) {
             var k = document.createElement("div");
             k.className = "note";
@@ -7966,7 +7901,9 @@
           var N = Math.max(12, Math.min(48, Math.round((2 * r) / 80)));
           rasterStart(btn, "Umkreis " + rKm + " km: Baumartenkarte …");
           umkreisGruppe.clearLayers();
+          regionKreis.clearLayers();
           $("r-deck").value = 65;
+          setzeSchwelle(SCHWELLE.umkreis);
           $("tagregler").style.display = "none";
           umkreisGruppe.addLayer(
             L.circle(pos, { radius: r, color: "#efeee6", weight: 1.5, fill: false, dashArray: "4 5" }),
@@ -8071,6 +8008,104 @@
           bewerteUmkreis(+$("u-r").value);
         });
 
+        // ---- Region-Bedienfeld auf der Karte (vor dem ersten Lauf nur als Knopf „Region“) ----
+        var regionKreis = L.layerGroup().addTo(map);
+        function regionOffen(an) {
+          $("region").style.display = an ? "block" : "none";
+          $("region-knopf").style.display = an ? "none" : "block";
+        }
+        ["region", "region-knopf"].forEach(function (id) {
+          L.DomEvent.disableClickPropagation($(id)); // sonst setzt ein Tipp aufs Feld einen Pin
+          L.DomEvent.disableScrollPropagation($(id));
+        });
+        $("region-knopf").addEventListener("click", function () {
+          regionOffen(true);
+        });
+        $("rg-zu").addEventListener("click", function () {
+          regionOffen(false);
+        });
+        $("g-note").addEventListener("click", function () {
+          this.classList.toggle("offen");
+        });
+        // Knopfgruppe schreibt ihren Wert ins versteckte Feld (g-r, g-art), das die Rechnung liest
+        function knopfGruppe(box, feld, fn) {
+          $(box).addEventListener("click", function (ev) {
+            var b = ev.target.closest("button[data-w]");
+            if (!b) return;
+            Array.prototype.forEach.call(this.querySelectorAll("button[data-w]"), function (x) {
+              x.classList.toggle("an", x === b);
+            });
+            $(feld).value = b.dataset.w;
+            fn(b.dataset.w);
+          });
+        }
+        knopfGruppe("rg-r", "g-r", function (w) {
+          if (!rasterLaeuft) zoomAufUmkreis(+w);
+        });
+        knopfGruppe("rg-art", "g-art", function () {
+          $("g-art").dispatchEvent(new Event("change"));
+        });
+        // Was die Karte verdeckt (Region-Feld, Ladeanzeige, Schublade/Seitenleiste, falls sie überlappen):
+        // als Rand fürs Einpassen, je Seite höchstens 45 % der Karte
+        function verdeckteRaender() {
+          var m = $("map").getBoundingClientRect(),
+            pd = { l: 0, o: 0, r: 0, u: 0 };
+          ["region", "region-knopf", "lade", "sheet"].forEach(function (id) {
+            var el = $(id);
+            if (!el || !el.getClientRects().length) return;
+            var e = el.getBoundingClientRect();
+            if (e.right <= m.left || e.left >= m.right || e.bottom <= m.top || e.top >= m.bottom) return;
+            // hohe, schmale Leisten verdecken seitlich, alles andere oben oder unten (nach Lage zur Kartenmitte)
+            var seitlich = e.height > m.height * 0.5 && e.width < m.width * 0.5;
+            if (seitlich && e.left + e.width / 2 > m.left + m.width / 2)
+              pd.r = Math.max(pd.r, m.right - e.left);
+            else if (seitlich) pd.l = Math.max(pd.l, e.right - m.left);
+            else if (e.top + e.height / 2 > m.top + m.height / 2) pd.u = Math.max(pd.u, m.bottom - e.top);
+            else pd.o = Math.max(pd.o, e.bottom - m.top);
+          });
+          pd.u = Math.min(pd.u, m.height * 0.45);
+          pd.o = Math.min(pd.o, m.height * 0.45);
+          pd.l = Math.min(pd.l, m.width * 0.45);
+          pd.r = Math.min(pd.r, m.width * 0.45);
+          return pd;
+        }
+        // Genau auf den Kreis (25/50/100 km) um Pin, sonst GPS-Standort, sonst Kartenmitte zoomen
+        async function zoomAufUmkreis(rKm) {
+          if (MOBIL && stufe !== 0) {
+            setzeStufe(0); // Schublade zu, damit die Karte ihre volle Höhe hat
+            await new Promise(function (ok) {
+              setTimeout(ok, 280);
+            });
+          }
+          map.invalidateSize();
+          var mitte = pos || standortLL || map.getCenter(),
+            r = rKm * 1000,
+            dLat = r / 111320,
+            dLng = r / (111320 * Math.cos((mitte.lat * Math.PI) / 180));
+          var b = L.latLngBounds([mitte.lat - dLat, mitte.lng - dLng], [mitte.lat + dLat, mitte.lng + dLng]);
+          regionKreis.clearLayers();
+          regionKreis.addLayer(
+            L.circle(mitte, {
+              radius: r,
+              color: "#efeee6",
+              weight: 1.5,
+              fill: false,
+              dashArray: "6 6",
+              interactive: false,
+            }),
+          );
+          var pd = verdeckteRaender(),
+            snap = map.options.zoomSnap;
+          map.options.zoomSnap = 0.25; // Viertelstufen, sonst füllt der Kreis die Karte oft nur zur Hälfte
+          map.fitBounds(b, {
+            paddingTopLeft: [pd.l + 8, pd.o + 8],
+            paddingBottomRight: [pd.r + 8, pd.u + 8],
+            animate: false,
+          });
+          map.options.zoomSnap = snap;
+          return { mitte: mitte, r: r, b: b };
+        }
+
         // Regionen-Überblick: grobes Raster über den ganzen Ausschnitt
         function warteAufKarte() {
           return new Promise(function (ok) {
@@ -8085,24 +8120,11 @@
           if (rasterLaeuft) return;
           var btn = $("g-los"),
             note = $("r-note");
-          var rKm = +$("g-r").value,
+          var rKm = +$("g-r").value || 50,
             b;
           ladeZeigen("Überblick wird vorbereitet …");
-          if (rKm > 0) {
-            var mitte = pos || map.getCenter(),
-              r = rKm * 1000;
-            var dLatR = r / 111320,
-              dLngR = r / (111320 * Math.cos((mitte.lat * Math.PI) / 180));
-            b = L.latLngBounds(
-              [mitte.lat - dLatR, mitte.lng - dLngR],
-              [mitte.lat + dLatR, mitte.lng + dLngR],
-            );
-            if (MOBIL) setzeStufe(0);
-            map.fitBounds(b, { padding: [8, 8], animate: false });
-            await warteAufKarte();
-          } else {
-            b = map.getBounds();
-          }
+          b = (await zoomAufUmkreis(rKm)).b;
+          await warteAufKarte();
           var breiteKm = map.distance(b.getNorthWest(), b.getNorthEast()) / 1000,
             hoeheKm = map.distance(b.getNorthWest(), b.getSouthWest()) / 1000;
           if (breiteKm < 12 && hoeheKm < 12) {
@@ -9042,9 +9064,7 @@
             tagIdx: 0,
           };
           $("r-art").value = $("g-art").value;
-          $("r-art2").value = $("g-art").value;
-          $("r-min").value = $("g-min").value;
-          $("r-min-v").textContent = $("g-min").value;
+          setzeSchwelle(SCHWELLE.region);
           $("r-deck").value = 85;
           zeichneRaster();
           var rm = regionMeldung();
@@ -9052,9 +9072,9 @@
           setzeTag($("g-tag").value);
           toast(
             rm && rm.n
-              ? rm.n + " Zellen ab " + $("g-min").value + " eingefärbt, Bestwert " + rm.top
+              ? rm.n + " Zellen ab " + $("r-min").value + " eingefärbt, Bestwert " + rm.top
               : "Keine Zelle über " +
-                  $("g-min").value +
+                  $("r-min").value +
                   " — Bestwert " +
                   (rm ? rm.top : "–") +
                   ", Schwelle senken",
@@ -9069,9 +9089,6 @@
           }
         });
         $("g-stich").addEventListener("click", stichproben);
-        $("r-weg").addEventListener("click", function () {
-          stichGruppe.clearLayers();
-        });
         $("g-los").addEventListener("click", async function () {
           try {
             await bewerteRegion();
@@ -9081,22 +9098,13 @@
             rasterEnde($("g-los"), "Region bewerten");
           }
         });
-        $("g-min").addEventListener("input", function () {
-          $("g-min-v").textContent = this.value;
-          if (rasterCache && rasterCache.grob) {
-            $("r-min").value = this.value;
-            $("r-min-v").textContent = this.value;
-            zeichneRaster();
-            regionMeldung();
-          }
-        });
+        // Pilzart (Knöpfe im Region-Feld) gilt für Überblick und Umkreis; Wechsel ohne Neuberechnung
         $("g-art").addEventListener("change", function () {
           $("r-art").value = this.value;
-          $("r-art2").value = this.value;
-          if (rasterCache && rasterCache.grob) {
-            zeichneRaster();
-            regionMeldung();
-          }
+          if (!rasterCache) return;
+          zeichneRaster();
+          if (rasterCache.grob) tagInfo(regionMeldung());
+          else zeichneTopListe();
         });
         function regionMeldung() {
           var C = rasterCache;
@@ -9219,21 +9227,18 @@
             TR_LABEL[val === "trend" ? 4 : tg] +
             (val !== "trend" && tg > 0 ? " (" + WOCHENTAG[d.getDay()] + ")" : "");
           zeichneRaster();
-          var rm = regionMeldung();
-          $("tr-info").textContent = rm
-            ? rasterCache.trend
-              ? ""
-              : rm.n + " Zellen ab " + $("r-min").value + " · Best " + rm.top
-            : "";
+          tagInfo(regionMeldung());
+        }
+        function tagInfo(rm) {
+          $("tr-info").textContent =
+            rm && rasterCache && !rasterCache.trend
+              ? rm.n + " Zellen ab " + $("r-min").value + " · Best " + rm.top
+              : "";
         }
         L.DomEvent.disableClickPropagation($("tagregler"));
         L.DomEvent.disableScrollPropagation($("tagregler"));
         $("tr-slider").addEventListener("input", function () {
           setzeTag(+this.value === 4 ? "trend" : String(this.value));
-        });
-        $("g-tag").addEventListener("change", function () {
-          if (!rasterCache || !rasterCache.grob) return;
-          setzeTag(this.value);
         });
         (function () {
           return;
@@ -9268,19 +9273,17 @@
             if (l.setStyle) l.setStyle({ fillOpacity: d * l.options.basis });
           });
         });
-        $("r-weich").addEventListener("change", function () {
-          zeichneRaster();
-          regionMeldung();
-        });
         $("r-weg").addEventListener("click", function () {
           rasterGruppe.clearLayers();
           umkreisGruppe.clearLayers();
+          stichGruppe.clearLayers();
+          regionKreis.clearLayers();
           rasterCache = null;
           letzteTop = [];
           $("u-save").style.display = "none";
           $("u-list").innerHTML = "";
           $("tagregler").style.display = "none";
-          $("r-layer").style.display = "none";
+          $("g-note").textContent = "Noch nicht berechnet.";
           $("r-note").textContent = "Raster gelöscht.";
         });
 
@@ -9550,7 +9553,6 @@
             if (fingerprobe) vorhanden.finger = fingerprobe;
             persist();
             render();
-            $("f-name").value = "";
             if (pin) pin.closePopup();
             toast("Stelle aktualisiert: " + vorhanden.name);
             zeigeTab("stellen");
@@ -9571,19 +9573,10 @@
           });
           persist();
           render();
-          $("f-name").value = "";
           if (pin) pin.closePopup();
           toast("Gespeichert: " + name);
           zeigeTab("stellen");
         }
-        $("save").addEventListener("click", function () {
-          var n = $("f-name").value.trim();
-          if (!n) {
-            toast("Gib der Stelle einen Namen.");
-            return;
-          }
-          speichereStelle(n);
-        });
         $("import-btn").addEventListener("click", function () {
           $("import").click();
         });
