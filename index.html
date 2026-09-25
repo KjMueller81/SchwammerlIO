@@ -1551,7 +1551,9 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-24.2";
+        var VERSION = "2026-09-25.1";
+        // Radar nur als Kartenebene; in der Bewertung zu unzuverlässig (gelernte Farbskala, leere Bilder)
+        var RADAR_IM_MODELL = false;
         var LOG = [];
         function logZeile(art, text) {
           var z = new Date(),
@@ -2884,6 +2886,15 @@
           });
           return out;
         }
+        function regenReihe(tw) {
+          // letzte 14 Tage, ältester zuerst, heute zuletzt
+          return tw
+            .slice(-14)
+            .map(function (x) {
+              return Math.round(x);
+            })
+            .join(" ");
+        }
         function rechenwegHtml(rw, titel) {
           var h =
             '<div class="rw"><b>' +
@@ -3342,7 +3353,10 @@
                           (wetter.bodenF !== undefined && wetter.bodenF !== null
                             ? " · Modell-Bodenfeuchte " + Math.round(wetter.bodenF * 100) + " %"
                             : "") +
-                          (dichtePunkt !== null ? " · Kronen " + Math.round(dichtePunkt) + " %" : "");
+                          (dichtePunkt !== null ? " · Kronen " + Math.round(dichtePunkt) + " %" : "") +
+                          "<br>Regen je Tag, 14 T bis heute: " +
+                          regenReihe(wetter.tw) +
+                          (wetter.station ? " · " + wetter.station.name : "");
                       });
                     }
                     return rwP;
@@ -3916,7 +3930,9 @@
                           (z.w.bodenF !== undefined && z.w.bodenF !== null
                             ? " · Modell-Bodenfeuchte " + Math.round(z.w.bodenF * 100) + " %"
                             : " · ohne Modell-Bodenfeuchte") +
-                          (z.radZ ? " · Radar " + z.radZ + " T" : "");
+                          (z.radZ ? " · Radar " + z.radZ + " T" : "") +
+                          "<br>Regen je Tag, 14 T bis heute: " +
+                          regenReihe(z.w.tw);
                       });
                     }
                     return rw;
@@ -5552,7 +5568,7 @@
               ", 35 Tage zurück, 7 Tage Vorhersage (ab +4 Tagen unsicher). Regler unten sind inaktiv.";
             erkannt.wetter = true;
             try {
-              if (!wetter.radar) {
+              if (RADAR_IM_MODELL && !wetter.radar) {
                 var rt = await radarTage(pos, 14);
                 var nR = radarEinmischen(wetter, rt);
                 if (nR) m.push("Radar: " + nR + " Tage gemessener Regen (DWD, 1 km) übernommen");
@@ -6983,7 +6999,7 @@
             radTage = 0,
             radUnbekannt = 0,
             radVerworfen = 0;
-          if (WW && dienstOk["maps.dwd.de"] !== false) {
+          if (RADAR_IM_MODELL && WW && dienstOk["maps.dwd.de"] !== false) {
             try {
               note.textContent = "Radarbilder …";
               RAD = await radarTageRaster(b, NX, NY, 10, function (a, n) {
