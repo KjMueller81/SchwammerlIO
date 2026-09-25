@@ -1239,6 +1239,58 @@
         max-height: 30vh;
         overflow-y: auto;
       }
+      /* Ladeanzeige beim Start: oben mittig über der Karte, die Karte bleibt bedienbar */
+      .start {
+        position: absolute;
+        top: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: min(340px, 78%);
+        z-index: 950;
+        padding: 6px 10px 7px;
+        background: rgba(29, 33, 25, 0.92);
+        border: 1px solid var(--linie);
+        border-radius: 9px;
+        color: var(--papier);
+        font-size: 12px;
+        pointer-events: none;
+        transition: opacity 0.6s ease;
+      }
+      .start.aus {
+        opacity: 0;
+      }
+      .st-kopf {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .st-kopf span {
+        color: var(--papier-2);
+        font-size: 10.5px;
+        white-space: nowrap;
+      }
+      .st-bar {
+        margin-top: 5px;
+        height: 4px;
+        background: var(--linie);
+        border-radius: 2px;
+        overflow: hidden;
+      }
+      .st-bar i {
+        display: block;
+        height: 100%;
+        width: 0;
+        background: var(--moos-hell);
+        transition: width 0.3s ease;
+      }
+      .rg-stand {
+        font-size: 10.5px;
+        color: var(--papier-2);
+        margin: -2px 0 2px;
+      }
+      .rg-stand.warn {
+        color: #e8a516;
+      }
       .rg-note.warn {
         color: #e8a516;
         font-weight: 600;
@@ -1354,12 +1406,17 @@
           <div class="l-kopf"><span id="l-text">Lädt …</span><span id="l-rest"></span></div>
           <div class="l-bar"><i id="l-fill"></i></div>
         </div>
+        <div id="start" class="start" style="display: none">
+          <div class="st-kopf"><b id="st-text">Oberfläche …</b><span id="st-stand"></span></div>
+          <div class="st-bar"><i id="st-fill"></i></div>
+        </div>
         <button id="region-knopf" class="region-knopf" title="Regionen-Überblick">Region</button>
         <div id="region" style="display: none">
           <div class="rg-kopf">
             <b>Region</b><span class="rg-info" id="rg-info"></span
             ><button class="rg-zu" id="rg-zu" title="Einklappen" aria-label="Einklappen">×</button>
           </div>
+          <div class="rg-stand" id="rg-stand">Daten laden …</div>
           <div class="rg-zeile" id="rg-r">
             <button data-w="25">25</button><button data-w="50" class="an">50</button
             ><button data-w="100">100 km</button>
@@ -1807,7 +1864,7 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-26.12";
+        var VERSION = "2026-09-26.13";
         // Radar nur als Kartenebene; in der Bewertung zu unzuverlässig (gelernte Farbskala, leere Bilder)
         var RADAR_IM_MODELL = false;
         var LOG = [];
@@ -3790,6 +3847,248 @@
             tf: fk.tf,
             pot: Math.round(100 * Math.min(1, fk.rf) * fk.tf * SAISON[saison][a]),
           };
+        }
+        // ======== Schichten 2 und 3 aus Grundstock und wetter.json (App-Start, im Web Worker) ========
+        // Gelernte Gewichte aus dem Hauptprogramm übernehmen (der Worker hat keinen Zugriff auf die Stellen)
+        function lernUebernehmen(l, aktiv) {
+          LERN = l || {};
+          lernAktiv = aktiv !== false;
+        }
+        // Schicht 2: Standortgüte je Grundstock-Pixel und Art (0–100), 255 = kein Wald, 254 = Boden unbekannt.
+        // Wie im bisherigen Überblick: Lage eben, Struktur innen, Bestand mittel, Unterwuchs neutral.
+        function standortFeldBauen(grund, meta) {
+          var N = meta.raster.NX * meta.raster.NY,
+            out = { pf: new Uint8Array(N), st: new Uint8Array(N), som: new Uint8Array(N) },
+            bodenName = {},
+            cache = {};
+          for (var bn in meta.codes.boden) bodenName[meta.codes.boden[bn]] = bn;
+          for (var q = 0; q < N; q++) {
+            var bc = grund.baum[q],
+              bo = grund.boden[q];
+            if (!bc) {
+              out.pf[q] = out.st[q] = out.som[q] = 255;
+              continue;
+            }
+            if (!bodenName[bo]) {
+              out.pf[q] = out.st[q] = out.som[q] = 254;
+              continue;
+            }
+            var key = bc * 8 + bo,
+              c = cache[key];
+            if (!c) {
+              var v = {
+                baum: meta.codes.baum[bc - 1].wert,
+                alter: "mittel",
+                boden: bodenName[bo],
+                unter: UNTER_FERN,
+                lage: "eben",
+                rand: "innen",
+              };
+              c = cache[key] = ARTEN.map(function (a) {
+                return Math.round(standortGuete(v, a) * 100);
+              });
+            }
+            out.pf[q] = c[0];
+            out.st[q] = c[1];
+            out.som[q] = c[2];
+          }
+          return out;
+        }
+        // Schicht 3: Wetterfaktoren auf den Knoten des 0,05°-Stationsrasters aus wetter.json. Je Knoten in Höhenstufen
+        // à 250 m über die Waldhöhen seiner Umgebung (Alpen!), je Stufe für heute … +3 und jede Art: Regenfaktor
+        // (Ensemble-Mitte, Min, Max) und Temperaturfaktor – dieselbe Rechnung wie am Pin (wetterFaktorenArt).
+        var WF_STUFE = 250,
+          WF_WERTE = 4; // rf, rfMin, rfMax, tf
+        function wetterFeldBauen(wj, grund, meta, melde) {
+          var RG = wj.regen,
+            OM = wj.om,
+            R = meta.raster,
+            nK = RG.NY * RG.NX,
+            hmin = new Float32Array(nK).fill(1e9),
+            hmax = new Float32Array(nK).fill(-1e9);
+          // Waldhöhen je Knoten (nächster Knoten), danach mit den 8 Nachbarn vereinigen
+          // (Pixel interpolieren über 4 Knoten)
+          for (var i = 0; i < R.NY; i++) {
+            var gi = Math.round((RG.latN - (R.latN - (i + 0.5) * R.dLat)) / RG.schritt);
+            if (gi < 0 || gi >= RG.NY) continue;
+            for (var j = 0; j < R.NX; j++) {
+              var q = i * R.NX + j;
+              if (!grund.baum[q]) continue;
+              var gj = Math.round((R.lngW + (j + 0.5) * R.dLng - RG.lngW) / RG.schritt);
+              if (gj < 0 || gj >= RG.NX) continue;
+              var k = gi * RG.NX + gj,
+                h = grund.hoehe[q] * 12;
+              if (h < hmin[k]) hmin[k] = h;
+              if (h > hmax[k]) hmax[k] = h;
+            }
+          }
+          var nl = new Uint8Array(nK),
+            h0 = new Int16Array(nK),
+            off = new Int32Array(nK),
+            summe = 0;
+          for (var k2 = 0; k2 < nK; k2++) {
+            var y = Math.floor(k2 / RG.NX),
+              x = k2 % RG.NX,
+              mn = 1e9,
+              mx = -1e9;
+            for (var dy = -1; dy <= 1; dy++)
+              for (var dx = -1; dx <= 1; dx++) {
+                var yy = y + dy,
+                  xx = x + dx;
+                if (yy < 0 || xx < 0 || yy >= RG.NY || xx >= RG.NX) continue;
+                var kk = yy * RG.NX + xx;
+                if (hmin[kk] < mn) mn = hmin[kk];
+                if (hmax[kk] > mx) mx = hmax[kk];
+              }
+            if (mx < mn) continue; // kein Wald in der Umgebung
+            var l0 = Math.floor(mn / WF_STUFE) * WF_STUFE,
+              l1 = Math.ceil(mx / WF_STUFE) * WF_STUFE;
+            nl[k2] = Math.min(40, (l1 - l0) / WF_STUFE + 1);
+            h0[k2] = l0;
+            off[k2] = summe;
+            summe += nl[k2] * 4 * ARTEN.length * WF_WERTE;
+          }
+          var werte = new Float32Array(summe),
+            fertig = 0,
+            gesamt = 0;
+          for (var k3 = 0; k3 < nK; k3++) gesamt += nl[k3];
+          for (var k4 = 0; k4 < nK; k4++) {
+            if (!nl[k4]) continue;
+            var lat = RG.latN - Math.floor(k4 / RG.NX) * RG.schritt,
+              lng = RG.lngW + (k4 % RG.NX) * RG.schritt,
+              stat = wj.regenDaten[k4];
+            for (var l = 0; l < nl[k4]; l++) {
+              var hl = h0[k4] + l * WF_STUFE,
+                w = omMischen(OM, wj.omDaten, lat, lng, hl);
+              // Regen der Vergangenheit aus dem Stationsnetz (Tage 1–35 zurück), heute bleibt Modell – wie am Pin
+              for (var t = 1; t <= 35; t++) if (stat[t - 1] >= 0) w.tw[35 - t] = stat[t - 1] / 10;
+              for (var tg = 0; tg <= 3; tg++) {
+                var wt = wetterAmTag(w, tg);
+                for (var ai = 0; ai < ARTEN.length; ai++) {
+                  var fk = wetterFaktorenArt(ARTEN[ai], V_WETTER, wt, hl, 85),
+                    o = off[k4] + ((l * 4 + tg) * ARTEN.length + ai) * WF_WERTE;
+                  werte[o] = fk.rf;
+                  werte[o + 1] = Math.min.apply(null, fk.rfEinzel);
+                  werte[o + 2] = Math.max.apply(null, fk.rfEinzel);
+                  werte[o + 3] = fk.tf;
+                }
+              }
+              fertig++;
+              if (melde && fertig % 200 === 0) melde(fertig / gesamt);
+            }
+          }
+          return {
+            RG: { latN: RG.latN, lngW: RG.lngW, schritt: RG.schritt, NY: RG.NY, NX: RG.NX },
+            nl: nl,
+            h0: h0,
+            off: off,
+            werte: werte,
+            stand: wj.stand,
+          };
+        }
+        // Open-Meteo-Reihen bilinear aus dem 0,2°-Raster, Temperatur je Eckpunkt von der Modellhöhe auf h umgerechnet
+        function omMischen(OM, daten, lat, lng, h) {
+          var gy = (OM.latN - lat) / OM.schritt,
+            gx = (lng - OM.lngW) / OM.schritt,
+            y0 = Math.max(0, Math.min(OM.NY - 1, Math.floor(gy))),
+            x0 = Math.max(0, Math.min(OM.NX - 1, Math.floor(gx))),
+            y1 = Math.min(OM.NY - 1, y0 + 1),
+            x1 = Math.min(OM.NX - 1, x0 + 1),
+            ty = Math.max(0, Math.min(1, gy - y0)),
+            tx = Math.max(0, Math.min(1, gx - x0));
+          var ecken = [
+            [daten[y0 * OM.NX + x0], (1 - ty) * (1 - tx)],
+            [daten[y0 * OM.NX + x1], (1 - ty) * tx],
+            [daten[y1 * OM.NX + x0], ty * (1 - tx)],
+            [daten[y1 * OM.NX + x1], ty * tx],
+          ];
+          var mische = function (holen, temp) {
+            var n = holen(ecken[0][0]).length,
+              out = new Array(n);
+            for (var i = 0; i < n; i++) {
+              var s = 0;
+              for (var e = 0; e < 4; e++) {
+                var d = ecken[e][0],
+                  dT = temp && d.e !== null ? 0.0065 * (d.e - h) : 0;
+                s += ecken[e][1] * (holen(d)[i] + dT);
+              }
+              out[i] = s;
+            }
+            return out;
+          };
+          var bf = 0,
+            bw = 0;
+          ecken.forEach(function (e) {
+            if (e[0].bf !== null && e[0].bf !== undefined) {
+              bf += e[1] * e[0].bf;
+              bw += e[1];
+            }
+          });
+          return {
+            tw: mische(function (d) {
+              return d.tw;
+            }),
+            et0: mische(function (d) {
+              return d.et0;
+            }),
+            tmin: mische(function (d) {
+              return d.tmin;
+            }, true),
+            tmax: mische(function (d) {
+              return d.tmax;
+            }, true),
+            f: {
+              tw: mische(function (d) {
+                return d.f.tw;
+              }),
+              et0: mische(function (d) {
+                return d.f.et0;
+              }),
+              tmin: mische(function (d) {
+                return d.f.tmin;
+              }, true),
+              tmax: mische(function (d) {
+                return d.f.tmax;
+              }, true),
+              pp: mische(function (d) {
+                return d.f.pp;
+              }),
+            },
+            hoehe: h,
+            bodenF: bw ? bf / bw : null,
+          };
+        }
+        // Wetterfaktoren an einem Ort (Schicht 4): bilinear über 4 Knoten, linear über die Höhenstufen. Nur Rechnen.
+        function wetterAmPixel(WF, lat, lng, h, tg, ai, aus) {
+          var RG = WF.RG,
+            gy = (RG.latN - lat) / RG.schritt,
+            gx = (lng - RG.lngW) / RG.schritt,
+            y0 = Math.max(0, Math.min(RG.NY - 1, Math.floor(gy))),
+            x0 = Math.max(0, Math.min(RG.NX - 1, Math.floor(gx))),
+            ty = Math.max(0, Math.min(1, gy - y0)),
+            tx = Math.max(0, Math.min(1, gx - x0)),
+            W = WF.werte,
+            ws = 0;
+          aus[0] = aus[1] = aus[2] = aus[3] = 0;
+          for (var e = 0; e < 4; e++) {
+            var yy = Math.min(RG.NY - 1, y0 + (e >> 1)),
+              xx = Math.min(RG.NX - 1, x0 + (e & 1)),
+              gw = (e >> 1 ? ty : 1 - ty) * (e & 1 ? tx : 1 - tx),
+              k = yy * RG.NX + xx,
+              n = WF.nl[k];
+            if (!n || gw === 0) continue;
+            var lf = Math.max(0, Math.min(n - 1, (h - WF.h0[k]) / WF_STUFE)),
+              la = Math.floor(lf),
+              lb = Math.min(n - 1, la + 1),
+              t = lf - la,
+              oa = WF.off[k] + ((la * 4 + tg) * ARTEN.length + ai) * WF_WERTE,
+              ob = WF.off[k] + ((lb * 4 + tg) * ARTEN.length + ai) * WF_WERTE;
+            for (var v = 0; v < WF_WERTE; v++) aus[v] += gw * ((1 - t) * W[oa + v] + t * W[ob + v]);
+            ws += gw;
+          }
+          if (!ws) return false;
+          for (var v2 = 0; v2 < WF_WERTE; v2++) aus[v2] /= ws;
+          return true;
         }
         function bewerte(v, wt, hoehe, ohne, dichte) {
           var w = wt === undefined ? wetter : wt,
@@ -7337,8 +7636,29 @@
           var el = $("g-modus");
           return el ? el.value : "zwei";
         }
+        function hatWetter(C) {
+          return !!(C.GW || C.WF);
+        }
+        // Wetterfaktoren am Feinpixel → WP_AUS [rf, rfMin, rfMax, tf];
+        // aus dem Wetterfeld (Grundstock) oder dem Live-Raster
+        var WP_AUS = new Float64Array(4);
+        function wetterPixel(C, tg, a, fy, fx) {
+          if (C.WF) {
+            var lat = C.latN - ((fy + 0.5) / C.FY) * (C.latN - C.latS),
+              lng = C.lngW + ((fx + 0.5) / C.FX) * (C.lngE - C.lngW);
+            return wetterAmPixel(C.WF, lat, lng, C.H[fy * C.FX + fx], tg, ARTEN.indexOf(a), WP_AUS);
+          }
+          var g = C.GW[tg];
+          WP_AUS[0] = feldAn(C, g.rf[a], fy, fx);
+          WP_AUS[1] = g.rfMin ? feldAn(C, g.rfMin[a], fy, fx) : WP_AUS[0];
+          WP_AUS[2] = g.rfMax ? feldAn(C, g.rfMax[a], fy, fx) : WP_AUS[0];
+          WP_AUS[3] = feldAn(C, g.tf[a], fy, fx);
+          return true;
+        }
         function potAn(C, tg, a, fy, fx) {
-          return feldAn(C, C.GW[tg][a], fy, fx);
+          if (!C.WF) return feldAn(C, C.GW[tg][a], fy, fx);
+          if (!wetterPixel(C, tg, a, fy, fx)) return 0;
+          return 100 * Math.min(1, WP_AUS[0]) * WP_AUS[3] * SAISON[C.saison][a];
         }
         // Bilinear aus einem GN×GN-Feld des Überblicks an einem Feinpixel
         function feldAn(C, F, fy, fx) {
@@ -7368,8 +7688,8 @@
           var best = null;
           arten.forEach(function (a) {
             var sg = wald && !unbekannt ? C.FS[a][q] : 0,
-              pot = C.GW ? potAn(C, tg, a, fy, fx) : null,
-              diff = C.trend && C.GW ? potAn(C, 3, a, fy, fx) - potAn(C, 0, a, fy, fx) : 0,
+              pot = hatWetter(C) ? potAn(C, tg, a, fy, fx) : null,
+              diff = C.trend && hatWetter(C) ? potAn(C, 3, a, fy, fx) - potAn(C, 0, a, fy, fx) : 0,
               prod = pot === null || !wald || unbekannt ? null : bewertungAn(C, tg, a, q, fy, fx),
               key = modus === "wetter" ? pot || 0 : modus === "standort" ? sg : prod || 0;
             if (!best || key > best.key)
@@ -7402,13 +7722,14 @@
               rand: "innen",
               saison: C.saison,
             };
-          var rf = feldAn(C, (rfFeld ? C.GW[tg][rfFeld] : C.GW[tg].rf)[a], fy, fx),
-            tf = feldAn(C, C.GW[tg].tf[a], fy, fx);
+          if (!wetterPixel(C, tg, a, fy, fx)) return 0;
+          var rf = WP_AUS[rfFeld === "rfMin" ? 1 : rfFeld === "rfMax" ? 2 : 0],
+            tf = WP_AUS[3];
           return endwert(v, a, rf, tf, undefined, undefined, C.FS[a][q] / 100);
         }
         // Wirksame Darstellung: ohne Wetterraster gibt es kein Wetterpotenzial → „Wetter × Standort“ zeigt nur den Standort
         function zweiModusFuer(C, modus) {
-          return !C.GW && modus === "zwei" ? "standort" : modus;
+          return !hatWetter(C) && modus === "zwei" ? "standort" : modus;
         }
         var GRAU_UNBEKANNT = [128, 128, 120],
           FARBE_GROB = [],
@@ -7437,7 +7758,7 @@
             N = FX * FY,
             erg = {
               modus: eff,
-              ohneWetter: !C.GW,
+              ohneWetter: !hatWetter(C),
               n: 0,
               ueber: 0,
               top: 0,
@@ -7448,7 +7769,7 @@
               rgba: new Uint8ClampedArray(N * 4),
               maske: new Uint8Array(N),
             };
-          if (eff === "wetter" && !C.GW) return erg; // ohne Wetter kein Wetterbild
+          if (eff === "wetter" && !hatWetter(C)) return erg; // ohne Wetter kein Wetterbild
           var ST = new Uint8Array(N), // 0 kein Wald, 1 Wald, 2 Wald mit unbekanntem Boden
             SG = new Float32Array(N),
             POT = new Float32Array(N),
@@ -7627,6 +7948,31 @@
         // Stichproben: echte Pin-Rechnung an bis zu 60 Waldpunkten
         var stichGruppe = L.layerGroup().addTo(map),
           letzteStich = null;
+        // Stichproben-Kandidaten im Grundstock-Weg: Waldpixel mit bekanntem Boden, Zellwert aus dem Wetterfeld
+        function grundstockKandidaten(C) {
+          var out = [],
+            schritt = Math.max(1, Math.floor((C.FX * C.FY) / 2000));
+          for (var q = 0; q < C.FX * C.FY; q += schritt) {
+            if (C.FS.pf[q] >= 254) continue;
+            var fy = Math.floor(q / C.FX),
+              fx = q % C.FX,
+              rr = {};
+            ARTEN.forEach(function (a) {
+              rr[a] = bewertungAn(C, C.tagIdx || 0, a, q, fy, fx);
+            });
+            out.push({
+              ll: L.latLng(
+                C.latN - ((fy + 0.5) / C.FY) * (C.latN - C.latS),
+                C.lngW + ((fx + 0.5) / C.FX) * (C.lngE - C.lngW),
+              ),
+              v: { baum: C.FS.bwert[q], boden: C.FS.boden[q] },
+              rr: rr,
+              w: null,
+              hoehe: C.H[q],
+            });
+          }
+          return out;
+        }
         async function stichproben() {
           var C = rasterCache;
           if (!C || !C.grob) {
@@ -7641,12 +7987,16 @@
           stichGruppe.clearLayers();
           try {
             // Zellen mit Wetter bevorzugen; fehlt das Wetter im Überblick, holen die Stichproben es selbst
-            var mitWetter = C.zellen.some(function (z) {
-              return z.w;
-            });
-            var kand = C.zellen.filter(function (z) {
-              return !z.bodenUnbekannt && (!mitWetter || z.w);
-            });
+            var mitWetter =
+              !!C.WF ||
+              C.zellen.some(function (z) {
+                return z.w;
+              });
+            var kand = C.WF
+              ? grundstockKandidaten(C)
+              : C.zellen.filter(function (z) {
+                  return !z.bodenUnbekannt && (!mitWetter || z.w);
+                });
             if (!kand.length) {
               $("g-note").textContent =
                 "Stichproben nicht möglich: keine Waldzelle mit bekanntem Boden im Ausschnitt.";
@@ -7677,7 +8027,11 @@
               });
             } catch (e) {}
             var WP = null; // eigenes Wetter je Stichprobe (nur wenn die Zellen keins haben)
-            if (!mitWetter) {
+            if (
+              pts.some(function (z) {
+                return !z.w;
+              })
+            ) {
               $("l-text").textContent = "Stichproben: Wetter für " + pts.length + " Punkte …";
               var hMitte = H
                 ? pts.map(function (z, k) {
@@ -8948,6 +9302,7 @@
           return pd;
         }
         // Genau auf den Kreis (25/50/100 km) um Pin, sonst GPS-Standort, sonst Kartenmitte zoomen
+        var letzteRegionMitte = null;
         async function zoomAufUmkreis(rKm) {
           if (MOBIL && stufe !== 0) {
             setzeStufe(0); // Schublade zu, damit die Karte ihre volle Höhe hat
@@ -8956,7 +9311,14 @@
             });
           }
           map.invalidateSize();
-          var mitte = pos || standortLL || map.getCenter(),
+          // Ohne Pin/GPS: letzte Region-Mitte, solange sie noch im Bild ist – die Kartenmitte wandert sonst mit jedem
+          // Einpassen (Rand fürs Region-Feld) weiter nach Süden
+          var mitte =
+              pos ||
+              standortLL ||
+              (letzteRegionMitte && map.getBounds().contains(letzteRegionMitte)
+                ? letzteRegionMitte
+                : map.getCenter()),
             r = rKm * 1000,
             dLat = r / 111320,
             dLng = r / (111320 * Math.cos((mitte.lat * Math.PI) / 180));
@@ -8981,6 +9343,7 @@
             animate: false,
           });
           map.options.zoomSnap = snap;
+          letzteRegionMitte = mitte;
           return { mitte: mitte, r: r, b: b };
         }
 
@@ -8993,6 +9356,417 @@
               setTimeout(ok, 120);
             });
           });
+        }
+        // ================= Grundstock + Tageswetter laden (Ladeanzeige), Schicht 2/3 im Web Worker =================
+        var WETTER_URL = "https://raw.githubusercontent.com/KjMueller81/SchwammerlIO/wetterdaten/wetter.json",
+          GRUND_PFAD = "daten/grundstock/",
+          WETTER_MAX_H = 26,
+          DATEN_CACHE = "schwammerl-daten-v1",
+          startTimer = null,
+          daten = {
+            bereit: false,
+            meta: null,
+            grund: null,
+            SG: null,
+            WF: null,
+            wetter: null,
+            fehler: null,
+            offline: false,
+          };
+        function startZeigen(text, anteil) {
+          var el = $("start");
+          if (!el) return;
+          clearTimeout(startTimer);
+          el.style.display = "block";
+          el.classList.remove("aus");
+          $("st-text").textContent = text;
+          $("st-fill").style.width = Math.round(Math.min(1, anteil) * 100) + "%";
+          $("st-stand").textContent = datenStandText();
+          if (anteil >= 1)
+            startTimer = setTimeout(function () {
+              el.classList.add("aus");
+            }, 2500);
+        }
+        // Datei holen: „cache-zuerst“ (Grundstock, versioniert) oder „netz-zuerst“ (meta.json, wetter.json) mit
+        // Rückfall auf den Gerätespeicher (Cache API) – so geht es auch offline
+        async function holeDatei(url, strategie) {
+          var c = null;
+          try {
+            if (window.caches && window.isSecureContext) c = await caches.open(DATEN_CACHE);
+          } catch (e) {}
+          if (strategie === "cache-zuerst" && c) {
+            var t = await c.match(url);
+            if (t) return t;
+          }
+          try {
+            var r = await fetch(url, { cache: strategie === "netz-zuerst" ? "no-store" : "default" });
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            if (c)
+              try {
+                await c.put(url, r.clone());
+              } catch (e) {}
+            return r;
+          } catch (e) {
+            if (c) {
+              var t2 = await c.match(url);
+              if (t2) {
+                daten.offline = true;
+                return t2;
+              }
+            }
+            throw e;
+          }
+        }
+        // Alte Grundstock-Stände aus dem Gerätespeicher entfernen
+        async function grundstockAufraeumen(stand) {
+          try {
+            if (!window.caches || !window.isSecureContext) return;
+            var c = await caches.open(DATEN_CACHE);
+            (await c.keys()).forEach(function (rq) {
+              if (
+                rq.url.indexOf(GRUND_PFAD) >= 0 &&
+                /\.png\?v=/.test(rq.url) &&
+                rq.url.indexOf("v=" + stand) < 0
+              )
+                c.delete(rq);
+            });
+          } catch (e) {}
+        }
+        async function pngKanaele(blob, NX, NY) {
+          var bm = await createImageBitmap(blob, { colorSpaceConversion: "none", premultiplyAlpha: "none" }),
+            cv = document.createElement("canvas");
+          cv.width = NX;
+          cv.height = NY;
+          var cx = cv.getContext("2d", { willReadFrequently: true });
+          cx.drawImage(bm, 0, 0);
+          return cx.getImageData(0, 0, NX, NY).data;
+        }
+        // Läuft im Web Worker: lädt den Skripttext der App mit Platzhaltern für Browser-Objekte (wie werkzeuge/app.js)
+        // und rechnet Schicht 2 und 3 – dieselben Funktionen wie im Hauptprogramm.
+        function workerHaupt() {
+          function stub(n) {
+            return new Proxy(function () {}, {
+              get: function (t, k) {
+                if (k === Symbol.toPrimitive)
+                  return function () {
+                    return 0;
+                  };
+                if (k === "then" || k === "catch" || k === "finally")
+                  return function () {
+                    return stub(n);
+                  };
+                if (k === "length") return 0;
+                if (k === "value" || k === "textContent" || k === "innerHTML") return "";
+                if (k === "checked") return false;
+                return stub(n + "." + String(k));
+              },
+              set: function () {
+                return true;
+              },
+              apply: function () {
+                return stub(n);
+              },
+              construct: function () {
+                return stub(n);
+              },
+            });
+          }
+          self.onmessage = function (ev) {
+            var m = ev.data;
+            try {
+              var js = m.appCode.replace(
+                /\n\s*update\(\);\s*\n\s*load\(\);/,
+                "\nself.__APP = { standortFeldBauen: standortFeldBauen, wetterFeldBauen: wetterFeldBauen," +
+                  " lernUebernehmen: lernUebernehmen }; return;\n",
+              );
+              var env = {
+                window: stub("window"),
+                document: stub("document"),
+                L: stub("L"),
+                navigator: stub("navigator"),
+                location: stub("location"),
+                localStorage: {
+                  getItem: function () {
+                    return null;
+                  },
+                  setItem: function () {},
+                  removeItem: function () {},
+                  key: function () {
+                    return null;
+                  },
+                  length: 0,
+                },
+                fetch: function () {
+                  return new Promise(function () {});
+                },
+                setTimeout: function () {
+                  return 0;
+                },
+                setInterval: function () {
+                  return 0;
+                },
+                requestAnimationFrame: function () {
+                  return 0;
+                },
+                alert: function () {},
+              };
+              var namen = Object.keys(env);
+              Function.apply(null, namen.concat(['"use strict";' + js])).apply(
+                null,
+                namen.map(function (k) {
+                  return env[k];
+                }),
+              );
+              var A = self.__APP;
+              A.lernUebernehmen(m.lern, m.lernAktiv);
+              var sg = A.standortFeldBauen(m.grund, m.meta);
+              self.postMessage({ typ: "fortschritt", anteil: 0.1 });
+              var wf = m.wetter
+                ? A.wetterFeldBauen(m.wetter, m.grund, m.meta, function (p) {
+                    self.postMessage({ typ: "fortschritt", anteil: 0.1 + 0.9 * p });
+                  })
+                : null;
+              var tr = [sg.pf.buffer, sg.st.buffer, sg.som.buffer];
+              if (wf) tr.push(wf.nl.buffer, wf.h0.buffer, wf.off.buffer, wf.werte.buffer);
+              self.postMessage({ typ: "fertig", sg: sg, wf: wf }, tr);
+            } catch (e) {
+              self.postMessage({ typ: "fehler", text: String((e && e.message) || e) });
+            }
+          };
+        }
+        function direktRechnen(meta, grund, wetterJ) {
+          return {
+            sg: standortFeldBauen(grund, meta),
+            wf: wetterJ ? wetterFeldBauen(wetterJ, grund, meta) : null,
+          };
+        }
+        function workerRechnen(meta, grund, wetterJ) {
+          return new Promise(function (ok, nein) {
+            var w;
+            try {
+              w = new Worker(
+                URL.createObjectURL(
+                  new Blob(["(" + workerHaupt.toString() + ")();"], { type: "text/javascript" }),
+                ),
+              );
+            } catch (e) {
+              logZeile("JS ", "Web Worker nicht verfügbar – rechne im Hauptprogramm");
+              return ok(direktRechnen(meta, grund, wetterJ));
+            }
+            w.onmessage = function (ev) {
+              var m = ev.data;
+              if (m.typ === "fortschritt")
+                startZeigen("Standortgüte und Wetterfaktoren …", 0.55 + 0.4 * m.anteil);
+              else if (m.typ === "fertig") {
+                w.terminate();
+                ok({ sg: m.sg, wf: m.wf });
+              } else if (m.typ === "fehler") {
+                w.terminate();
+                nein(new Error(m.text));
+              }
+            };
+            w.onerror = function (e) {
+              w.terminate();
+              logZeile("JS ", "Web Worker: " + (e.message || e) + " – rechne im Hauptprogramm");
+              try {
+                ok(direktRechnen(meta, grund, wetterJ));
+              } catch (x) {
+                nein(x);
+              }
+            };
+            var skripte = document.querySelectorAll("script:not([src])");
+            w.postMessage({
+              appCode: skripte[skripte.length - 1].textContent,
+              meta: meta,
+              grund: grund,
+              wetter: wetterJ,
+              lern: LERN,
+              lernAktiv: lernAktiv,
+            });
+          });
+        }
+        async function datenLaden() {
+          startZeigen("Oberfläche bereit – Daten laden …", 0.05);
+          try {
+            var meta = await (await holeDatei(GRUND_PFAD + "meta.json", "netz-zuerst")).json(),
+              R = meta.raster,
+              N = R.NX * R.NY;
+            daten.meta = meta;
+            startZeigen("Grundstock …", 0.1);
+            var g = await pngKanaele(
+              await (await holeDatei(GRUND_PFAD + "grundlage.png?v=" + meta.stand, "cache-zuerst")).blob(),
+              R.NX,
+              R.NY,
+            );
+            startZeigen("Grundstock …", 0.25);
+            var h = await pngKanaele(
+              await (await holeDatei(GRUND_PFAD + "hoehe.png?v=" + meta.stand, "cache-zuerst")).blob(),
+              R.NX,
+              R.NY,
+            );
+            grundstockAufraeumen(meta.stand);
+            var grund = {
+              baum: new Uint8Array(N),
+              boden: new Uint8Array(N),
+              lage: new Uint8Array(N),
+              hoehe: new Uint8Array(N),
+              dichte: new Uint8Array(N),
+            };
+            for (var q = 0; q < N; q++) {
+              grund.baum[q] = g[q * 4];
+              grund.boden[q] = g[q * 4 + 1];
+              grund.lage[q] = g[q * 4 + 2];
+              grund.hoehe[q] = h[q * 4];
+              grund.dichte[q] = h[q * 4 + 1];
+            }
+            daten.grund = grund;
+            startZeigen("Tageswetter …", 0.4);
+            var wetterJ = null;
+            try {
+              wetterJ = await (await holeDatei(WETTER_URL, "netz-zuerst")).json();
+              daten.wetter = { stand: wetterJ.stand };
+              daten.wetterRoh = wetterJ; // für den Pin ohne Netz
+            } catch (e) {
+              logZeile("NET", "wetter.json: " + (e.message || e));
+            }
+            startZeigen("Standortgüte und Wetterfaktoren …", 0.55);
+            var erg = await workerRechnen(meta, grund, wetterJ);
+            daten.SG = erg.sg;
+            daten.WF = erg.wf;
+            daten.bereit = true;
+            startZeigen(daten.WF ? "bereit" : "bereit – ohne Tageswetter (Überblick lädt live)", 1);
+          } catch (e) {
+            daten.fehler = String(e.message || e);
+            logZeile("NET", "Grundstock: " + daten.fehler);
+            startZeigen("Grundstock nicht verfügbar – Überblick lädt live", 1);
+          }
+          regionStandZeigen();
+        }
+        function wetterAlterH() {
+          return daten.wetter ? (Date.now() - Date.parse(daten.wetter.stand)) / 3600e3 : Infinity;
+        }
+        function standKurz(iso) {
+          var d = new Date(iso),
+            h = new Date(),
+            uhr = d.getHours() + ":" + String(d.getMinutes()).padStart(2, "0");
+          h.setHours(0, 0, 0, 0);
+          var tage = Math.round((h - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 864e5);
+          return (
+            (tage === 0
+              ? "heute "
+              : tage === 1
+                ? "gestern "
+                : d.getDate() + "." + (d.getMonth() + 1) + ". ") + uhr
+          );
+        }
+        function datenStandText() {
+          var t = [];
+          if (daten.wetter) t.push("Wetter: " + standKurz(daten.wetter.stand));
+          if (daten.meta)
+            t.push(
+              "Grundlage: " +
+                new Date(daten.meta.stand + "T12:00:00").toLocaleDateString("de-DE", {
+                  month: "short",
+                  year: "numeric",
+                }),
+            );
+          return t.join(" · ");
+        }
+        function regionStandZeigen(hinweis) {
+          var el = $("rg-stand");
+          if (!el) return;
+          var offline = !navigator.onLine || daten.offline;
+          el.textContent =
+            (offline && daten.wetter ? "offline — Wetter vom " + standKurz(daten.wetter.stand) + " · " : "") +
+            (datenStandText() || (daten.fehler ? "Grundstock nicht verfügbar" : "Daten laden …")) +
+            (hinweis ? " — " + hinweis : "");
+          el.classList.toggle("warn", !!hinweis);
+        }
+        // Liegt der Mittelpunkt des Ausschnitts im Grundstock-Gebiet?
+        function imGrundstock(b) {
+          var R = daten.meta && daten.meta.raster,
+            c = b.getCenter();
+          return !!R && c.lat < R.latN && c.lat > R.latS && c.lng > R.lngW && c.lng < R.lngE;
+        }
+        // Schicht 4: Überblick aus Grundstock + Wetterfeld – nur Ausschneiden, Rechnen, Zeichnen, keine Netzabfrage
+        function regionAusGrundstock(b, rKm) {
+          var M = daten.meta.raster,
+            s = rKm > 50 ? 2 : 1, // 100 km in 300 m, sonst 150 m
+            form = readForm(),
+            k0 = function (x, n) {
+              return Math.max(0, Math.min(n, x));
+            };
+          var i0 = k0(Math.floor((M.latN - b.getNorth()) / M.dLat), M.NY),
+            i1 = k0(Math.ceil((M.latN - b.getSouth()) / M.dLat), M.NY),
+            j0 = k0(Math.floor((b.getWest() - M.lngW) / M.dLng), M.NX),
+            j1 = k0(Math.ceil((b.getEast() - M.lngW) / M.dLng), M.NX),
+            FY = Math.floor((i1 - i0) / s),
+            FX = Math.floor((j1 - j0) / s),
+            n = FX * FY,
+            codes = daten.meta.codes,
+            bodenName = {};
+          for (var bn in codes.boden) bodenName[codes.boden[bn]] = bn;
+          var FS = {
+              pf: new Uint8Array(n),
+              st: new Uint8Array(n),
+              som: new Uint8Array(n),
+              baum: new Array(n),
+              bwert: new Array(n),
+              boden: new Array(n),
+            },
+            H = new Float32Array(n),
+            unbekannt = 0;
+          for (var y = 0; y < FY; y++)
+            for (var x = 0; x < FX; x++) {
+              var q = (i0 + y * s) * M.NX + (j0 + x * s),
+                k = y * FX + x,
+                bc = daten.grund.baum[q];
+              FS.pf[k] = daten.SG.pf[q];
+              FS.st[k] = daten.SG.st[q];
+              FS.som[k] = daten.SG.som[q];
+              H[k] = daten.grund.hoehe[q] * 12;
+              if (bc) {
+                FS.baum[k] = codes.baum[bc - 1].art;
+                FS.bwert[k] = codes.baum[bc - 1].wert;
+                FS.boden[k] = bodenName[daten.grund.boden[q]] || null;
+                if (FS.pf[k] === 254) unbekannt++;
+              }
+            }
+          if (unbekannt) FS.unbekannt = unbekannt;
+          var alt = wetterAlterH() > WETTER_MAX_H;
+          rasterCache = {
+            zellen: [],
+            N: FX,
+            NY: FY,
+            latN: M.latN - i0 * M.dLat,
+            latS: M.latN - (i0 + FY * s) * M.dLat,
+            lngW: M.lngW + j0 * M.dLng,
+            lngE: M.lngW + (j0 + FX * s) * M.dLng,
+            dLat: M.dLat * s,
+            dLng: M.dLng * s,
+            zellM: 150 * s,
+            hinweise: [
+              "Grundstock " + daten.meta.stand + " (" + 150 * s + " m)",
+              'Lage „eben" und Struktur „innen" angenommen',
+              "Unterwuchs neutral (Mittel aller Klassen)",
+              "Tageswetter " +
+                standKurz(daten.wetter.stand) +
+                (alt ? " (älter als " + WETTER_MAX_H + " h, offline)" : ""),
+            ],
+            kreis: null,
+            pinZelle: null,
+            wetterQuelle: "wetter.json " + standKurz(daten.wetter.stand) + ", Tag +0",
+            grob: true,
+            quelle: "grundstock",
+            FS: FS,
+            FX: FX,
+            FY: FY,
+            H: H,
+            WF: daten.WF,
+            GW: null,
+            saison: form.saison,
+            tagIdx: 0,
+          };
         }
         async function bewerteRegion() {
           if (rasterLaeuft) return;
@@ -9015,6 +9789,30 @@
             toast("Zu groß — Umkreis wählen oder auf unter 300 km hineinzoomen.");
             return;
           }
+          // Grundstock + Tageswetter vorhanden und frisch (bzw. offline): Schicht 4 ohne jede Netzabfrage
+          var offline = !navigator.onLine || daten.offline;
+          if (daten.bereit && daten.WF && imGrundstock(b) && (wetterAlterH() <= WETTER_MAX_H || offline)) {
+            rasterStart(btn, "Überblick aus Grundstock …");
+            umkreisGruppe.clearLayers();
+            letzteTop = [];
+            $("u-list").innerHTML = "";
+            $("u-save").style.display = "none";
+            regionAusGrundstock(b, rKm);
+            regionStandZeigen();
+            regionFertig(btn);
+            return;
+          }
+          regionStandZeigen(
+            !daten.bereit
+              ? daten.fehler
+                ? "Grundstock nicht verfügbar – live gerechnet"
+                : "Grundstock lädt noch – live gerechnet"
+              : !daten.WF
+                ? "kein Tageswetter – live nachgeladen"
+                : !imGrundstock(b)
+                  ? "außerhalb des Grundstock-Gebiets – live gerechnet"
+                  : "Wetter vom " + standKurz(daten.wetter.stand) + " — live nachgeladen",
+          );
           rasterStart(btn, "Überblick: Baumartenkarte …");
           umkreisGruppe.clearLayers();
           letzteTop = [];
@@ -10034,6 +10832,10 @@
             GN: GN,
             tagIdx: 0,
           };
+          regionFertig(btn);
+        }
+        // Abschluss beider Wege (Grundstock und live): Anzeige setzen und zeichnen
+        function regionFertig(btn) {
           $("r-art").value = $("g-art").value;
           setzeSchwelle(SCHWELLE.region);
           schwelleAktiv();
@@ -10555,6 +11357,7 @@
 
         update();
         load();
+        datenLaden();
         setTimeout(function () {
           map.invalidateSize();
         }, 200);

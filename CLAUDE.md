@@ -8,7 +8,7 @@ Bewertet Waldstandorte für **Pfifferling (pf)**, **Fichtensteinpilz (st)** und 
 aus Geodaten (Baumart, Boden, Kronendichte, Gelände) und gemessenem Wetter. Nutzer: ein Sammler,
 Bedienung meist am iPhone im Wald, Auswertung am Windows-Rechner.
 
-Stand dieser Datei: v2026-09-26.12. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
+Stand dieser Datei: v2026-09-26.13. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
 
 ---
 
@@ -73,6 +73,24 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
 - Verbrauch je Lauf: Open-Meteo ≈ 630 Abrufe (≈ 1 250/Tag), Bright Sky ≈ 800 Anfragen, Laufzeit ≈ 30 s + Einrichtung.
 - Open-Meteo-Limit (GitHub-Adressen sind geteilt): eine Wiederholung nach 5 min, sonst Exitcode 3 → Warnung im Log,
   der alte Stand auf `wetterdaten` bleibt. Geplante Läufe schaltet GitHub nach 60 Tagen ohne Repo-Aktivität ab.
+
+### App: Start, Schicht 2/3 und Überblick aus Grundstock
+- Start (`datenLaden`, Ladeanzeige `#start`, Karte sofort bedienbar): `meta.json` (Netz zuerst) → `grundlage.png`/
+  `hoehe.png` (`?v=<stand>`, Gerätespeicher zuerst, Cache API `schwammerl-daten-v1`, alte Stände werden gelöscht)
+  → `wetter.json` von `raw.githubusercontent.com` (Netz zuerst, sonst Gerätespeicher) → Schicht 2+3 im Web Worker.
+- Worker (`workerHaupt`, per Blob-URL): lädt den Skripttext der App mit Platzhaltern (wie `werkzeuge/app.js`) und
+  rechnet `standortFeldBauen` (Schicht 2) und `wetterFeldBauen` (Schicht 3). Ohne Worker: `direktRechnen`.
+  Gelernte Gewichte gehen per `lernUebernehmen` mit.
+- Schicht 3 (`wetterFeldBauen`): Knoten = 0,05°-Stationsraster aus `wetter.json`; je Knoten Höhenstufen à 250 m über
+  die Waldhöhen der Umgebung; je Stufe für heute … +3 und jede Art `rf` (Ensemble-Mitte), `rfMin`, `rfMax`, `tf`
+  (über `wetterFaktorenArt`, wie am Pin). Open-Meteo bilinear aus 0,2° (`omMischen`, Temperatur je Ecke auf die
+  Stufenhöhe), Regen der Vergangenheit aus dem Stationsraster. ≈ 6 300 Knotenstufen, 1,2 MB, ≈ 1 s Desktop.
+- Schicht 4 (`regionAusGrundstock`): schneidet 25/50 km in 150 m, 100 km in 300 m aus dem Grundstock, Wetter je Pixel
+  über `wetterAmPixel` (bilinear über 4 Knoten, linear über Höhenstufen) → `wetterPixel`/`potAn`/`bewertungAn`.
+  Keine Netzabfrage. Der alte Live-Weg bleibt Rückfall: Grundstock fehlt/lädt, kein Tageswetter, Wetter älter als
+  26 h (außer offline) oder Mitte außerhalb des Gebiets – der Grund steht im Region-Feld (`#rg-stand`).
+- Region-Feld zeigt den Datenstand („Wetter: heute 5:30 · Grundlage: Sept. 2026“). Ohne Pin/GPS nimmt der Umkreis
+  die letzte Region-Mitte, solange sie im Bild ist (sonst wanderte die Mitte mit jedem Einpassen nach Süden).
 
 ## Architektur (Funktionen in index.html)
 
