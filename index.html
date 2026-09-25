@@ -779,45 +779,122 @@
         background: var(--moos);
         color: #fff;
       }
-      /* Besuch erfassen: große Tipp-Flächen, eine Zeile je Gruppe */
+      /* Besuch erfassen: zwei Spalten, Beschriftung klein über dem Feld */
       .pinpop .besuch {
         border-top: 1px solid var(--linie);
         margin-top: 6px;
         padding-top: 5px;
       }
-      .pinpop.m .reihe.wahl {
-        align-items: flex-start;
+      .pinpop .bz-raster {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 6px 8px;
         margin-top: 4px;
       }
-      .pinpop.m .reihe.wahl > span {
-        min-width: 64px;
-        padding-top: 8px;
+      .pinpop .bz-z {
+        min-width: 0;
       }
-      .pinpop .reihe.wahl .kn {
-        flex: 1;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 4px;
-        align-items: center;
+      .pinpop .bz-l {
+        display: block;
+        margin: 0 0 2px;
+        font-size: 10.5px;
+        color: var(--papier-2);
       }
-      .pinpop.m .reihe.wahl .btn.wahl {
-        flex: 1 0 auto;
-        margin: 0;
-        min-height: 34px;
-        padding: 5px 7px;
-        font-size: 12.5px;
-      }
-      .pinpop .reihe.wahl .datum {
-        min-height: 32px;
-        padding: 3px 6px;
+      .pinpop .bz-s,
+      .pinpop .md-kopf,
+      .pinpop .bz-datum {
+        display: block;
+        position: relative;
+        width: 100%;
+        min-height: 36px;
+        padding: 6px 8px;
+        font: inherit;
         font-size: 13px;
+        text-align: left;
         background: var(--feld);
         color: var(--papier);
         border: 1px solid var(--moos);
         border-radius: 6px;
-        font-family: inherit;
       }
-      .pinpop .reihe.wahl small {
+      .pinpop .md-kopf {
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .pinpop .md-kopf span {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .pinpop .md-kopf[aria-expanded="true"] {
+        border-color: var(--moos-hell);
+      }
+      /* aufgeklappte Liste über die volle Breite, Einträge mit Häkchen, mindestens 40 px hoch */
+      .pinpop .md-liste {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 2px 6px;
+        padding: 4px;
+        background: var(--feld);
+        border: 1px solid var(--moos-hell);
+        border-radius: 6px;
+      }
+      .pinpop .md-e {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        min-height: 40px;
+        padding: 4px 6px;
+        font: inherit;
+        font-size: 13px;
+        text-align: left;
+        background: transparent;
+        color: var(--papier);
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+      }
+      .pinpop .md-e::before {
+        content: "";
+        flex: 0 0 16px;
+        height: 16px;
+        border: 1.5px solid var(--moos-hell);
+        border-radius: 3px;
+        text-align: center;
+        font-size: 12px;
+        line-height: 14px;
+      }
+      .pinpop .md-e.an::before {
+        content: "✓";
+        background: var(--moos);
+        color: #fff;
+      }
+      .pinpop .md-e:hover,
+      .pinpop .md-e:focus-visible {
+        background: var(--humus-2);
+        outline: none;
+      }
+      .pinpop .md-trenn {
+        grid-column: 1 / -1;
+        border-top: 1px solid var(--linie);
+        margin: 3px 0;
+      }
+      /* Datum: zeigt „heute", die unsichtbare Datumsauswahl liegt darüber und öffnet sich beim Antippen */
+      .pinpop .bz-datum input {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        opacity: 0;
+        cursor: pointer;
+        border: none;
+      }
+      .pinpop .bz-z small {
+        display: block;
         font-size: 10.5px;
         color: #e8a516;
       }
@@ -1134,6 +1211,12 @@
       .rg-link[disabled] {
         opacity: 0.5;
         cursor: default;
+      }
+      /* Handy/Tablet: Knopf „Region" liegt über der Kartenebene und würde das Popup verdecken */
+      @media (max-width: 899px) {
+        #map.popup-offen .region-knopf {
+          display: none !important;
+        }
       }
       /* Desktop ab 900 px: Seitenleiste rechts in voller Höhe, Karte füllt den Rest */
       @media (min-width: 900px) {
@@ -1650,7 +1733,7 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-26.6";
+        var VERSION = "2026-09-26.7";
         // Radar nur als Kartenebene; in der Bewertung zu unzuverlässig (gelernte Farbskala, leere Bilder)
         var RADAR_IM_MODELL = false;
         var LOG = [];
@@ -1689,6 +1772,7 @@
             t0 = performance.now();
           return _fetch(u, o).then(
             function (r) {
+              if (o && o.leise404 && r.status === 404) return r; // gesammelt gemeldet (Stationen ohne Daten)
               logZeile(
                 r.ok ? "OK " : "ERR",
                 r.status + " " + Math.round(performance.now() - t0) + "ms " + kurzUrl(url),
@@ -4311,7 +4395,7 @@
           h += besuchBlockHtml(v);
           h +=
             '<div class="reihe"><button class="btn" onclick="this.closest(\'.pinpop\').classList.toggle(\'offen\')">Details</button>' +
-            '<button class="btn" onclick="window.__spUmkreis()">Umkreis</button><button class="btn" onclick="window.__spSpeichern()">Speichern</button>' +
+            '<button class="btn" onclick="window.__spUmkreis()">Umkreis</button>' +
             '<button class="btn" onclick="window.__spNotiz()">Notiz</button></div></div>';
           return h;
         }
@@ -4358,7 +4442,7 @@
             fund: [],
             nichts: false,
             alter: null,
-            mehr: false,
+            offen: null, // aufgeklapptes Mehrfach-Dropdown: fund | unter | null
             datum: datumIso(new Date()),
           };
           if (lb && lb.unter && lb.unter.length) setzeUnterForm(lb.unter);
@@ -4370,123 +4454,196 @@
             .map(besuchKurz)
             .join(" · ");
         }
+        // Auswahllisten des Blocks „Besuch erfassen" (Werte = Schlüssel im Datenmodell)
+        var BZ_PILZE = ["pf", "st", "som", "marone", "hexflock", "hexnetz"],
+          BZ_ZEIGER = ["fliegen", "pfeffer", "semmel"], // früher unter „mehr …"
+          BZ_UNTER = [
+            ["moos", "Moos"],
+            ["heidel", "Heidelbeere"],
+            ["gras", "Gras"],
+            ["nadel", "Streu"],
+            ["kraut", "Kraut"],
+            ["brom", "Brombeere"],
+          ];
+        // stopPropagation in allen onclick: der Inhalt wird beim Tippen neu gezeichnet; ohne Stopp hielte die
+        // Karte das (dann gelöste) Element für einen Kartenklick und schlösse das Popup bzw. setzte einen Pin
         function besuchBlockHtml(v) {
           var e = entwurf || entwurfFuerPin();
           if (!e) return "";
-          // stopPropagation: der Inhalt wird beim Tippen neu gezeichnet; ohne Stopp hielte die Karte den
-          // (dann gelösten) Knopf für einen Kartenklick und schlösse das Popup bzw. setzte einen neuen Pin
-          var k = function (g, w, text, an) {
+          var zelle = function (titel, inhalt, fuer) {
             return (
-              '<button class="btn wahl' +
-              (an ? " an" : "") +
-              '" onclick="event.stopPropagation();window.__bz(\'' +
+              '<div class="bz-z"><label class="bz-l"' +
+              (fuer ? ' for="' + fuer + '"' : "") +
+              ">" +
+              titel +
+              "</label>" +
+              inhalt +
+              "</div>"
+            );
+          };
+          var auswahl = function (id, g, paare, wert) {
+            return (
+              '<select id="' +
+              id +
+              '" class="bz-s" onclick="event.stopPropagation()"' +
+              " onchange=\"event.stopPropagation();window.__bz('" +
               g +
-              "','" +
-              w +
-              "')\">" +
-              text +
-              "</button>"
+              "', this.value)\">" +
+              paare
+                .map(function (x) {
+                  return (
+                    '<option value="' +
+                    x[0] +
+                    '"' +
+                    (x[0] === (wert || "") ? " selected" : "") +
+                    ">" +
+                    x[1] +
+                    "</option>"
+                  );
+                })
+                .join("") +
+              "</select>"
             );
           };
-          var zeile = function (titel, inhalt) {
+          // Mehrfach-Dropdown: zugeklappt eine Zeile mit der Auswahl als Text, aufgeklappt Liste mit Häkchen
+          var mdKopf = function (g, text) {
             return (
-              '<div class="reihe wahl"><span>' + titel + '</span><div class="kn">' + inhalt + "</div></div>"
+              '<button type="button" class="md-kopf" data-md="' +
+              g +
+              '" aria-haspopup="listbox" aria-expanded="' +
+              (e.offen === g) +
+              '" onclick="event.stopPropagation();window.__mdAuf(\'' +
+              g +
+              "')\"><span>" +
+              (text || "–") +
+              "</span>▾</button>"
             );
           };
-          var liste = function (g, paare, istAn) {
-            return paare
-              .map(function (x) {
-                return k(g, x[0], x[1], istAn(x[0]));
-              })
-              .join("");
+          var mdListe = function (g, eintraege) {
+            return (
+              '<div class="md-liste" role="listbox" aria-multiselectable="true" data-md="' +
+              g +
+              '">' +
+              eintraege
+                .map(function (x) {
+                  if (x === "-") return '<div class="md-trenn" role="separator"></div>';
+                  return (
+                    '<button type="button" role="option" class="md-e' +
+                    (x[2] ? " an" : "") +
+                    '" aria-selected="' +
+                    x[2] +
+                    '" data-w="' +
+                    x[0] +
+                    '" onclick="event.stopPropagation();window.__bz(\'' +
+                    g +
+                    "','" +
+                    x[0] +
+                    "')\">" +
+                    x[1] +
+                    "</button>"
+                  );
+                })
+                .join("") +
+              "</div>"
+            );
           };
           var hatFund = function (w) {
             return e.fund.indexOf(w) >= 0;
           };
-          var MEHR = [
-            ["fliegen", "Fliegenpilz"],
-            ["pfeffer", "Pfefferröhrling"],
-            ["semmel", "Semmelstoppel"],
-          ];
-          var mehrOffen =
-            e.mehr ||
-            MEHR.some(function (x) {
-              return hatFund(x[0]);
-            });
+          var pilzEintrag = function (w) {
+            return [w, FUNDKURZ[w], hatFund(w)];
+          };
           var ul = unterListe(v.unter),
             sp = stelleBei(pos, 25),
             heute = datumIso(new Date()),
-            tage = tageZurueck(e.datum);
+            tage = tageZurueck(e.datum),
+            dp = e.datum.split("-");
           var h = '<div class="besuch"><div class="u"><b>Besuch erfassen</b></div>';
           if (sp && sp.besuche && sp.besuche.length)
             h += '<div class="u" style="font-size:11px;color:var(--papier-2)">' + besucheKurz(sp) + "</div>";
-          h += zeile(
+          h += '<div class="bz-raster">';
+          // Zeile 1: Fund | Alter (Alter nur, wenn ein Pilz gewählt ist)
+          h += zelle(
             "Fund",
-            k("fund", "nichts", "Nichts", e.nichts) +
-              liste(
-                "fund",
-                [
-                  ["pf", "Pfifferling"],
-                  ["st", "Steinpilz"],
-                  ["som", "Sommerst."],
-                  ["marone", "Marone"],
-                  ["hexflock", "Hexe flockig"],
-                  ["hexnetz", "Hexe netzig"],
-                ],
-                hatFund,
-              ) +
-              (mehrOffen ? liste("fund", MEHR, hatFund) : k("mehr", "", "mehr …", false)),
+            mdKopf(
+              "fund",
+              e.nichts
+                ? "Nichts"
+                : e.fund
+                    .map(function (w) {
+                      return FUNDKURZ[w] || w;
+                    })
+                    .join(", "),
+            ),
           );
-          if (e.fund.length)
-            h += zeile(
-              "Alter",
-              liste(
-                "alter",
-                [
-                  ["jung", "jung"],
-                  ["mittel", "mittel"],
-                  ["alt", "alt"],
-                  ["gemischt", "gemischt"],
-                ],
-                function (w) {
-                  return e.alter === w;
-                },
+          h += e.fund.length
+            ? zelle(
+                "Alter",
+                auswahl(
+                  "bz-alter",
+                  "alterWahl",
+                  [
+                    ["", "–"],
+                    ["jung", "jung"],
+                    ["mittel", "mittel"],
+                    ["alt", "alt"],
+                    ["gemischt", "gemischt"],
+                  ],
+                  e.alter,
+                ),
+                "bz-alter",
+              )
+            : '<div class="bz-z"></div>';
+          if (e.offen === "fund")
+            h += mdListe(
+              "fund",
+              [["nichts", "Nichts", e.nichts]].concat(
+                BZ_PILZE.map(pilzEintrag),
+                ["-"],
+                BZ_ZEIGER.map(pilzEintrag),
               ),
             );
-          h += zeile(
+          // Zeile 2: Unterwuchs | Boden
+          h += zelle(
+            "Unterwuchs",
+            mdKopf(
+              "unter",
+              BZ_UNTER.filter(function (x) {
+                return ul.indexOf(x[0]) >= 0;
+              })
+                .map(function (x) {
+                  return x[1];
+                })
+                .join(", "),
+            ),
+          );
+          h += zelle(
             "Boden",
-            liste(
-              "finger",
+            auswahl(
+              "bz-boden",
+              "fingerWahl",
               [
+                ["", "–"],
                 ["trocken", "trocken"],
                 ["maessig", "mäßig"],
                 ["feucht", "feucht"],
               ],
-              function (w) {
-                return fingerprobe === w;
-              },
+              fingerprobe,
             ),
+            "bz-boden",
           );
-          h += zeile(
-            "Unterwuchs",
-            liste(
+          if (e.offen === "unter")
+            h += mdListe(
               "unter",
-              [
-                ["moos", "Moos"],
-                ["heidel", "Heidelbeere"],
-                ["gras", "Gras"],
-                ["nadel", "Streu"],
-                ["kraut", "Kraut"],
-                ["brom", "Brombeere"],
-              ],
-              function (w) {
-                return ul.indexOf(w) >= 0;
-              },
-            ),
-          );
-          h += zeile(
+              BZ_UNTER.map(function (x) {
+                return [x[0], x[1], ul.indexOf(x[0]) >= 0];
+              }),
+            );
+          // Zeile 3: Bestand | Datum (zeigt „heute", Auswahl erst beim Antippen)
+          h += zelle(
             "Bestand",
-            liste(
+            auswahl(
+              "bz-bestand",
               "bestand",
               [
                 ["hoch", "Alt &gt;25 m"],
@@ -4494,34 +4651,87 @@
                 ["dickung", "Dickung"],
                 ["jung", "Kultur"],
               ],
-              function (w) {
-                return v.alter === w;
-              },
+              v.alter,
             ),
+            "bz-bestand",
           );
-          h += zeile(
+          h += zelle(
             "Datum",
-            '<input type="date" class="datum" value="' +
+            '<div class="bz-datum"><span>' +
+              (tage === 0 ? "heute" : +dp[2] + "." + +dp[1] + ".") +
+              '</span><input type="date" id="bz-datum" value="' +
               e.datum +
               '" max="' +
               heute +
-              '" onchange="window.__bzDatum(this.value)">' +
+              '" onclick="event.stopPropagation();try{this.showPicker()}catch(x){}"' +
+              ' onchange="window.__bzDatum(this.value)"></div>' +
               (tage > 0
                 ? "<small>nachgetragen" +
                   (wetterBisTag(wetter, tage) ? ", Wetter vom Tag" : ", ohne Wetter") +
                   "</small>"
                 : ""),
+            "bz-datum",
           );
+          h += "</div>";
           h +=
             '<button class="btn speichern" onclick="event.stopPropagation();window.__bzSpeichern()">' +
             "Besuch speichern</button></div>";
           return h;
         }
+        // Nach dem Neuzeichnen den Fokus zurück auf das bediente Element (Tastaturbedienung)
+        function bzFokus(sel) {
+          var el = document.querySelector(".pinpop " + sel);
+          if (el) el.focus({ preventScroll: true });
+        }
+        window.__mdAuf = function (g) {
+          var e = entwurf || entwurfFuerPin();
+          if (!e) return;
+          e.offen = e.offen === g ? null : g;
+          aktualisierePin("");
+          bzFokus(e.offen ? '.md-liste[data-md="' + g + '"] .md-e' : '.md-kopf[data-md="' + g + '"]');
+        };
+        // Liste schließen ohne Neuzeichnen: ein Tipp außerhalb soll sein Ziel nicht verschieben lassen
+        function mdZu() {
+          if (entwurf) entwurf.offen = null;
+          document.querySelectorAll(".pinpop .md-liste").forEach(function (el) {
+            el.remove();
+          });
+          document.querySelectorAll(".pinpop .md-kopf").forEach(function (b) {
+            b.setAttribute("aria-expanded", "false");
+          });
+          // Höhe und Lage des Popups an den kürzeren Inhalt anpassen (Leaflet-intern, ohne Neuzeichnen)
+          var pp = pin && pin.getPopup();
+          if (pp && pp.isOpen() && pp._updateLayout) {
+            pp._updateLayout();
+            pp._updatePosition();
+          }
+        }
+        document.addEventListener(
+          "click",
+          function (ev) {
+            if (!entwurf || !entwurf.offen) return;
+            if (ev.target.closest && ev.target.closest(".md-liste, .md-kopf")) return;
+            mdZu();
+          },
+          true,
+        );
+        document.addEventListener(
+          "keydown",
+          function (ev) {
+            if (ev.key !== "Escape" || !entwurf || !entwurf.offen) return;
+            var g = entwurf.offen;
+            ev.stopPropagation(); // sonst schließt Leaflet das ganze Popup
+            mdZu();
+            bzFokus('.md-kopf[data-md="' + g + '"]');
+          },
+          true,
+        );
         window.__bz = function (g, w) {
           var e = entwurf || entwurfFuerPin();
           if (!e) return;
           if (g === "fund") {
             if (w === "nichts") {
+              // „Nichts" und Pilze schließen sich gegenseitig aus
               e.nichts = !e.nichts;
               if (e.nichts) {
                 e.fund = [];
@@ -4534,10 +4744,14 @@
               e.nichts = false;
               if (!e.fund.length) e.alter = null;
             }
-          } else if (g === "mehr") e.mehr = true;
-          else if (g === "alter") e.alter = e.alter === w ? null : w;
-          else if (g === "finger") {
-            window.__spFinger(w);
+            aktualisierePin("");
+            bzFokus('.md-e[data-w="' + w + '"]');
+            return;
+          }
+          if (g === "alterWahl") e.alter = w || null;
+          else if (g === "fingerWahl") {
+            if ((fingerprobe || "") !== w) window.__spFinger(w || fingerprobe); // __spFinger schaltet um
+            bzFokus("#bz-boden");
             return;
           } else if (g === "unter") {
             var l = unterAusForm().slice(),
@@ -4547,13 +4761,16 @@
             } else l.push(w);
             setzeUnterForm(l);
             update();
+            bzFokus('.md-e[data-w="' + w + '"]');
             return;
           } else if (g === "bestand") {
             $("f-alter").value = w;
             update();
+            bzFokus("#bz-bestand");
             return;
           }
           aktualisierePin("");
+          if (g === "alterWahl") bzFokus("#bz-alter");
         };
         window.__bzDatum = function (wert) {
           if (!entwurf || !wert) return;
@@ -4694,18 +4911,6 @@
           persist();
           render();
           toast("Notiz gespeichert");
-        };
-        window.__spSpeichern = function () {
-          var nah =
-            pos &&
-            spots.find(function (x) {
-              return map.distance(L.latLng(x.lat, x.lng), pos) < 25;
-            });
-          var name = prompt(
-            nah ? "Stelle „" + nah.name + '" aktualisieren (Name ändern?)' : "Name der Stelle",
-            nah ? nah.name : "Stelle " + (spots.length + 1),
-          );
-          if (name) speichereStelle(name.trim());
         };
         function setzePunkt(ll) {
           if (MOBIL) setzeStufe(0);
@@ -5510,7 +5715,9 @@
         }
         // Stationsnetz für den Überblick: bis zu 14 Stationen im Umkreis, je 35 Tage Tagessummen
         var stationsCache = {}; // id → {tage:{datum:mm}, lat, lon, name}
-        async function stationsNetz(mitte, radiusKm, melde) {
+        var stationOhneDaten = {}; // id → true: Bright Sky lieferte 404, in dieser Sitzung nicht erneut abfragen
+        // leise: Übersprungene nicht selbst melden (stationsNetzBereich fasst sie zu einer Zeile zusammen)
+        async function stationsNetz(mitte, radiusKm, melde, leise) {
           var res = await fetch(
             "https://api.brightsky.dev/sources?lat=" +
               mitte.lat.toFixed(4) +
@@ -5532,6 +5739,11 @@
               return (a.distance || 0) - (b.distance || 0);
             })
             .slice(0, maxSt);
+          var ohneIds = [];
+          st = st.filter(function (x) {
+            if (stationOhneDaten[x.id]) ohneIds.push(x.id);
+            return !stationOhneDaten[x.id];
+          });
           var von = new Date();
           von.setDate(von.getDate() - 35);
           var fertig = 0,
@@ -5548,7 +5760,13 @@
                       "&last_date=" +
                       isoTag(new Date()) +
                       "&tz=Europe/Berlin&units=dwd",
+                    { leise404: true },
                   );
+                  if (r.status === 404) {
+                    stationOhneDaten[x.id] = true;
+                    ohneIds.push(x.id);
+                    throw new Error("404");
+                  }
                   var d = await r.json().catch(function () {
                     return {};
                   });
@@ -5579,6 +5797,9 @@
           erg.forEach(function (e) {
             if (e) out.push(e);
           });
+          out.ohneIds = ohneIds;
+          if (ohneIds.length && !leise)
+            logZeile("NET", ohneIds.length + " Stationen ohne Daten übersprungen");
           return out;
         }
         var stationsMaxAm = null; // wird je Überblick gesetzt: datum → höchste Tagessumme im Stationsnetz
@@ -5601,10 +5822,14 @@
             });
           var ids = {},
             netz = [],
-            fertig = 0;
+            fertig = 0,
+            ohne = {};
           for (var q = 0; q < pts.length; q++) {
             try {
-              var teil = await stationsNetz(pts[q], 45);
+              var teil = await stationsNetz(pts[q], 45, null, true);
+              teil.ohneIds.forEach(function (id) {
+                ohne[id] = true;
+              });
               teil.forEach(function (x) {
                 var k = x.lat + "," + x.lon;
                 if (!ids[k]) {
@@ -5616,6 +5841,9 @@
             fertig++;
             if (melde) melde(fertig, pts.length);
           }
+          // Stationen ohne Daten nur einmal melden (Kacheln überlappen, dieselbe ID zählt einmal)
+          var nOhne = Object.keys(ohne).length;
+          if (nOhne) logZeile("NET", nOhne + " Stationen ohne Daten übersprungen");
           return netz;
         }
         // Schnelle Entfernung in km (äquirektangular, reicht für < 200 km)
@@ -8018,6 +8246,12 @@
           L.DomEvent.disableClickPropagation($(id)); // sonst setzt ein Tipp aufs Feld einen Pin
           L.DomEvent.disableScrollPropagation($(id));
         });
+        map.on("popupopen", function () {
+          $("map").classList.add("popup-offen");
+        });
+        map.on("popupclose", function () {
+          $("map").classList.remove("popup-offen");
+        });
         $("region-knopf").addEventListener("click", function () {
           regionOffen(true);
         });
@@ -9406,7 +9640,7 @@
               " braun nur Zeiger, grau nichts, grün noch nicht besucht.";
           if (!spots.length) {
             box.innerHTML =
-              '<div class="empty">Noch nichts gespeichert. Punkt setzen, im Popup „Stelle speichern".</div>';
+              '<div class="empty">Noch nichts gespeichert. Punkt setzen, im Popup „Besuch speichern".</div>';
             return;
           }
           spots.forEach(function (s, i) {
@@ -9532,50 +9766,6 @@
             out[a] = Math.round(rf * tf * 100) / 100;
           });
           return out;
-        }
-        function speichereStelle(name) {
-          if (!pos) {
-            toast("Erst einen Punkt setzen.");
-            return;
-          }
-          var v = readForm(),
-            r = bewerte(v);
-          var vorhanden = spots.find(function (x) {
-            return map.distance(L.latLng(x.lat, x.lng), pos) < 25;
-          });
-          if (vorhanden) {
-            if (!/^(Stelle \d+|Kein Fund|Notiz)/.test(name)) vorhanden.name = name; // sprechender Name gewinnt
-            vorhanden.v = v;
-            vorhanden.pf = r.pf;
-            vorhanden.st = r.st;
-            vorhanden.som = r.som;
-            vorhanden.wf = wetterFaktoren(v);
-            if (fingerprobe) vorhanden.finger = fingerprobe;
-            persist();
-            render();
-            if (pin) pin.closePopup();
-            toast("Stelle aktualisiert: " + vorhanden.name);
-            zeigeTab("stellen");
-            return;
-          }
-          spots.push({
-            name: name,
-            lat: pos.lat,
-            lng: pos.lng,
-            pf: r.pf,
-            st: r.st,
-            som: r.som,
-            v: v,
-            fund: null,
-            ts: Date.now(),
-            wf: wetterFaktoren(v),
-            finger: fingerprobe,
-          });
-          persist();
-          render();
-          if (pin) pin.closePopup();
-          toast("Gespeichert: " + name);
-          zeigeTab("stellen");
         }
         $("import-btn").addEventListener("click", function () {
           $("import").click();

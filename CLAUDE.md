@@ -8,7 +8,7 @@ Bewertet Waldstandorte für **Pfifferling (pf)**, **Fichtensteinpilz (st)** und 
 aus Geodaten (Baumart, Boden, Kronendichte, Gelände) und gemessenem Wetter. Nutzer: ein Sammler,
 Bedienung meist am iPhone im Wald, Auswertung am Windows-Rechner.
 
-Stand dieser Datei: v2026-09-26.6. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
+Stand dieser Datei: v2026-09-26.7. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
 
 ---
 
@@ -62,6 +62,9 @@ Stand dieser Datei: v2026-09-26.6. Die Entwicklung bis v2026-09-26.4 lief in ein
 - `stationsNetz` / `stationsNetzBereich` – DWD-Stationen über Bright Sky; `stationsGewichte` +
   `stationsRegenMitGewichten` / `stationsRegenAm` – Interpolation, **Reichweite fest 30 km**, Gewicht 1/(d²+2).
   Regen der Vergangenheit kommt **immer aus dem Stationsnetz**, Modellregen nur als Rückfall.
+  Stationen, die bei Bright Sky 404 liefern, merkt `stationOhneDaten` für die Sitzung und fragt sie nicht
+  erneut ab; das Protokoll meldet sie gesammelt („x Stationen ohne Daten übersprungen“, fetch-Option
+  `leise404` unterdrückt die Einzelzeilen).
 - `quellenAbgleich` – bei widersprüchlichen Messungen gilt der niedrigere Wert.
 - `RADAR_IM_MODELL = false` – DWD-Radar (RADOLAN SF) nur als Kartenebene, **nicht** in der Bewertung
   (gelernte Farbskala unzuverlässig, leere Bilder wurden als 0 mm gelesen).
@@ -91,7 +94,9 @@ Stand dieser Datei: v2026-09-26.6. Die Entwicklung bis v2026-09-26.4 lief in ein
   (`knopfGruppe`), Darstellung `#g-modus` („Wetter × Standort“ `zeichneZweiEbenen`, „Wetter“,
   „Standort“), „Region bewerten“ (`bewerteRegion`), Tagesregler `#tagregler` (Tage ohne Neuberechnung,
   `setzeTag`), Stichproben (`stichproben`, bis 60 Punkte mit echter Pin-Rechnung). Am Handy klappt das
-  Feld beim Pin-Setzen ein. Zellen im `rasterCache` bleiben für Stichproben, Kontrollzeile und CSV.
+  Feld beim Pin-Setzen ein; der Knopf „Region“ ist unter 900 px ausgeblendet, solange ein Popup offen ist
+  (`#map.popup-offen`), weil er über der Kartenebene liegt. Zellen im `rasterCache` bleiben für
+  Stichproben, Kontrollzeile und CSV.
 - `zoomAufUmkreis(rKm)`: zoomt genau auf den Kreis um Pin → GPS-Standort → Kartenmitte (Viertel-
   Zoomstufen), zeigt ihn gestrichelt (`regionKreis`) und rechnet verdeckte Flächen (`verdeckteRaender`:
   Region-Feld, Ladeanzeige, Schublade/Seitenleiste falls überlappend) als `paddingTopLeft/BottomRight` ein.
@@ -107,7 +112,15 @@ Stand dieser Datei: v2026-09-26.6. Die Entwicklung bis v2026-09-26.4 lief in ein
 - `stelleNormal(sp)` wandelt alte Stellen beim Laden/Import einmalig um (nur wenn `fund` ein Array ist,
   wird daraus ein erster Besuch mit `umgewandelt: true`); idempotent.
 - Popup-Block „Besuch erfassen“ (`besuchBlockHtml`, Entwurf `entwurf` je Pin, Handler `__bz`,
-  `__bzDatum`, `__bzSpeichern`): speichert an eine Stelle im Umkreis 25 m (`stelleBei`) oder legt sie an.
+  `__bzDatum`, `__bzSpeichern`): speichert an eine Stelle im Umkreis 25 m (`stelleBei`) oder legt sie an
+  (eigener „Speichern“-Knopf entfällt; unten nur Details · Umkreis · Notiz). Kompakt in zwei Spalten,
+  Beschriftung klein darüber: Fund | Alter, Unterwuchs | Boden, Bestand | Datum. Einfachauswahl als
+  `<select>` (Boden, Bestand, Alter – Alter nur bei Pilzfund). Fund und Unterwuchs als eigenes
+  Mehrfach-Dropdown (`.md-kopf`/`.md-liste`, `__mdAuf`, `entwurf.offen`): zu eine Zeile mit der Auswahl,
+  offen Liste mit Häkchen über die volle Breite (Einträge ≥ 40 px), Zeiger unter einer Trennlinie,
+  „Nichts“ schließt Pilze aus. Tipp außerhalb/Escape schließt (`mdZu`, ohne Neuzeichnen). Bewusst kein
+  `<select multiple>` (am Desktop offene Liste). Datum zeigt „heute“, die Datumsauswahl liegt unsichtbar
+  darüber. Wetterzeilen des Pins (Regen, Regenquelle, Nächte) stehen nur hinter „Details“.
   Früheres Datum → `wetterBisTag` kürzt die Wetterreihe auf den Tag (≤ 35 Tage, sonst ohne Wetter),
   `wetterSchnappschuss` bildet die Werte; der Besuch gilt als `nachgetragen`.
 - Lernen (`lerne`): jeder Besuch einzeln. `besuchWert` = 1 bei Zielart, sonst stärkstes `BEGLEIT`-Gewicht
