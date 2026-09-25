@@ -8,7 +8,7 @@ Bewertet Waldstandorte für **Pfifferling (pf)**, **Fichtensteinpilz (st)** und 
 aus Geodaten (Baumart, Boden, Kronendichte, Gelände) und gemessenem Wetter. Nutzer: ein Sammler,
 Bedienung meist am iPhone im Wald, Auswertung am Windows-Rechner.
 
-Stand dieser Datei: v2026-09-26.8. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
+Stand dieser Datei: v2026-09-26.9. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
 
 ---
 
@@ -62,6 +62,8 @@ Stand dieser Datei: v2026-09-26.8. Die Entwicklung bis v2026-09-26.4 lief in ein
 - `stationsNetz` / `stationsNetzBereich` – DWD-Stationen über Bright Sky; `stationsGewichte` +
   `stationsRegenMitGewichten` / `stationsRegenAm` – Interpolation, **Reichweite fest 30 km**, Gewicht 1/(d²+2).
   Regen der Vergangenheit kommt **immer aus dem Stationsnetz**, Modellregen nur als Rückfall.
+  `stationsNetz` nimmt die nächsten Stationen **mit Daten** (doppelt so viele Kandidaten abfragen);
+  `stationsNetzBereich` sucht in Feldern alle 30 km (höchstens 49 Felder, je 14 Stationen).
   Stationen, die bei Bright Sky 404 liefern, merkt `stationOhneDaten` für die Sitzung und fragt sie nicht
   erneut ab; das Protokoll meldet sie gesammelt („x Stationen ohne Daten übersprungen“, fetch-Option
   `leise404` unterdrückt die Einzelzeilen).
@@ -93,8 +95,8 @@ Stand dieser Datei: v2026-09-26.8. Die Entwicklung bis v2026-09-26.4 lief in ein
   Schwelle je Ansicht gemerkt (`SCHWELLE.region` 40, `SCHWELLE.umkreis` 20, `setzeSchwelle`).
 - Region-Überblick als Feld auf der Karte (`#region`, zugeklappt Knopf `#region-knopf`, `regionOffen`):
   Umkreis-Knöpfe 25/50/100 km und Pilzart-Knöpfe schreiben in versteckte Felder `#g-r`/`#g-art`
-  (`knopfGruppe`), Darstellung `#g-modus` („Wetter × Standort“ `zeichneZweiEbenen`, „Wetter“,
-  „Standort“), „Region bewerten“ (`bewerteRegion`), Tagesregler `#tagregler` (Tage ohne Neuberechnung,
+  (`knopfGruppe`), Darstellung `#g-modus` („Bewertung“ = Wert `zwei`, „Wetter“, „Standort“),
+  „Region bewerten“ (`bewerteRegion`), Tagesregler `#tagregler` (Tage ohne Neuberechnung,
   `setzeTag`), Stichproben (`stichproben`, bis 60 Punkte mit echter Pin-Rechnung). Am Handy klappt das
   Feld beim Pin-Setzen ein; der Knopf „Region“ ist unter 900 px ausgeblendet, solange ein Popup offen ist
   (`#map.popup-offen`), weil er über der Kartenebene liegt. Zellen im `rasterCache` bleiben für
@@ -103,6 +105,10 @@ Stand dieser Datei: v2026-09-26.8. Die Entwicklung bis v2026-09-26.4 lief in ein
   `W.unter.mittel`, Mittel aller Klassen, ohne Kraut-/Brombeer-Deckel); der Pin nutzt die echte Eingabe.
   Feinraster-Code `FS` 255 = kein Wald, 254 = Wald mit unbekanntem Boden (grau, nicht in Bestwert/Statistik).
   `zweiRaster(C, modus, art, min)` rechnet die Darstellung ohne Leinwand (testbar), `zeichneZweiEbenen` malt.
+  „Bewertung“: Farbe = erwartete Bewertung je Feinpixel (`bewertungAn` → `endwert` mit der Standortgüte des
+  Pixels als `sgVorab`, Regen-/Temperaturfaktor aus dem Wetterfeld `GW[tag].rf/.tf`), Skala `farbeStetig` wie
+  am Pin, Deckkraft einheitlich. Wetterfeld über `wetterPotenzial(a, w, hoehe, saison)` (Kronen 85 %).
+  Tipp auf die Fläche: „Bewertung ≈ x (Wetter y %, Standort z %) · Pin: p“ zur Kontrolle.
   Standortgüte-Farben relativ zum Ausschnitt (10.–90. Perzentil, Legende `#rg-legende` mit echten Werten).
   Ohne Wetterraster (`GW = null`): „Wetter × Standort“ zeigt nur den Standort (`zweiModusFuer`) mit Warnung
   im Region-Feld, „Nur Wetter“ zeichnet nichts. `holeWetterMulti` fasst bei 429/5xx zweimal nach.
@@ -162,6 +168,13 @@ Stand dieser Datei: v2026-09-26.8. Die Entwicklung bis v2026-09-26.4 lief in ein
   Deshalb `pixelBildFein` mit 35 m/px. Folge des Fehlers war „unbekannte Bodenfarbe“ für fast alle Waldpixel.
 - **Open-Meteo-Mehrpunktabrufe** zählen je Ort und Tagespanne; zwei Überblicke kurz hintereinander liefen ins
   Minutenlimit (429) → „Wetter fehlt“. `holeWetterMulti` wartet und wiederholt, das Protokoll nennt den Grund.
+  Beim **Tageslimit** („Daily API request limit exceeded“, gilt je Internetadresse, ein Überblick kostet
+  mehrere Hundert Abrufe) merkt `openMeteoTageslimit` das für die Sitzung: keine Wiederholungen, Höhen über
+  den Ersatzdienst, im Region-Feld steht der Grund. Viele Testläufe am PC sperren auch die App am PC.
+- **Stationsnetz Pin ↔ Überblick:** Viele DWD-Stationen liefern bei Bright Sky 404. Wer „die 14 nächsten“ nimmt
+  und leere erst danach verwirft, verliert nahe Stationen. Im Ebersberger Forst fehlte dem Überblick so
+  Ebersberg-Halbing (7 km, dominierendes Gewicht) → Zelle 56 % Wetter statt 36 % am Pin. Immer „die nächsten
+  N mit Daten“ und dichte Suchfelder (30 km).
 - **Interne Leaflet-Funktionen:** `mdZu()` ruft nach dem Schließen einer Mehrfach-Liste `popup._updateLayout()`
   und `popup._updatePosition()` auf, damit das Popup ohne Neuzeichnen schrumpft. Beides ist nicht öffentliche
   Leaflet-API (1.9.4) und kann bei einem Leaflet-Update wegfallen oder sich ändern – dann bleibt unten im

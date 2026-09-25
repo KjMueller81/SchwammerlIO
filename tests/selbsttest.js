@@ -75,6 +75,9 @@ const EXPORT = [
   "besuchWert",
   "BEGLEIT",
   "zweiRaster",
+  "zweiWertAn",
+  "wetterPotenzial",
+  "standortGuete",
 ];
 const kern = js.replace(
   start,
@@ -250,11 +253,12 @@ pruefe("(d) Besuch nur mit Marone ergibt für st und pf 0,5", () => {
 function ueberblick(mitWetter) {
   const code = [60, 30, 254, 255],
     GN = 2,
-    gw = () => ({
-      pf: new Float32Array(GN * GN).fill(80),
-      st: new Float32Array(GN * GN).fill(80),
-      som: new Float32Array(GN * GN).fill(80),
-    });
+    feld = (x) => ({
+      pf: new Float32Array(GN * GN).fill(x),
+      st: new Float32Array(GN * GN).fill(x),
+      som: new Float32Array(GN * GN).fill(x),
+    }),
+    gw = () => Object.assign(feld(80), { rf: feld(0.8), tf: feld(1) });
   return {
     FX: 4,
     FY: 1,
@@ -266,9 +270,11 @@ function ueberblick(mitWetter) {
       st: Uint8Array.from(code),
       som: Uint8Array.from(code),
       baum: [],
-      boden: [],
+      bwert: ["fichte", "fichte", "fichte", null],
+      boden: ["sauer", "sauer", null, null],
     },
     GW: mitWetter ? [gw(), gw(), gw(), gw()] : null,
+    saison: "herbst",
   };
 }
 const deckend = (R) => Array.from(R.maske).filter((m) => m).length;
@@ -305,6 +311,60 @@ pruefe("(b) Unbekannter Boden fließt nicht in die Standortgüte-Statistik ein",
     R.rgba[o + 2] === 120 &&
     R.maske[3] === 0 // kein Wald bleibt leer
   );
+});
+
+// (e) gleicher Wetterdatensatz: Wetterfeld und Pin-Rechnung ergeben dasselbe Wetterpotenzial und – bei gleichen
+// Standortannahmen – dieselbe Bewertung (Pixel „Bewertung“ = endwert wie am Pin, Toleranz 1 für die gerundete Güte)
+pruefe("(e) Wetterfeld und Pin: gleiches Wetterpotenzial und gleiche Bewertung", () => {
+  const tw = new Array(36).fill(0);
+  tw[35 - 13] = 13;
+  tw[35 - 5] = 31;
+  const W1 = {
+    tw,
+    et0: tw.map(() => 1.6),
+    tmin: tw.map(() => 9),
+    tmax: tw.map(() => 17),
+    f: { tw: [], et0: [], tmin: [], tmax: [], pp: [] },
+  };
+  const v = {
+    baum: "fichte",
+    alter: "mittel",
+    boden: "sauer",
+    unter: "mittel",
+    lage: "eben",
+    rand: "innen",
+    saison: "herbst",
+  };
+  return ["pf", "st", "som"].every((a) => {
+    const wp = T.wetterPotenzial(a, W1, 600, "herbst"),
+      pinR = T.bewerte(v, W1, 600, undefined, 85)[a];
+    const GN = 2,
+      feld = (x) => ({
+        pf: new Float32Array(4).fill(x),
+        st: new Float32Array(4).fill(x),
+        som: new Float32Array(4).fill(x),
+      }),
+      sg = Math.round(T.standortGuete(v, a) * 100),
+      C = {
+        FX: 1,
+        FY: 1,
+        GN,
+        tagIdx: 0,
+        trend: false,
+        saison: "herbst",
+        FS: {
+          pf: Uint8Array.of(sg),
+          st: Uint8Array.of(sg),
+          som: Uint8Array.of(sg),
+          baum: [],
+          bwert: ["fichte"],
+          boden: ["sauer"],
+        },
+        GW: [0, 1, 2, 3].map(() => Object.assign(feld(wp.pot), { rf: feld(wp.rf), tf: feld(wp.tf) })),
+      };
+    const px = T.zweiWertAn(C, "zwei", a, 0, 0);
+    return Math.abs(px.pot - wp.pot) < 1e-6 && Math.abs(px.prod - pinR) <= 1;
+  });
 });
 
 t.zeilen.forEach((z) => console.log(z));

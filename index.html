@@ -1329,7 +1329,7 @@
           </div>
           <div class="rg-zeile">
             <select id="g-modus" aria-label="Darstellung">
-              <option value="zwei" selected>Wetter × Standort</option>
+              <option value="zwei" selected>Bewertung</option>
               <option value="wetter">Wetter</option>
               <option value="standort">Standort</option>
             </select>
@@ -1761,7 +1761,7 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-26.8";
+        var VERSION = "2026-09-26.9";
         // Radar nur als Kartenebene; in der Bewertung zu unzuverlässig (gelernte Farbskala, leere Bilder)
         var RADAR_IM_MODELL = false;
         var LOG = [];
@@ -3437,13 +3437,13 @@
           return Math.exp(lnS / g);
         }
         // Harte Deckel: Ausschlussbedingungen begrenzen das Ergebnis, egal wie gut der Rest ist.
-        function deckel(v, a, rf, tf) {
+        function deckel(v, a, rf, tf, sgVorab) {
           var c = 100;
           if (v.boden === "moor") c = Math.min(c, 10);
           if (unterListe(v.unter).indexOf("brom") >= 0) c = Math.min(c, 20); // auch wenn nur mit gewählt
           if (v.alter === "jung") c = Math.min(c, 25);
           if (v.baum === "laub_jung") c = Math.min(c, 25);
-          var sg = standortGuete(v, a); // 0–1
+          var sg = sgVorab === undefined ? standortGuete(v, a) : sgVorab; // 0–1
           c = Math.min(
             c,
             interp(rf, [
@@ -3581,10 +3581,12 @@
           return h;
         }
         // Einzige Endformel: Standortgüte × Regen × Temperatur × Saison, mit Deckeln. Pin, Umkreis und Überblick nutzen sie.
-        function endwert(v, a, rf, tf, hoehe, ohne) {
+        // sgVorab: bereits berechnete Standortgüte (0–1), z. B. aus dem Feinraster des Überblicks – gleiche Formel
+        function endwert(v, a, rf, tf, hoehe, ohne, sgVorab) {
           if (!fingerprobe || hoehe !== hoehePunkt) rf = Math.min(1, rf * bestandFeuchte(v)); // Tastbefund hat Vorrang
-          var roh = 100 * standortGuete(v, a, ohne) * rf * tf * SAISON[v.saison][a];
-          return Math.round(Math.min(roh, deckel(v, a, rf, tf)));
+          var sg = sgVorab === undefined ? standortGuete(v, a, ohne) : sgVorab;
+          var roh = 100 * sg * rf * tf * SAISON[v.saison][a];
+          return Math.round(Math.min(roh, deckel(v, a, rf, tf, sgVorab === undefined ? undefined : sg)));
         }
         function wetterFaktorenArt(a, v, w, hoehe, dichte) {
           var tf = w ? tempFaktor(a, w.tmin, w.tmax) : { f: 1, text: null };
@@ -3619,6 +3621,24 @@
             }
           }
           return { rf: rf, tf: tff, text: txt };
+        }
+        // Wetterpotenzial eines Orts für Art a: Regen- und Temperaturfaktor wie am Pin (wetterFaktorenArt), für einen
+        // mittelalten Bestand mit fester Kronendichte 85 % (Ortsfestigkeit). pot = was ein idealer Standort hier hätte.
+        var V_WETTER = {
+          baum: "fichte",
+          alter: "mittel",
+          boden: "sauer",
+          unter: "mittel",
+          lage: "eben",
+          rand: "innen",
+        };
+        function wetterPotenzial(a, w, hoehe, saison) {
+          var fk = wetterFaktorenArt(a, V_WETTER, w, hoehe, 85);
+          return {
+            rf: fk.rf,
+            tf: fk.tf,
+            pot: Math.round(100 * Math.min(1, fk.rf) * fk.tf * SAISON[saison][a]),
+          };
         }
         function bewerte(v, wt, hoehe, ohne, dichte) {
           var w = wt === undefined ? wetter : wt,
@@ -4997,7 +5017,8 @@
               fxT = Math.floor(((e.latlng.lng - CZ.lngW) / (CZ.lngE - CZ.lngW)) * CZ.FX);
             if (fyT >= 0 && fxT >= 0 && fyT < CZ.FY && fxT < CZ.FX) {
               var wT = zweiWertAn(CZ, zweiModusFuer(CZ, zweiModus()), $("r-art").value, fyT, fxT),
-                qT = fyT * CZ.FX + fxT;
+                qT = fyT * CZ.FX + fxT,
+                rPin = pos ? bewerte(readForm()) : null;
               toast(
                 !wT.wald
                   ? "Kein Wald laut Baumartenkarte."
@@ -5005,18 +5026,21 @@
                     ? (CZ.FS.baum[qT] || "Wald") + ": Boden unbekannt — hier keine Standortgüte."
                     : ARTNAME[wT.a] +
                       ": " +
-                      (wT.pot === null
-                        ? "Wetter nicht verfügbar · "
-                        : "Wetterpotenzial " + Math.round(wT.pot) + " × ") +
-                      "Standort " +
-                      wT.sg +
-                      " % (" +
+                      (wT.prod === null
+                        ? "Wetter nicht verfügbar · Standort " + wT.sg + " %"
+                        : "Bewertung ≈ " +
+                          Math.round(wT.prod) +
+                          " (Wetter " +
+                          Math.round(wT.pot) +
+                          " %, Standort " +
+                          wT.sg +
+                          " %)") +
+                      (rPin ? " · Pin: " + rPin[wT.a] : "") +
+                      " — " +
                       (CZ.FS.baum[qT] || "Wald") +
                       ", " +
                       CZ.FS.boden[qT] +
-                      ")" +
-                      (wT.prod === null ? "" : " → etwa " + Math.round(wT.prod)) +
-                      " auf ebenem Grund im Bestandsinneren. Der Pin ergänzt Hang, Rand und Kronendichte.",
+                      ", eben, innen, Unterwuchs neutral.",
               );
             }
           } else if (bildOverlay && rasterCache && rasterCache.grob) {
@@ -5129,6 +5153,8 @@
           });
         }
         var hoehenCache = {}; // "lat,lng" (3 Dezimalen ≈ 100 m) → m
+        // Open-Meteo-Tageslimit erreicht: in dieser Sitzung nicht mehr anfragen (Höhen → Ersatzdienst, Wetter → Fehler)
+        var openMeteoTageslimit = false;
         async function hoehen(punkte) {
           var offen = [],
             erg = new Array(punkte.length);
@@ -5152,13 +5178,20 @@
               })
               .join(",");
           var fehler = null;
-          for (var versuch = 0; versuch < 3; versuch++) {
+          for (var versuch = 0; versuch < 3 && !openMeteoTageslimit; versuch++) {
             try {
               var res = await fetch(
                 "https://api.open-meteo.com/v1/elevation?latitude=" + la + "&longitude=" + lo,
               );
               if (res.status === 429) {
                 fehler = "Limit";
+                var j429 = await res.json().catch(function () {
+                  return {};
+                });
+                if (/daily/i.test(j429.reason || "")) {
+                  openMeteoTageslimit = true; // für die Sitzung merken, gleich zum Ersatzdienst
+                  break;
+                }
                 await pause(2500 * (versuch + 1));
                 continue;
               }
@@ -5787,13 +5820,18 @@
             })
             .sort(function (a, b) {
               return (a.distance || 0) - (b.distance || 0);
-            })
-            .slice(0, maxSt);
+            });
+          // Viele DWD-Niederschlagsstationen liefern bei Bright Sky keine Daten (404). Früher wurden die 14 nächsten
+          // genommen und die leeren danach verworfen – am Pin blieben so z. B. im Ebersberger Forst 6 von 11
+          // Stationen im 30-km-Wirkkreis. Jetzt: doppelt so viele Kandidaten abfragen und die nächsten maxSt
+          // mit Daten behalten (gilt für Pin und die Suchfelder des Überblicks).
           var ohneIds = [];
-          st = st.filter(function (x) {
-            if (stationOhneDaten[x.id]) ohneIds.push(x.id);
-            return !stationOhneDaten[x.id];
-          });
+          st = st
+            .filter(function (x) {
+              if (stationOhneDaten[x.id]) ohneIds.push(x.id);
+              return !stationOhneDaten[x.id];
+            })
+            .slice(0, maxSt * 2);
           var von = new Date();
           von.setDate(von.getDate() - 35);
           var fertig = 0,
@@ -5845,7 +5883,7 @@
             4,
           );
           erg.forEach(function (e) {
-            if (e) out.push(e);
+            if (e && out.length < maxSt) out.push(e); // erg ist nach Entfernung sortiert
           });
           out.ohneIds = ohneIds;
           if (ohneIds.length && !leise)
@@ -5861,14 +5899,18 @@
             latN = b.getNorth(),
             lngW = b.getWest(),
             lngE = b.getEast();
-          var dLat = 60 / 111.32,
-            dLng = 60 / (111.32 * Math.cos((((latS + latN) / 2) * Math.PI) / 180));
+          // Suchfelder alle 30 km, je die 14 nächsten Stationen mit Daten. Mit 60 km Abstand fehlte z. B. im
+          // Ebersberger Forst die nächste Station (Ebersberg-Halbing, 7 km) – die Zellen rechneten mit weiter
+          // entfernten Stationen und lagen deutlich über dem Pin. Nachgestellt: 60 km → 31 Stationen ohne
+          // Ebersberg, 30 km → 96 mit.
+          var dLat = 30 / 111.32,
+            dLng = 30 / (111.32 * Math.cos((((latS + latN) / 2) * Math.PI) / 180));
           for (var la = latS + dLat / 2; la < latN + dLat / 2; la += dLat)
             for (var lo = lngW + dLng / 2; lo < lngE + dLng / 2; lo += dLng)
               pts.push(L.latLng(Math.min(latN, la), Math.min(lngE, lo)));
-          if (pts.length > 16)
+          if (pts.length > 49)
             pts = pts.filter(function (_, k) {
-              return k % Math.ceil(pts.length / 16) === 0;
+              return k % Math.ceil(pts.length / 49) === 0;
             });
           var ids = {},
             netz = [],
@@ -5876,7 +5918,7 @@
             ohne = {};
           for (var q = 0; q < pts.length; q++) {
             try {
-              var teil = await stationsNetz(pts[q], 45, null, true);
+              var teil = await stationsNetz(pts[q], 20, null, true); // max_dist 40 km, 14 Stationen
               teil.ohneIds.forEach(function (id) {
                 ohne[id] = true;
               });
@@ -6258,6 +6300,8 @@
               : "") +
             "&daily=precipitation_sum,temperature_2m_max,temperature_2m_min,et0_fao_evapotranspiration,precipitation_probability_max&past_days=35&forecast_days=8&timezone=Europe%2FBerlin";
           // Bei Minutenlimit (429) oder Serverfehler zweimal mit Pause nachfassen – sonst fehlte im Überblick das Wetter
+          if (openMeteoTageslimit)
+            throw new Error("Daily API request limit exceeded (in dieser Sitzung gemerkt)");
           var res = null,
             j = null;
           for (var versuch = 0; versuch < 3; versuch++) {
@@ -6267,6 +6311,10 @@
             });
             if (res.ok && j) break;
             if (res.status !== 429 && res.status < 500) break;
+            if (j && /daily/i.test(j.reason || "")) {
+              openMeteoTageslimit = true; // Tageslimit: Nachfragen hilft erst morgen
+              break;
+            }
             if (versuch < 2) await pause(4000 * (versuch + 1));
           }
           if (!res.ok || !j) throw new Error((j && j.reason) || "HTTP " + res.status);
@@ -7064,6 +7112,10 @@
           return el ? el.value : "zwei";
         }
         function potAn(C, tg, a, fy, fx) {
+          return feldAn(C, C.GW[tg][a], fy, fx);
+        }
+        // Bilinear aus einem GN×GN-Feld des Überblicks an einem Feinpixel
+        function feldAn(C, F, fy, fx) {
           var GN = C.GN,
             gy = ((fy + 0.5) / C.FY) * GN - 0.5,
             gx = ((fx + 0.5) / C.FX) * GN - 0.5;
@@ -7073,7 +7125,6 @@
             x1 = Math.min(GN - 1, x0 + 1),
             ty = Math.max(0, Math.min(1, gy - y0)),
             tx = Math.max(0, Math.min(1, gx - x0));
-          var F = C.GW[tg][a];
           return (
             (1 - ty) * ((1 - tx) * F[y0 * GN + x0] + tx * F[y0 * GN + x1]) +
             ty * ((1 - tx) * F[y1 * GN + x0] + tx * F[y1 * GN + x1])
@@ -7093,7 +7144,7 @@
             var sg = wald && !unbekannt ? C.FS[a][q] : 0,
               pot = C.GW ? potAn(C, tg, a, fy, fx) : null,
               diff = C.trend && C.GW ? potAn(C, 3, a, fy, fx) - potAn(C, 0, a, fy, fx) : 0,
-              prod = pot === null ? null : (pot * sg) / 100,
+              prod = pot === null || !wald || unbekannt ? null : bewertungAn(C, tg, a, q, fy, fx),
               key = modus === "wetter" ? pot || 0 : modus === "standort" ? sg : prod || 0;
             if (!best || key > best.key)
               best = {
@@ -7109,12 +7160,38 @@
           });
           return best;
         }
+        // Erwartete Bewertung am Feinpixel: dieselbe Endformel wie am Pin (endwert inkl. Deckel), mit der Standortgüte
+        // des Pixels (Lage eben, Struktur innen, Unterwuchs neutral) und Regen-/Temperaturfaktor aus dem Wetterfeld
+        var V_PIXEL = {};
+        function bewertungAn(C, tg, a, q, fy, fx) {
+          var key = C.FS.bwert[q] + "|" + C.FS.boden[q],
+            v = V_PIXEL[key];
+          if (!v || v.saison !== C.saison)
+            v = V_PIXEL[key] = {
+              baum: C.FS.bwert[q],
+              alter: "mittel",
+              boden: C.FS.boden[q],
+              unter: UNTER_FERN,
+              lage: "eben",
+              rand: "innen",
+              saison: C.saison,
+            };
+          var rf = feldAn(C, C.GW[tg].rf[a], fy, fx),
+            tf = feldAn(C, C.GW[tg].tf[a], fy, fx);
+          return endwert(v, a, rf, tf, undefined, undefined, C.FS[a][q] / 100);
+        }
         // Wirksame Darstellung: ohne Wetterraster gibt es kein Wetterpotenzial → „Wetter × Standort“ zeigt nur den Standort
         function zweiModusFuer(C, modus) {
           return !C.GW && modus === "zwei" ? "standort" : modus;
         }
         var GRAU_UNBEKANNT = [128, 128, 120],
-          FARBE_GROB = [];
+          FARBE_GROB = [],
+          FARBE_PIN = [];
+        function farbeStetigRgb(s) {
+          var k = Math.max(0, Math.min(100, Math.round(s)));
+          if (!FARBE_PIN[k]) FARBE_PIN[k] = farbeStetig(k).match(/\d+/g).map(Number);
+          return FARBE_PIN[k];
+        }
         function farbeGrobRgb(s) {
           var k = Math.max(0, Math.min(100, Math.round(s)));
           if (!FARBE_GROB[k]) FARBE_GROB[k] = farbeGrob(k).match(/\d+/g).map(Number);
@@ -7212,12 +7289,12 @@
               alpha = 1;
               erg.gezeigt++;
             } else {
+              // „Bewertung“: Farbe = erwartete Bewertung auf derselben Skala wie am Pin, Deckkraft einheitlich
               if (PROD[q2] < min) continue;
               farbe = C.trend
                 ? farbeGrobRgb(50 + Math.max(-50, Math.min(50, DIFF[q2] * 1.4)))
-                : farbeGrobRgb(POT[q2]);
-              var t = norm(SG[q2]);
-              alpha = 0.06 + 0.94 * t * t; // stark gespreizt: schwache Standorte deutlich blasser
+                : farbeStetigRgb(PROD[q2]);
+              alpha = 1;
               erg.gezeigt++;
             }
             var o = q2 * 4;
@@ -7294,6 +7371,14 @@
               " %)"
             : "";
           var sk = R.p10 === null ? "" : Math.round(R.p10) + " " + balken + " " + Math.round(R.p90) + " %";
+          var pinBalken =
+            '<span class="rg-balken" style="background:linear-gradient(90deg,' +
+            [0, 20, 40, 60, 80, 100]
+              .map(function (x) {
+                return farbeStetig(x);
+              })
+              .join(",") +
+            ')"></span>';
           el.innerHTML =
             R.modus === "wetter"
               ? R.ohneWetter
@@ -7301,14 +7386,16 @@
                 : "Wetterpotenzial: schlecht " + balken + " gut"
               : R.modus === "standort"
                 ? "Standortgüte " + sk + grau
-                : "Farbe = Wetter " + balken + " · Deckkraft = Standort " + sk + grau;
+                : "Bewertung 0 " + pinBalken + " 100 (Skala wie am Pin)" + grau;
         }
         function zweiText(modus) {
           return modus === "wetter"
             ? "Wetterpotenzial: Was ein idealer Fichtenstandort hier heute wert wäre (rot schlecht → grün gut). Ändert sich über Kilometer."
             : modus === "standort"
               ? "Standortgüte ohne Wetter: Baumart und Boden aus den Karten, Unterwuchs neutral; Farben relativ zum Ausschnitt (10.–90. Perzentil). Etwa 100–200 m Auflösung."
-              : "Farbe = Wetterpotenzial, Deckkraft = Standortgüte. Kräftig grün = gutes Wetter auf gutem Wald; blass = Wetter gut, Wald weniger. Pin ≈ Wetter × Standort, dazu Hang und Struktur.";
+              : "Farbe = erwartete Bewertung (Wetterpotenzial × Standortgüte mit denselben Deckeln wie am Pin), " +
+                "Lage eben, Struktur innen, Unterwuchs neutral. " +
+                "Der Pin ergänzt Hang, Rand, Unterwuchs und Kronendichte.";
         }
         // Stichproben: echte Pin-Rechnung an bis zu 60 Waldpunkten
         var stichGruppe = L.layerGroup().addTo(map),
@@ -8765,7 +8852,8 @@
             for (var x = 0; x < G; x++)
               wp.push([latN - ((y + 0.5) * (latN - latS)) / G, lngW + ((x + 0.5) * (lngE - lngW)) / G]);
           var WH = null,
-            WW = null;
+            WW = null,
+            wetterGrund = "";
           note.textContent = "Höhen und Wetter für " + wp.length + " Rasterpunkte …";
           fort(0.15);
           try {
@@ -8778,6 +8866,9 @@
           } catch (e) {
             merkeBlockade(e);
             logZeile("NET", "Wetterraster (Open-Meteo, " + wp.length + " Punkte): " + (e.message || e));
+            wetterGrund = /daily/i.test(String(e.message))
+              ? "Open-Meteo-Tageslimit für diese Internetadresse erreicht"
+              : String(e.message || e);
             WW = null;
           }
           // Messnetz: gemessener Regen der DWD-Stationen im Umkreis, je Rasterpunkt interpoliert (ersetzt den Modellregen der Vergangenheit)
@@ -9408,6 +9499,7 @@
               st: new Uint8Array(FX * FY),
               som: new Uint8Array(FX * FY),
               baum: new Array(FX * FY),
+              bwert: new Array(FX * FY),
               boden: new Array(FX * FY),
             };
             var sgCache = {},
@@ -9456,6 +9548,7 @@
                 FS.st[qf] = sgCache[keyF].st;
                 FS.som[qf] = sgCache[keyF].som;
                 FS.baum[qf] = fcF ? fcF.art : null;
+                FS.bwert[qf] = bmF;
                 FS.boden[qf] = boF;
               }
           } catch (e) {
@@ -9481,6 +9574,16 @@
                 pf: new Float32Array(GN * GN),
                 st: new Float32Array(GN * GN),
                 som: new Float32Array(GN * GN),
+                rf: {
+                  pf: new Float32Array(GN * GN),
+                  st: new Float32Array(GN * GN),
+                  som: new Float32Array(GN * GN),
+                },
+                tf: {
+                  pf: new Float32Array(GN * GN),
+                  st: new Float32Array(GN * GN),
+                  som: new Float32Array(GN * GN),
+                },
               });
             for (var gy = 0; gy < GN; gy++)
               for (var gx = 0; gx < GN; gx++) {
@@ -9513,10 +9616,10 @@
                   var wtG = wetterAmTag(wbG, tgG);
                   for (var ka = 0; ka < ARTEN.length; ka++) {
                     var aG = ARTEN[ka],
-                      fkG = wetterFaktorenArt(aG, vIdeal, wtG, hG, 85);
-                    GW[tgG][aG][gy * GN + gx] = Math.round(
-                      100 * Math.min(1, fkG.rf) * fkG.tf * SAISON[form.saison][aG],
-                    );
+                      wpG = wetterPotenzial(aG, wtG, hG, form.saison);
+                    GW[tgG][aG][gy * GN + gx] = wpG.pot;
+                    GW[tgG].rf[aG][gy * GN + gx] = wpG.rf;
+                    GW[tgG].tf[aG][gy * GN + gx] = wpG.tf;
                   }
                 }
               }
@@ -9582,6 +9685,8 @@
             FX: FX,
             FY: FY,
             GW: GW,
+            wetterGrund: wetterGrund,
+            saison: form.saison,
             GN: GN,
             tagIdx: 0,
           };
@@ -9637,9 +9742,9 @@
             gn.classList.toggle("warn", R.ohneWetter);
             gn.textContent =
               (R.ohneWetter
-                ? R.modus === "wetter"
-                  ? "Wetter nicht verfügbar — Wetterbild leer. "
-                  : "Wetter nicht verfügbar — nur Standort angezeigt. "
+                ? "Wetter nicht verfügbar" +
+                  (C.wetterGrund ? " (" + C.wetterGrund + ")" : "") +
+                  (R.modus === "wetter" ? " — Wetterbild leer. " : " — nur Standort angezeigt. ")
                 : "") +
               zweiText(R.modus) +
               (R.n ? " Bestwert im Ausschnitt: " + R.top + "." : "") +
