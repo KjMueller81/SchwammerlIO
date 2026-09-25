@@ -8,7 +8,7 @@ Bewertet Waldstandorte für **Pfifferling (pf)**, **Fichtensteinpilz (st)** und 
 aus Geodaten (Baumart, Boden, Kronendichte, Gelände) und gemessenem Wetter. Nutzer: ein Sammler,
 Bedienung meist am iPhone im Wald, Auswertung am Windows-Rechner.
 
-Stand dieser Datei: v2026-09-26.10. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
+Stand dieser Datei: v2026-09-26.11. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
 
 ---
 
@@ -58,7 +58,17 @@ Stand dieser Datei: v2026-09-26.10. Die Entwicklung bis v2026-09-26.4 lief in ei
 - `SAISON` – Sommer/Herbst-Faktoren je Art.
 
 **Wetter**
-- `holeWetterHaupt` / `holeWetterMulti` – Open-Meteo (35 Tage zurück, 8 voraus, Höhe, ET0, Bodenfeuchte 0–7 cm).
+- `holeWetterHaupt` / `holeWetterMulti` – Open-Meteo (35 Tage zurück, 8 voraus, ET0, Bodenfeuchte 0–7 cm) über
+  eine gemeinsame Schicht `omWetterJ`: Punkte auf 0,05° gerundet (`omKey`, Pin/Überblick/Stichproben teilen sie),
+  bis 50 Orte je Anfrage, Bodenfeuchte in derselben Anfrage, 30 min Zwischenspeicher (Speicher + localStorage
+  `schwammerl:om:*`, höchstens 40 Punkte). Kein Höhenparameter: `wetterFuer` rechnet die Temperatur von der
+  Modellhöhe (`j.elevation`) mit 0,65 °C/100 m auf die Zielhöhe um (`tempAufHoehe`).
+- Überblick: nur 3×3 Wetterpunkte (100 km: 4×4), dazwischen `wetterMisch` (bilinear, Temperatur je Ecke auf die
+  Ortshöhe), Höhe je Zelle aus den Geländekacheln (`HF`).
+- Höhen: `hoehen(punkte, zoom)` zuerst aus den AWS-Geländekacheln (Terrarium, kein Tageslimit,
+  `hoehenTerrarium`), Rückfall Open-Meteo-Elevation, dann Open Topo Data.
+- Verbrauch: `omZaehlen` schätzt je erfolgreichem Abruf nach der Open-Meteo-Zählregel (Orte × Tage/14 ×
+  Variablen/10) und zeigt „Open-Meteo heute“ in der Diagnose (`#om-zaehler`) und im Bericht.
 - `stationsNetz` / `stationsNetzBereich` – DWD-Stationen über Bright Sky; `stationsGewichte` +
   `stationsRegenMitGewichten` / `stationsRegenAm` – Interpolation, **Reichweite fest 30 km**, Gewicht 1/(d²+2).
   Regen der Vergangenheit kommt **immer aus dem Stationsnetz**, Modellregen nur als Rückfall.
@@ -173,6 +183,10 @@ Stand dieser Datei: v2026-09-26.10. Die Entwicklung bis v2026-09-26.4 lief in ei
 - **LfU-Bodenkarte hat einen ScaleHint (max. 99 m Pixeldiagonale):** gröber als ~45 m/Pixel kommt Status 200
   mit einem **leeren** PNG – kein Fehler, nur keine Farben. Gemessen: 42 m/px gezeichnet, 48 m/px leer.
   Deshalb `pixelBildFein` mit 35 m/px. Folge des Fehlers war „unbekannte Bodenfarbe“ für fast alle Waldpixel.
+- **Open-Meteo-Kosten:** Eine Wetterabfrage mit 43 Tagen kostet je Ort ≈ 3,07 Abrufe (Tage/14). Vorher:
+  Überblick ≈ 507 (100 Orte Wetter + 100 Bodenfeuchte + 100 Höhen), Pin ≈ 8, Stichproben ≈ 300 (Höhen).
+  Jetzt: Überblick 25/50 km ≈ 28, 100 km ≈ 49, Pin ≈ 3 (0 im Zwischenspeicher), Höhen 0. Ob mehrere Orte in einer
+  Anfrage einzeln zählen, sagt die Doku nicht ausdrücklich – die Schätzung nimmt es an.
 - **Open-Meteo-Mehrpunktabrufe** zählen je Ort und Tagespanne; zwei Überblicke kurz hintereinander liefen ins
   Minutenlimit (429) → „Wetter fehlt“. `holeWetterMulti` wartet und wiederholt, das Protokoll nennt den Grund.
   Beim **Tageslimit** („Daily API request limit exceeded“, gilt je Internetadresse, ein Überblick kostet

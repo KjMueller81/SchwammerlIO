@@ -1481,6 +1481,7 @@
                 <button class="act ghost" id="dbg-fall" style="margin-top: 8px">Pin-Fall als JSON</button>
               </div>
             </div>
+            <div class="note" id="om-zaehler">Open-Meteo heute: noch kein Abruf.</div>
             <label class="inl" style="margin: 8px 0"
               ><input type="checkbox" id="dbg-show" /> Protokoll anzeigen</label
             >
@@ -1801,7 +1802,7 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-26.10";
+        var VERSION = "2026-09-26.11";
         // Radar nur als Kartenebene; in der Bewertung zu unzuverlässig (gelernte Farbskala, leere Bilder)
         var RADAR_IM_MODELL = false;
         var LOG = [];
@@ -1832,6 +1833,50 @@
           logZeile("PRM", String((e.reason && e.reason.message) || e.reason));
         });
 
+        // Geschätzter Open-Meteo-Verbrauch nach deren Zählregel (Preisseite): je Ort; mehr als 14 Tage oder mehr als
+        // 10 Variablen zählen anteilig mehrfach (Tage/14 × Variablen/10, je mindestens 1). Höhenabfrage: je Ort 1.
+        function omGewicht(url) {
+          var q = url.split("?")[1] || "",
+            par = {};
+          q.split("&").forEach(function (t) {
+            var i = t.indexOf("=");
+            if (i > 0) par[t.slice(0, i)] = decodeURIComponent(t.slice(i + 1));
+          });
+          var orte = (par.latitude || "").split(",").filter(Boolean).length || 1;
+          if (/\/elevation/.test(url)) return orte;
+          var tage = (+par.past_days || 0) + (par.forecast_days !== undefined ? +par.forecast_days : 7);
+          if (par.start_date && par.end_date)
+            tage = Math.round((new Date(par.end_date) - new Date(par.start_date)) / 864e5) + 1;
+          var vars =
+            (par.daily ? par.daily.split(",").length : 0) + (par.hourly ? par.hourly.split(",").length : 0) ||
+            1;
+          return orte * Math.max(1, tage / 14) * Math.max(1, vars / 10);
+        }
+        function omZaehlerLesen() {
+          var heute = new Date().toISOString().slice(0, 10),
+            z = { datum: heute, n: 0 }; // Open-Meteo zählt in UTC
+          try {
+            var roh = JSON.parse(localStorage.getItem("schwammerl:om-zaehler") || "null");
+            if (roh && roh.datum === heute) z = roh;
+          } catch (e) {}
+          return z;
+        }
+        function omZaehlen(url) {
+          var z = omZaehlerLesen();
+          z.n += omGewicht(url);
+          try {
+            localStorage.setItem("schwammerl:om-zaehler", JSON.stringify(z));
+          } catch (e) {}
+          omZaehlerZeigen();
+        }
+        function omZaehlerZeigen() {
+          var el = document.getElementById("om-zaehler");
+          if (el)
+            el.textContent =
+              "Open-Meteo heute (UTC): ≈ " +
+              Math.round(omZaehlerLesen().n) +
+              " von 10 000 Abrufen – Schätzung nach der Zählregel, nur dieses Gerät/dieser Browser.";
+        }
         // fetch-Hülle: Erfolg und Fehler je Dienst verbuchen, Dauer und Status protokollieren
         var _fetch = window.fetch.bind(window);
         window.fetch = function (u, o) {
@@ -1840,6 +1885,7 @@
             t0 = performance.now();
           return _fetch(u, o).then(
             function (r) {
+              if (r.ok && /open-meteo\.com/.test(url)) omZaehlen(url);
               if (o && o.leise404 && r.status === 404) return r; // gesammelt gemeldet (Stationen ohne Daten)
               logZeile(
                 r.ok ? "OK " : "ERR",
@@ -2498,6 +2544,7 @@
           var z = [];
           z.push("Schwammerl-Karte v" + VERSION + " · " + new Date().toISOString());
           z.push("Gerät: " + navigator.userAgent);
+          z.push("Open-Meteo heute (UTC, geschätzt): " + Math.round(omZaehlerLesen().n) + " Abrufe");
           z.push(
             "Fenster: " +
               window.innerWidth +
@@ -5195,7 +5242,67 @@
         var hoehenCache = {}; // "lat,lng" (3 Dezimalen ≈ 100 m) → m
         // Open-Meteo-Tageslimit erreicht: in dieser Sitzung nicht mehr anfragen (Höhen → Ersatzdienst, Wetter → Fehler)
         var openMeteoTageslimit = false;
-        async function hoehen(punkte) {
+        // Höhen aus freien Geländekacheln (AWS Terrain Tiles, „Terrarium“: h = R·256 + G + B/256 − 32768) – ohne
+        // Tageslimit. Abgleich: Ebersberger Forst 587 m (Open-Meteo 568 m), 47,89/11,55 688 m (Pin 692 m).
+        var TERRARIUM = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/",
+          terrKacheln = {};
+        async function terrKachel(z, x, y) {
+          var k = z + "/" + x + "/" + y;
+          if (!terrKacheln[k])
+            terrKacheln[k] = (async function () {
+              var res = await fetch(TERRARIUM + k + ".png");
+              if (!res.ok) throw new Error("Geländekachel " + res.status);
+              var bm = await createImageBitmap(await res.blob()),
+                cv = document.createElement("canvas");
+              cv.width = 256;
+              cv.height = 256;
+              var cx = cv.getContext("2d");
+              cx.drawImage(bm, 0, 0);
+              return cx.getImageData(0, 0, 256, 256).data;
+            })();
+          try {
+            return await terrKacheln[k];
+          } catch (e) {
+            delete terrKacheln[k];
+            throw e;
+          }
+        }
+        // z: Zoomstufe der Kacheln (12 ≈ 25 m/Pixel für Hanglage, 9–10 für großflächige Raster)
+        async function hoehenTerrarium(punkte, z) {
+          var n = Math.pow(2, z),
+            erg = new Array(punkte.length),
+            jobs = {};
+          punkte.forEach(function (p, i) {
+            var xf = ((p[1] + 180) / 360) * n,
+              yr = (p[0] * Math.PI) / 180,
+              yf = ((1 - Math.log(Math.tan(yr) + 1 / Math.cos(yr)) / Math.PI) / 2) * n,
+              x = Math.floor(xf),
+              y = Math.floor(yf),
+              k = x + "/" + y;
+            (jobs[k] = jobs[k] || { x: x, y: y, p: [] }).p.push({
+              i: i,
+              px: Math.min(255, Math.floor((xf - x) * 256)),
+              py: Math.min(255, Math.floor((yf - y) * 256)),
+            });
+          });
+          await pool(
+            Object.keys(jobs).map(function (k) {
+              return async function () {
+                var jb = jobs[k],
+                  d = await terrKachel(z, jb.x, jb.y);
+                jb.p.forEach(function (q) {
+                  var o = (q.py * 256 + q.px) * 4;
+                  erg[q.i] = Math.round(d[o] * 256 + d[o + 1] + d[o + 2] / 256 - 32768);
+                });
+              };
+            }),
+            4,
+          );
+          for (var i = 0; i < erg.length; i++)
+            if (erg[i] === undefined) throw new Error("Geländekacheln unvollständig");
+          return erg;
+        }
+        async function hoehen(punkte, zoom) {
           var offen = [],
             erg = new Array(punkte.length);
           punkte.forEach(function (p, k) {
@@ -5217,6 +5324,27 @@
                 return p[1].toFixed(5);
               })
               .join(",");
+          // zuerst Geländekacheln (kein Tageslimit); Zoom nach Ausdehnung, damit es wenige Kacheln bleiben
+          try {
+            var z = zoom;
+            if (!z) {
+              var spanne = 0;
+              teil.forEach(function (p) {
+                spanne = Math.max(spanne, Math.abs(p[0] - teil[0][0]), Math.abs(p[1] - teil[0][1]));
+              });
+              z = Math.max(8, Math.min(12, Math.floor(Math.log2((360 * 3) / Math.max(spanne, 1e-6)))));
+            }
+            var ht = await hoehenTerrarium(teil, z);
+            hoehenQuelle = "Geländekacheln";
+            ht.forEach(function (h, q) {
+              var k = offen[q];
+              erg[k] = h;
+              hoehenCache[punkte[k][0].toFixed(3) + "," + punkte[k][1].toFixed(3)] = h;
+            });
+            return erg;
+          } catch (e) {
+            logZeile("NET", "Geländekacheln: " + (e.message || e) + " → Open-Meteo");
+          }
           var fehler = null;
           for (var versuch = 0; versuch < 3 && !openMeteoTageslimit; versuch++) {
             try {
@@ -5273,7 +5401,7 @@
               return async function () {
                 for (var v = 0; v < 3; v++) {
                   try {
-                    var h = await hoehen(teil);
+                    var h = await hoehen(teil, 12); // fein genug für die Hanglage der Stichproben
                     fertig++;
                     if (melde) melde(Math.min(fertig * 100, punkte.length), punkte.length);
                     await pause(200);
@@ -6306,42 +6434,77 @@
             quelle: "Open-Meteo",
           };
         }
-        async function holeWetterMulti(punkte, hoehen) {
-          if (punkte.length > 50) {
-            var out = [];
-            for (var i = 0; i < punkte.length; i += 50) {
-              out = out.concat(
-                await holeWetterMulti(punkte.slice(i, i + 50), hoehen ? hoehen.slice(i, i + 50) : null),
-              );
-              if (i + 50 < punkte.length) await pause(1000); // Open-Meteo zählt jeden Ort als eigenen Abruf
+        // ---- Open-Meteo-Wetter: Punkte auf 0,05° gerundet (Pin, Überblick und Stichproben teilen sie), ohne
+        // Höhenparameter (Temperatur rechnen wir selbst auf die Zielhöhe um), bis 50 Orte je Anfrage, Bodenfeuchte in
+        // derselben Anfrage, 30 Minuten im Speicher und in localStorage (höchstens 40 Punkte) ----
+        var OM_RASTER = 0.05,
+          OM_MINUTEN = 30,
+          OM_MAX = 40,
+          omSpeicher = {};
+        function omKey(lat, lng) {
+          return (
+            (Math.round(lat / OM_RASTER) * OM_RASTER).toFixed(2) +
+            "," +
+            (Math.round(lng / OM_RASTER) * OM_RASTER).toFixed(2)
+          );
+        }
+        function omCacheLesen(k) {
+          var e = omSpeicher[k];
+          if (!e)
+            try {
+              var roh = localStorage.getItem("schwammerl:om:" + k);
+              if (roh) e = omSpeicher[k] = JSON.parse(roh);
+            } catch (x) {}
+          return e && Date.now() - e.t < OM_MINUTEN * 60e3 ? e.j : null;
+        }
+        function omCacheSchreiben(k, j) {
+          var e = { t: Date.now(), j: j };
+          omSpeicher[k] = e;
+          try {
+            localStorage.setItem("schwammerl:om:" + k, JSON.stringify(e));
+            var alle = [];
+            for (var i = 0; i < localStorage.length; i++) {
+              var kk = localStorage.key(i);
+              if (kk && kk.indexOf("schwammerl:om:") === 0) alle.push(kk);
             }
-            return out;
-          }
+            if (alle.length > OM_MAX)
+              alle
+                .map(function (kk) {
+                  try {
+                    return [kk, JSON.parse(localStorage.getItem(kk)).t];
+                  } catch (x) {
+                    return [kk, 0];
+                  }
+                })
+                .sort(function (a, b) {
+                  return a[1] - b[1];
+                })
+                .slice(0, alle.length - OM_MAX)
+                .forEach(function (x) {
+                  localStorage.removeItem(x[0]);
+                });
+          } catch (x) {} // Speicher voll oder gesperrt: nur im Arbeitsspeicher
+        }
+        async function omAbruf(keys) {
+          if (openMeteoTageslimit)
+            throw new Error("Daily API request limit exceeded (in dieser Sitzung gemerkt)");
           var url =
             "https://api.open-meteo.com/v1/forecast?latitude=" +
-            punkte
-              .map(function (p) {
-                return p[0].toFixed(3);
+            keys
+              .map(function (k) {
+                return k.split(",")[0];
               })
               .join(",") +
             "&longitude=" +
-            punkte
-              .map(function (p) {
-                return p[1].toFixed(3);
+            keys
+              .map(function (k) {
+                return k.split(",")[1];
               })
               .join(",") +
-            (hoehen
-              ? "&elevation=" +
-                hoehen
-                  .map(function (h) {
-                    return Math.round(h);
-                  })
-                  .join(",")
-              : "") +
-            "&daily=precipitation_sum,temperature_2m_max,temperature_2m_min,et0_fao_evapotranspiration,precipitation_probability_max&past_days=35&forecast_days=8&timezone=Europe%2FBerlin";
-          // Bei Minutenlimit (429) oder Serverfehler zweimal mit Pause nachfassen – sonst fehlte im Überblick das Wetter
-          if (openMeteoTageslimit)
-            throw new Error("Daily API request limit exceeded (in dieser Sitzung gemerkt)");
+            "&daily=precipitation_sum,temperature_2m_max,temperature_2m_min,et0_fao_evapotranspiration," +
+            "precipitation_probability_max&hourly=soil_moisture_0_to_7cm&past_days=35&forecast_days=8" +
+            "&timezone=Europe%2FBerlin";
+          // Bei Minutenlimit (429) oder Serverfehler zweimal mit Pause nachfassen, beim Tageslimit nicht
           var res = null,
             j = null;
           for (var versuch = 0; versuch < 3; versuch++) {
@@ -6350,96 +6513,47 @@
               return null;
             });
             if (res.ok && j) break;
-            if (res.status !== 429 && res.status < 500) break;
             if (j && /daily/i.test(j.reason || "")) {
-              openMeteoTageslimit = true; // Tageslimit: Nachfragen hilft erst morgen
+              openMeteoTageslimit = true;
               break;
             }
+            if (res.status !== 429 && res.status < 500) break;
             if (versuch < 2) await pause(4000 * (versuch + 1));
           }
           if (!res.ok || !j) throw new Error((j && j.reason) || "HTTP " + res.status);
-          var arr = Array.isArray(j) ? j : [j];
-          // Modell-Bodenfeuchte 0–7 cm (Mittel der letzten 24 h) wie am Pin — eigener, kleiner Abruf
-          var bf = null;
-          try {
-            var ub =
-              "https://api.open-meteo.com/v1/forecast?latitude=" +
-              punkte
-                .map(function (p) {
-                  return p[0].toFixed(3);
-                })
-                .join(",") +
-              "&longitude=" +
-              punkte
-                .map(function (p) {
-                  return p[1].toFixed(3);
-                })
-                .join(",") +
-              "&hourly=soil_moisture_0_to_7cm&past_days=1&forecast_days=1&timezone=Europe%2FBerlin";
-            var rb = await fetch(ub),
-              jb = await rb.json().catch(function () {
-                return null;
-              });
-            if (rb.ok && jb) {
-              var ab = Array.isArray(jb) ? jb : [jb],
-                jetzt = 24 + new Date().getHours();
-              bf = ab.map(function (x) {
-                var hm = x.hourly && x.hourly.soil_moisture_0_to_7cm;
-                if (!hm) return null;
-                var v = [];
-                for (var q = Math.max(0, jetzt - 24); q <= jetzt && q < hm.length; q++)
-                  if (hm[q] !== null) v.push(hm[q]);
-                return v.length
-                  ? v.reduce(function (a, b) {
-                      return a + b;
-                    }, 0) / v.length
-                  : null;
-              });
-            }
-          } catch (e) {
-            logZeile("NET", "Bodenfeuchte (Raster): " + (e.message || e));
+          return Array.isArray(j) ? j : [j];
+        }
+        async function omWetterJ(punkte) {
+          var keys = punkte.map(function (p) {
+              return omKey(p[0], p[1]);
+            }),
+            erg = {},
+            offen = [];
+          keys.forEach(function (k) {
+            if (erg[k] || offen.indexOf(k) >= 0) return;
+            var c = omCacheLesen(k);
+            if (c) erg[k] = c;
+            else offen.push(k);
+          });
+          for (var i = 0; i < offen.length; i += 50) {
+            var teil = offen.slice(i, i + 50),
+              arr = await omAbruf(teil);
+            arr.forEach(function (j, q) {
+              erg[teil[q]] = j;
+              omCacheSchreiben(teil[q], j);
+            });
+            if (i + 50 < offen.length) await pause(1000);
           }
-          return arr.map(function (x, k) {
-            var w = wetterAusDaily(x.daily, hoehen ? hoehen[k] : null);
-            if (bf && bf[k] !== null && bf[k] !== undefined) w.bodenF = bf[k];
-            return w;
+          return keys.map(function (k) {
+            return erg[k];
           });
         }
-        async function holeWetterHaupt(ll, hoehe) {
-          var url =
-            "https://api.open-meteo.com/v1/forecast?latitude=" +
-            ll.lat.toFixed(4) +
-            "&longitude=" +
-            ll.lng.toFixed(4) +
-            "&daily=precipitation_sum,temperature_2m_max,temperature_2m_min,et0_fao_evapotranspiration,precipitation_probability_max&hourly=soil_moisture_0_to_7cm&past_days=35&forecast_days=8&timezone=Europe%2FBerlin" +
-            (hoehe !== null && hoehe !== undefined ? "&elevation=" + Math.round(hoehe) : "");
-          var res, j;
-          for (var versuch = 0; versuch < 3; versuch++) {
-            try {
-              res = await fetch(url);
-            } catch (e) {
-              if (versuch === 2) throw e;
-              await pause(1200 * (versuch + 1));
-              continue;
-            }
-            if (res.status === 429 || res.status >= 500) {
-              await pause(1500 * (versuch + 1));
-              continue;
-            }
-            j = await res.json().catch(function () {
-              return null;
-            });
-            if (!res.ok || !j || !j.daily) throw new Error((j && j.reason) || "HTTP " + res.status);
-            break;
-          }
-          if (!j || !j.daily) throw new Error("Wetterdienst überlastet, gleich nochmal versuchen");
-          var d = j.daily,
-            z = function (a) {
-              return (a || []).map(function (x) {
-                return x === null ? 0 : x;
-              });
-            };
-          var bodenF = null;
+        // Rohantwort eines Orts → Wetterobjekt; Temperatur von der Modellhöhe (j.elevation) auf hZiel umgerechnet
+        // (0,65 °C je 100 m, übliche Standardatmosphäre – wie es Open-Meteo mit dem Höhenparameter selbst tut)
+        function wetterFuer(j, hZiel) {
+          if (!j || !j.daily) throw new Error("Wetterantwort ohne Tageswerte");
+          var w = wetterAusDaily(j.daily, hZiel === undefined ? null : hZiel);
+          w.bodenF = null;
           if (j.hourly && j.hourly.soil_moisture_0_to_7cm) {
             var hm = j.hourly.soil_moisture_0_to_7cm,
               jetztIdx = 35 * 24 + new Date().getHours(),
@@ -6447,53 +6561,41 @@
             for (var q = Math.max(0, jetztIdx - 24); q <= jetztIdx && q < hm.length; q++)
               if (hm[q] !== null) vals.push(hm[q]);
             if (vals.length)
-              bodenF =
+              w.bodenF =
                 vals.reduce(function (a, b) {
                   return a + b;
                 }, 0) / vals.length;
           }
-          var P = 36; // 35 Tage + heute
-          var alle = {
-            tw: z(d.precipitation_sum),
-            tmax: z(d.temperature_2m_max),
-            tmin: z(d.temperature_2m_min),
-            et0: z(d.et0_fao_evapotranspiration),
-            pp: z(d.precipitation_probability_max),
-          };
-          var tw = alle.tw.slice(0, P),
-            tmax = alle.tmax.slice(0, P),
-            tmin = alle.tmin.slice(0, P),
-            et0 = alle.et0.slice(0, P);
-          var f = {
-            tw: alle.tw.slice(P),
-            tmax: alle.tmax.slice(P),
-            tmin: alle.tmin.slice(P),
-            et0: alle.et0.slice(P),
-            pp: alle.pp.slice(P),
-          };
-          var w7 = tw.slice(-8),
-            mm7 = Math.round(
-              w7.reduce(function (a, b) {
-                return a + b;
-              }, 0),
-            ),
-            seit = 0;
-          for (var i = tw.length - 1; i >= 0; i--) {
-            if (tw[i] >= 5) break;
-            seit++;
+          if (hZiel !== null && hZiel !== undefined && typeof j.elevation === "number")
+            tempAufHoehe(w, j.elevation, hZiel);
+          w.omHoehe = typeof j.elevation === "number" ? j.elevation : null;
+          return w;
+        }
+        function tempAufHoehe(w, hVon, hNach) {
+          var dT = 0.0065 * (hVon - hNach),
+            v = function (a) {
+              return a.map(function (x) {
+                return Math.round((x + dT) * 10) / 10;
+              });
+            };
+          w.tmin = v(w.tmin);
+          w.tmax = v(w.tmax);
+          if (w.f) {
+            w.f.tmin = v(w.f.tmin);
+            w.f.tmax = v(w.f.tmax);
           }
-          return {
-            tw: tw,
-            et0: et0,
-            tmin: tmin,
-            tmax: tmax,
-            f: f,
-            mm7: mm7,
-            tage: Math.min(seit, 21),
-            maxTag: Math.round(Math.max.apply(null, w7)),
-            hoehe: hoehe,
-            bodenF: bodenF,
-          };
+          return w;
+        }
+        async function holeWetterMulti(punkte, hoehen) {
+          var js = await omWetterJ(punkte);
+          return js.map(function (j, k) {
+            return wetterFuer(j, hoehen ? hoehen[k] : null);
+          });
+        }
+        async function holeWetterHaupt(ll, hoehe) {
+          var j = (await omWetterJ([[ll.lat, ll.lng]]))[0];
+          if (!j || !j.daily) throw new Error("Wetterdienst überlastet, gleich nochmal versuchen");
+          return wetterFuer(j, hoehe);
         }
         // Deutung der LfU-Legende: Der vorherrschende Bodentyp steht dort zuerst,
         // deshalb gewinnt das Stichwort mit der frühesten Position.
@@ -8913,14 +9015,17 @@
             return;
           }
 
-          // Wetterraster G×G mit Höhe, danach bilinear zwischen den Stützpunkten
-          var G = 10,
+          // Wetterraster G×G mit Höhe, danach bilinear zwischen den Stützpunkten. Wenige Punkte genügen: der Regen der
+          // Vergangenheit kommt aus dem Stationsnetz, die Temperatur wird je Ort auf dessen Höhe umgerechnet.
+          // 3×3 = 9 Orte ≈ 28 Open-Meteo-Abrufe (vorher 10×10 + Bodenfeuchte ≈ 507)
+          var G = rKm <= 50 ? 3 : 4,
             wp = [];
           for (var y = 0; y < G; y++)
             for (var x = 0; x < G; x++)
               wp.push([latN - ((y + 0.5) * (latN - latS)) / G, lngW + ((x + 0.5) * (lngE - lngW)) / G]);
           var WH = null,
             WW = null,
+            HF = null, // Höhe je Zelle aus den Geländekacheln
             wetterGrund = "";
           note.textContent = "Höhen und Wetter für " + wp.length + " Rasterpunkte …";
           fort(0.15);
@@ -8928,6 +9033,15 @@
             WH = await hoehen(wp);
           } catch (e) {
             WH = null;
+          }
+          try {
+            var zp = [];
+            for (var hy = 0; hy < NY; hy++)
+              for (var hx = 0; hx < NX; hx++) zp.push([latN - (hy + 0.5) * dLat, lngW + (hx + 0.5) * dLng]);
+            HF = await hoehenTerrarium(zp, rKm <= 25 ? 11 : rKm <= 50 ? 10 : 9);
+          } catch (e) {
+            HF = null;
+            logZeile("NET", "Höhenfeld Überblick: " + (e.message || e));
           }
           try {
             WW = await holeWetterMulti(wp, WH);
@@ -9083,17 +9197,79 @@
               radarZelle: ers,
             };
           }
-          function naechsterPunkt(lat, lng) {
-            var best = 0,
-              bd = 1e9;
-            wp.forEach(function (p, k) {
-              var d = (p[0] - lat) * (p[0] - lat) + (p[1] - lng) * (p[1] - lng) * 0.45;
-              if (d < bd) {
-                bd = d;
-                best = k;
+          // Wetter an einem Ort: bilinear aus den G×G Stützpunkten; Temperatur je Stützpunkt auf die
+          // Ortshöhe umgerechnet
+          function wetterMisch(lat, lng, h) {
+            var gy = (latN - lat) / ((latN - latS) / G) - 0.5,
+              gx = (lng - lngW) / ((lngE - lngW) / G) - 0.5,
+              y0 = Math.max(0, Math.min(G - 1, Math.floor(gy))),
+              x0 = Math.max(0, Math.min(G - 1, Math.floor(gx))),
+              y1 = Math.min(G - 1, y0 + 1),
+              x1 = Math.min(G - 1, x0 + 1),
+              ty = Math.max(0, Math.min(1, gy - y0)),
+              tx = Math.max(0, Math.min(1, gx - x0));
+            var ecken = [
+              [y0 * G + x0, (1 - ty) * (1 - tx)],
+              [y0 * G + x1, (1 - ty) * tx],
+              [y1 * G + x0, ty * (1 - tx)],
+              [y1 * G + x1, ty * tx],
+            ];
+            var mische = function (holen, temp) {
+              var n = holen(WW[ecken[0][0]]).length,
+                out = new Array(n);
+              for (var i = 0; i < n; i++) {
+                var s = 0;
+                for (var e = 0; e < 4; e++) {
+                  var k = ecken[e][0],
+                    dT = temp && WH && h !== null && h !== undefined ? 0.0065 * (WH[k] - h) : 0;
+                  s += ecken[e][1] * (holen(WW[k])[i] + dT);
+                }
+                out[i] = Math.round(s * 10) / 10;
+              }
+              return out;
+            };
+            var bf = 0,
+              bw = 0;
+            ecken.forEach(function (e) {
+              var b = WW[e[0]].bodenF;
+              if (b !== null && b !== undefined) {
+                bf += e[1] * b;
+                bw += e[1];
               }
             });
-            return best;
+            return {
+              tw: mische(function (w) {
+                return w.tw;
+              }),
+              et0: mische(function (w) {
+                return w.et0;
+              }),
+              tmin: mische(function (w) {
+                return w.tmin;
+              }, true),
+              tmax: mische(function (w) {
+                return w.tmax;
+              }, true),
+              f: {
+                tw: mische(function (w) {
+                  return w.f.tw;
+                }),
+                et0: mische(function (w) {
+                  return w.f.et0;
+                }),
+                tmin: mische(function (w) {
+                  return w.f.tmin;
+                }, true),
+                tmax: mische(function (w) {
+                  return w.f.tmax;
+                }, true),
+                pp: mische(function (w) {
+                  return w.f.pp;
+                }),
+              },
+              hoehe: h,
+              bodenF: bw ? bf / bw : null,
+            };
           }
           var WFT = null; // WFT[tag][art][stützpunkt]
           if (WW) {
@@ -9156,6 +9332,11 @@
             );
           }
           function hInterp(lat, lng) {
+            if (HF) {
+              var hi = Math.max(0, Math.min(NY - 1, Math.floor((latN - lat) / dLat))),
+                hj = Math.max(0, Math.min(NX - 1, Math.floor((lng - lngW) / dLng)));
+              return HF[hi * NX + hj];
+            }
             if (!WH) return null;
             var best = 0,
               bd = 1e9;
@@ -9436,8 +9617,7 @@
               var wz = null,
                 radZ = 0;
               if (WW) {
-                var kp = naechsterPunkt(lat, lng),
-                  wb = WW[kp];
+                var wb = wetterMisch(lat, lng, hInterp(lat, lng));
                 if (netz && netz.length) {
                   // Stationsregen je Zelle, unabhängig vom Raster
                   var twZ = wb.tw.slice(),
@@ -9657,7 +9837,7 @@
               for (var gx = 0; gx < GN; gx++) {
                 var laG = latN - ((gy + 0.5) * (latN - latS)) / GN,
                   loG = lngW + ((gx + 0.5) * (lngE - lngW)) / GN;
-                var wbG = WW[naechsterPunkt(laG, loG)];
+                var wbG = wetterMisch(laG, loG, hInterp(laG, loG));
                 if (netz && netz.length) {
                   var gwG = stationsGewichte(laG, loG, netz, 30);
                   if (gwG.length) {
