@@ -1232,6 +1232,8 @@
                   <option value="nord">Nordhang</option>
                   <option value="eben" selected>Eben</option>
                   <option value="sued">Südhang</option>
+                  <option value="ost">Osthang (Morgensonne)</option>
+                  <option value="west">Westhang</option>
                   <option value="bach">Senke / Bachnähe</option>
                 </select>
               </div>
@@ -1261,6 +1263,7 @@
                   <option value="gras">Gras</option>
                   <option value="nadel">Nur Streu</option>
                   <option value="brom">Brombeere, dicht</option>
+                  <option value="kraut">Sauerklee, Brennnessel, Springkraut (stickstoffreich)</option>
                 </select>
               </div>
               <div>
@@ -1571,7 +1574,7 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-25.6";
+        var VERSION = "2026-09-26.4";
         // Radar nur als Kartenebene; in der Bewertung zu unzuverlässig (gelernte Farbskala, leere Bilder)
         var RADAR_IM_MODELL = false;
         var LOG = [];
@@ -2077,9 +2080,9 @@
             27,
             600,
             {},
-            { pf: 7, st: 10, som: 2 },
+            { pf: 11, st: 2, som: 2 },
           ],
-          ["Landregen 30 mm vor 9 T, kühl", [[9, 30]], 1.5, 9, 17, 600, {}, { pf: 34, st: 66, som: 5 }],
+          ["Landregen 30 mm vor 9 T, kühl", [[9, 30]], 1.5, 9, 17, 600, {}, { pf: 27, st: 41, som: 4 }],
           [
             "Nasser Herbst, alle 3 T 10 mm",
             [
@@ -2094,7 +2097,7 @@
             15,
             600,
             {},
-            { pf: 43, st: 71, som: 3 },
+            { pf: 39, st: 49, som: 3 },
           ],
           [
             "Schliersee 22.9.: 13 mm vor 13 T, 31 mm vor 5 T",
@@ -2107,7 +2110,7 @@
             17,
             800,
             { lage: "nord" },
-            { pf: 30, st: 68, som: 5 },
+            { pf: 32, st: 54, som: 5 },
           ],
           [
             "Buche auf Kalk, Sommer, warm",
@@ -2120,10 +2123,10 @@
             25,
             500,
             { baum: "buche", boden: "kalk", saison: "sommer", lage: "sued", unter: "gras" },
-            { pf: 22, st: 21, som: 62 },
+            { pf: 20, st: 2, som: 53 },
           ],
-          ["4 Wochen trocken", [], 3, 11, 22, 600, {}, { pf: 6, st: 8, som: 1 }],
-        ];
+          ["4 Wochen trocken", [], 3, 11, 22, 600, {}, { pf: 4, st: 4, som: 1 }],
+        ]; // Sollwerte ab v2026-09-26.1 (Regensumme + 20-Tage-Temperatur)
         function selbsttest() {
           var alt = { fp: fingerprobe, rh: reglerHand, la: lernAktiv },
             z = [],
@@ -2232,6 +2235,21 @@
                 "Ohne Wetter kein Idealwert (≤ 80)",
                 function () {
                   return bewerte(V(), null, 600, undefined, 85).st <= 80;
+                },
+              ],
+              [
+                "Warm und trocken (5 T > 17,5 °C, < 1 mm/T) → Steinpilz ≤ 12",
+                function () {
+                  var Wt = mk(
+                    [
+                      [9, 30],
+                      [12, 20],
+                    ],
+                    3,
+                    12,
+                    26,
+                  );
+                  return bewerte(V({ lage: "nord" }), Wt, 600, undefined, 85).st <= 12;
                 },
               ],
             ];
@@ -2799,15 +2817,17 @@
             fichte: { pf: 6, st: 9, som: 2 },
             fichte_licht: { pf: 9, st: 7, som: 2 },
             misch: { pf: 7, st: 10, som: 7 },
-            buche: { pf: 4, st: 8, som: 10 },
+            buche: { pf: 6, st: 8, som: 10 }, // pf 4→6: Pfifferling auch im Buchen-Stangenholz auf saurem Boden
             kiefer: { pf: 8, st: 5, som: 3 },
             laub_jung: { pf: 2, st: 2, som: 3 },
           },
           // Dickung/Stangenholz (5–15 m, geschlossen) ist Steinpilz-Kernrevier; Kultur (<5 m) zu jung; alt und hoch trocknet aus
           alter: {
-            hoch: { pf: 5, st: 6, som: 9 },
+            // Steinpilz: höchste Produktion in mittelalten Beständen (31–70 J.), junge deutlich weniger
+            // (Martínez-Peña et al. 2012, Mycorrhiza 22:167–174)
+            hoch: { pf: 5, st: 8, som: 9 },
             mittel: { pf: 7, st: 10, som: 7 },
-            dickung: { pf: 8, st: 9, som: 3 },
+            dickung: { pf: 8, st: 5, som: 3 },
             jung: { pf: 3, st: 2, som: 2 },
           },
           boden: {
@@ -2822,12 +2842,18 @@
             gras: { pf: 4, st: 5, som: 7 },
             nadel: { pf: 6, st: 8, som: 4 },
             brom: { pf: 1, st: 2, som: 2 },
+            // Sauerklee, Brennnessel, Springkraut, Waldmeister, hohe Gräser: nährstoff-/stickstoffreich,
+            // Mykorrhizapilze fruchten dort schwach (Steinpilz-Wachstumsformel Wismar; Stickstoff hemmt Ektomykorrhiza)
+            kraut: { pf: 2, st: 3, som: 4 },
           },
           lage: {
             nord: { pf: 7, st: 8, som: 4 },
             eben: { pf: 5, st: 5, som: 6 },
             sued: { pf: 2, st: 3, som: 9 },
             bach: { pf: 8, st: 7, som: 5 },
+            // Osthang: Morgensonne, mittags Schatten — Pfifferling-Erfahrung (Debus, 70 J. Rothaargebirge; Gartenjournal)
+            ost: { pf: 8, st: 6, som: 6 },
+            west: { pf: 5, st: 5, som: 7 },
           },
           rand: {
             rand: { pf: 7, st: 8, som: 8 },
@@ -2906,7 +2932,7 @@
           return trigger * halte;
         }
         // Bestandsabhängige Austrocknung: Altbestand saugt und fängt ab, Dickung hält die Feuchte
-        var BESTAND_FEUCHTE = { hoch: 0.8, mittel: 1, dickung: 1.15, jung: 0.9 };
+        var BESTAND_FEUCHTE = { hoch: 0.8, mittel: 1, dickung: 1.1, jung: 0.9 };
         function bestandFeuchte(v) {
           return (v && BESTAND_FEUCHTE[v.alter]) || 1;
         }
@@ -2929,8 +2955,33 @@
             [16, 0.7],
             [24, 0.92],
             [32, 1],
-            [45, 1],
-            [60, 0.85],
+            [60, 1],
+          ]);
+        }
+        // Lange Regensumme je Art — Steinpilz 26 Tage (Bielefeld-Studie, linear, Fruchtung bei 2–4 mm/Tag),
+        // Pfifferling 35 Tage (kumuliert 50–100 mm, Saskatchewan-Studie), Sommersteinpilz 21 Tage (ohne eigene Studie)
+        function summenFaktor(art, tw) {
+          var n = tw.length,
+            s = function (k) {
+              var x = 0;
+              for (var i = Math.max(0, n - k); i < n; i++) x += tw[i];
+              return x;
+            };
+          if (art === "pf")
+            return interp(s(35), [
+              [0, 0.05],
+              [25, 0.3],
+              [50, 0.7],
+              [80, 0.95],
+              [100, 1],
+            ]);
+          var k = art === "st" ? 26 : 21;
+          return interp(s(k) / k, [
+            [0, 0.05],
+            [1, 0.3],
+            [2, 0.7],
+            [3, 0.9],
+            [4, 1],
           ]);
         }
         var hoehePunkt = null; // Höhe des gesetzten Punkts
@@ -2961,19 +3012,29 @@
           var f = 1,
             t = [];
           if (art === "st") {
-            f = interp(nacht5, [
-              [1, 0.4],
-              [5, 0.6],
-              [8, 1],
-              [15, 1],
-              [18, 0.8],
-              [22, 0.6],
+            // 20-Tage-Mittel der Tagesmitteltemperatur; Fruchtung vor allem bei 10–15 °C, Optimum ≈ 13 °C,
+            // bei 5–10 °C kaum (Brejon Lamartinière & Hoffman, Bielefeld 2015–2024, bioRxiv 2025)
+            var mittel20 = mean(
+              last(tmin, 20).map(function (v, i) {
+                return (v + last(tmax, 20)[i]) / 2;
+              }),
+            );
+            f = interp(mittel20, [
+              [4, 0.1],
+              [7, 0.25],
+              [10, 0.6],
+              [12, 0.9],
+              [13.7, 1],
+              [15.5, 0.95],
+              [18, 0.65],
+              [21, 0.35],
+              [24, 0.2],
             ]);
             t.push(
-              "Nächte " +
-                Math.round(nacht5) +
+              "Mittel 20 T " +
+                Math.round(mittel20) +
                 " °C" +
-                (f >= 0.95 ? ", ideal" : nacht5 < 8 ? ", kühl" : ", warm"),
+                (f >= 0.95 ? ", ideal" : mittel20 < 12 ? ", kühl" : ", warm"),
             );
             f *= interp(hitze3, [
               [26, 1],
@@ -2989,7 +3050,13 @@
             ]);
             if (frost4 < 0) t.push("Frost " + Math.round(frost4) + " °C — Saison endet");
           } else if (art === "pf") {
-            f = interp(mittel7, [
+            // 14-Tage-Mittel (Lufttemperatur der 2 Wochen vor der Fruchtung korreliert, Studie Ostkanada)
+            var mittel14 = mean(
+              last(tmin, 14).map(function (v, i) {
+                return (v + last(tmax, 14)[i]) / 2;
+              }),
+            );
+            f = interp(mittel14, [
               [3, 0.3],
               [6, 0.45],
               [10, 0.8],
@@ -2997,7 +3064,7 @@
               [24, 1],
               [28, 0.8],
             ]);
-            t.push("Mittel " + Math.round(mittel7) + " °C" + (f >= 0.95 ? ", warm genug" : ", kühl"));
+            t.push("Mittel 14 T " + Math.round(mittel14) + " °C" + (f >= 0.95 ? ", warm genug" : ", kühl"));
             f *= interp(hitze3, [
               [28, 1],
               [30, 0.85],
@@ -3037,6 +3104,8 @@
           var w = wt === undefined ? wetter : wt;
           if (w) {
             var f = faktorAusWirksam(wirksamerRegen(art, w, 0, hoehe, dichte, v && v.alter));
+            // kurzfristiger Auslöser und lange Regensumme — beide müssen stimmen (geometrisches Mittel, wie beim Standort)
+            f = Math.sqrt(f * summenFaktor(art, w.tw));
             return f * (1 - 0.3 * (w.unsicher || 0));
           }
           var menge = interp(v.mm, [
@@ -3318,7 +3387,31 @@
             : reglerHand
               ? regenFaktorArt(a, v, null, hoehe)
               : 0.7;
-          return { rf: rf, tf: tf.f, text: tf.text };
+          var tff = tf.f,
+            txt = tf.text;
+          // Ausschluss Steinpilz: 5-Tage-Mittel > 17,5 °C bei < 1 mm Regen/Tag — in 10 Jahren Bielefeld kein einziger Fund
+          // (Preprint "Predicting porcini", Fassung Dez. 2025)
+          if (a === "st" && w && w.tmin && w.tmin.length >= 5) {
+            var n5 = w.tmin.length,
+              m5 = 0,
+              r5 = 0;
+            for (var i5 = n5 - 5; i5 < n5; i5++) {
+              m5 += (w.tmin[i5] + w.tmax[i5]) / 2;
+              r5 += w.tw[i5] || 0;
+            }
+            m5 /= 5;
+            if (m5 > 17.5 && r5 < 5) {
+              tff = Math.min(tff, 0.15);
+              txt =
+                (txt ? txt + ", " : "") +
+                "warm und trocken (5 T: " +
+                Math.round(m5) +
+                " °C, " +
+                Math.round(r5) +
+                " mm) — dabei in 10 Jahren Beobachtung kein Fund";
+            }
+          }
+          return { rf: rf, tf: tff, text: txt };
         }
         function bewerte(v, wt, hoehe, ohne, dichte) {
           var w = wt === undefined ? wetter : wt,
@@ -3464,6 +3557,10 @@
             );
           if (v.unter === "heidel") o.push("Heidelbeere ist der verlässlichste Pfifferling-Zeiger.");
           if (v.unter === "brom") o.push("Dichte Brombeere verdrängt alle drei Arten.");
+          if (v.unter === "kraut")
+            o.push(
+              "Üppige Krautschicht zeigt stickstoffreichen Boden — Steinpilz und Pfifferling fruchten dort schwach.",
+            );
           if (v.boden === "moor") o.push("Staunasse Böden sind ungeeignet.");
           if (v.alter === "mittel" && (v.baum === "fichte" || v.baum === "misch"))
             o.push("Mittelalter Fichtenbestand: die produktivste Phase für Steinpilze.");
@@ -3484,6 +3581,8 @@
                 ? "Südhang im Sommer passt zum Sommersteinpilz."
                 : "Südhang trocknet schnell; im Herbst nur kurz nach Regen.",
             );
+          if (v.lage === "ost")
+            o.push("Osthang: Morgensonne, mittags Schatten — gilt unter Sammlern als Pfifferlingslage.");
           if (v.lage === "nord" || v.lage === "bach")
             o.push("Die Lage hält die Feuchte — bei Trockenheit dein bester Rückfall.");
           if (hoehePunkt !== null && hoehePunkt >= 700 && hoehePunkt <= 1400)
@@ -3548,6 +3647,10 @@
           marone: { name: "Marone", zeigt: { pf: 0.5, st: 0.5 } },
           hexflock: { name: "Flockenstieliger Hexenröhrling", zeigt: { st: 0.5, pf: 0.25 } },
           hexnetz: { name: "Netzstieliger Hexenröhrling", zeigt: { som: 0.6 } },
+          // Erfahrungswissen (Wismar-Formel, Pilz-Ticker): gleiche Boden- bzw. Partnerbaum-Ansprüche, schwächer gewichtet
+          fliegen: { name: "Fliegenpilz", zeigt: { st: 0.35, pf: 0.2 } },
+          pfeffer: { name: "Pfefferröhrling", zeigt: { st: 0.35 } },
+          semmel: { name: "Semmelstoppelpilz", zeigt: { pf: 0.35 } },
         };
         function fundGewicht(fund, a) {
           // 1 = Zielart selbst gefunden, sonst stärkster Begleitzeiger, 0 = nichts
@@ -3778,7 +3881,14 @@
             LB[v.boden] + (v.boden === "neutral" && nadelholz(v.baum) ? " (unter Nadelholz versauert)" : "")
           );
         }
-        var LG = { nord: "Nordhang", eben: "eben", sued: "Südhang", bach: "Senke" };
+        var LG = {
+          nord: "Nordhang",
+          eben: "eben",
+          sued: "Südhang",
+          bach: "Senke",
+          ost: "Osthang",
+          west: "Westhang",
+        };
         var LR = { rand: "Lichtungskante", weg: "Wegrand", aussen: "Außenrand", innen: "innen" };
         function merkmalHtml() {
           var v = readForm();
@@ -3963,7 +4073,7 @@
             (fundStand ? "✓ " + fundStand : "— eintragen —") +
             "</option>" +
             '<option value="pf">Pfifferling</option><option value="st">Fichtensteinpilz</option><option value="som">Sommersteinpilz</option>' +
-            '<option value="marone">Marone (Zeiger)</option><option value="hexflock">Hexe flockig (Zeiger)</option><option value="hexnetz">Hexe netzig (Zeiger)</option>' +
+            '<option value="marone">Marone (Zeiger)</option><option value="hexflock">Hexe flockig (Zeiger)</option><option value="hexnetz">Hexe netzig (Zeiger)</option><option value="fliegen">Fliegenpilz (Zeiger)</option><option value="pfeffer">Pfefferröhrling (Zeiger)</option><option value="semmel">Semmelstoppelpilz (Zeiger)</option>' +
             '<option value="nichts">Nichts gefunden</option>' +
             (fl && fl.length ? '<option value="leer">Funde löschen</option>' : "") +
             "</select></div>" +
@@ -4473,6 +4583,8 @@
           var dNS = n - su,
             dOW = o - w;
           if (Math.sqrt(dNS * dNS + dOW * dOW) < 6) return { wert: "eben", text: "eben" };
+          if (Math.abs(dOW) > Math.abs(dNS) && Math.abs(dOW) > 6)
+            return dOW < 0 ? { wert: "ost", text: "Osthang" } : { wert: "west", text: "Westhang" };
           if (dNS < -6) return { wert: "nord", text: "Nordhang" };
           if (dNS > 6) return { wert: "sued", text: "Südhang" };
           return { wert: "eben", text: "leicht geneigt" };
@@ -8870,7 +8982,7 @@
             d.innerHTML =
               '<div class="b"><div class="nm"></div><div class="mt"></div><a class="nav" target="_blank" rel="noopener">Navigation</a>' +
               '<div class="fund"><span>Fund:</span><button data-a="pf">Pfifferling</button><button data-a="st">Steinpilz</button><button data-a="som">Sommerst.</button><button data-a="nichts">Nichts</button></div>' +
-              '<div class="fund"><span>auch:</span><button data-a="marone">Marone</button><button data-a="hexflock">Hexe flockig</button><button data-a="hexnetz">Hexe netzig</button></div>' +
+              '<div class="fund"><span>auch:</span><button data-a="marone">Marone</button><button data-a="hexflock">Hexe flockig</button><button data-a="hexnetz">Hexe netzig</button><button data-a="fliegen">Fliegenpilz</button><button data-a="pfeffer">Pfefferröhrling</button><button data-a="semmel">Semmelstoppel</button></div>' +
               '<div class="notiz"></div></div><button class="weg">Löschen</button>';
             var nz = d.querySelector(".notiz");
             nz.textContent =
