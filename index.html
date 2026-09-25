@@ -779,6 +779,63 @@
         background: var(--moos);
         color: #fff;
       }
+      /* Besuch erfassen: große Tipp-Flächen, eine Zeile je Gruppe */
+      .pinpop .besuch {
+        border-top: 1px solid var(--linie);
+        margin-top: 6px;
+        padding-top: 5px;
+      }
+      .pinpop.m .reihe.wahl {
+        align-items: flex-start;
+        margin-top: 4px;
+      }
+      .pinpop.m .reihe.wahl > span {
+        min-width: 64px;
+        padding-top: 8px;
+      }
+      .pinpop .reihe.wahl .kn {
+        flex: 1;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        align-items: center;
+      }
+      .pinpop.m .reihe.wahl .btn.wahl {
+        flex: 1 0 auto;
+        margin: 0;
+        min-height: 34px;
+        padding: 5px 7px;
+        font-size: 12.5px;
+      }
+      .pinpop .reihe.wahl .datum {
+        min-height: 32px;
+        padding: 3px 6px;
+        font-size: 13px;
+        background: var(--feld);
+        color: var(--papier);
+        border: 1px solid var(--moos);
+        border-radius: 6px;
+        font-family: inherit;
+      }
+      .pinpop .reihe.wahl small {
+        font-size: 10.5px;
+        color: #e8a516;
+      }
+      .pinpop .btn.speichern {
+        display: block;
+        width: 100%;
+        margin: 8px 0 2px;
+        min-height: 40px;
+        font-size: 14px;
+        font-weight: 600;
+        background: var(--moos);
+        color: #fff;
+      }
+      .spot .besuche {
+        font-size: 11.5px;
+        color: var(--papier-2);
+        margin-top: 3px;
+      }
       .topnr {
         background: transparent;
         border: none;
@@ -1256,8 +1313,8 @@
             <h2>Selbst einschätzen</h2>
             <div class="row">
               <div>
-                <label for="f-unter">Unterwuchs</label>
-                <select id="f-unter">
+                <label for="f-unter">Unterwuchs (mehrfach)</label>
+                <select id="f-unter" multiple size="6">
                   <option value="heidel">Heidelbeere</option>
                   <option value="moos" selected>Moos</option>
                   <option value="gras">Gras</option>
@@ -1574,7 +1631,7 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-26.4";
+        var VERSION = "2026-09-26.5";
         // Radar nur als Kartenebene; in der Bewertung zu unzuverlässig (gelernte Farbskala, leere Bilder)
         var RADAR_IM_MODELL = false;
         var LOG = [];
@@ -3135,13 +3192,50 @@
             baum: g("f-baum"),
             alter: g("f-alter"),
             boden: g("f-boden"),
-            unter: g("f-unter"),
+            unter: unterAusForm(),
             lage: g("f-lage"),
             rand: g("f-rand"),
             saison: g("f-saison"),
             regen: +g("f-regen"),
             mm: +g("f-mm"),
           };
+        }
+        // Unterwuchs ist mehrfach wählbar: im Formular als Liste, alte Einzelwerte gelten als Liste mit einem Eintrag
+        function unterListe(u) {
+          var l = (Array.isArray(u) ? u : u ? [u] : []).filter(function (c) {
+            return W.unter[c];
+          });
+          return l.length ? l : ["moos"];
+        }
+        function unterAusForm() {
+          var l = [];
+          Array.prototype.forEach.call($("f-unter").options, function (o) {
+            if (o.selected) l.push(o.value);
+          });
+          return unterListe(l);
+        }
+        function setzeUnterForm(liste) {
+          Array.prototype.forEach.call($("f-unter").options, function (o) {
+            o.selected = liste.indexOf(o.value) >= 0;
+          });
+        }
+        // Mittelwert der Gewichte der gewählten Klassen. Kraut (Stickstoffzeiger) behält seine Abwertung,
+        // auch wenn daneben Moos o. Ä. gewählt ist; Brombeere deckelt in deckel().
+        function unterFaktor(v, a) {
+          var l = unterListe(v.unter),
+            s = 0,
+            kraut = null;
+          l.forEach(function (c) {
+            var f = (W.unter[c][a] / 10) * lernFaktor("unter", c, a);
+            s += f;
+            if (c === "kraut") kraut = f;
+          });
+          return kraut === null ? s / l.length : Math.min(s / l.length, kraut);
+        }
+        // Faktor eines Standortmerkmals (0–1, vor Begrenzung) – gemeinsam für standortGuete und Rechenweg
+        function merkmalFaktor(v, k, a) {
+          if (k === "unter") return unterFaktor(v, a);
+          return ((k === "boden" ? bodenGewicht(v, a) : W[k][v[k]][a]) / 10) * lernFaktor(k, v[k], a);
         }
         // Unter Nadelholz versauert die Humusauflage: neutraler Mineralboden wirkt dort mäßig sauer.
         function nadelholz(baum) {
@@ -3157,10 +3251,11 @@
         var lernAktiv = true,
           lernStand = { besuche: 0, funde: 0 };
         // Gewicht eines Besuchs für Art a: Leerfund bei schlechtem Wetter zählt wenig, Fund zählt immer voll
-        function besuchGewicht(sp, a) {
+        // Jeder Besuch zählt einzeln (Stelle.besuche). b.wf = Wetterfaktor zum Besuchszeitpunkt.
+        function besuchGewicht(b, sp, a) {
           var wf =
-            sp.wf && sp.wf[a] !== undefined
-              ? sp.wf[a]
+            b.wf && b.wf[a] !== undefined && b.wf[a] !== null
+              ? b.wf[a]
               : sp.v
                 ? sp.v.mm < 8
                   ? 0.25
@@ -3170,39 +3265,56 @@
                       ? 0.85
                       : 1
                 : 0.7; // alte Einträge: aus mm ableiten
-          return fundGewicht(sp.fund, a) > 0 ? 1 : Math.max(0.1, wf);
+          var g = besuchWert(b, a) > 0 ? 1 : Math.max(0.1, wf);
+          // nachgetragen ohne Wetter-Schnappschuss: Umstände unbekannt → halbes Gewicht
+          return b.nachgetragen && !b.wetter ? g * 0.5 : g;
+        }
+        // Fundwert eines Besuchs für Art a: Zielart = 1, sonst stärkstes BEGLEIT-Gewicht, sonst 0
+        function besuchWert(b, a) {
+          return fundGewicht(b.fund, a);
+        }
+        // Merkmalswerte, unter denen ein Besuch gelernt wird (Unterwuchs/Bestand vom Besuch, Rest von der Stelle)
+        function besuchMerkmale(b, sp, k) {
+          if (k === "unter")
+            return b.unter && b.unter.length ? b.unter : sp.v && sp.v.unter ? unterListe(sp.v.unter) : [];
+          if (k === "alter" && b.bestand) return [b.bestand];
+          return sp.v && sp.v[k] ? [sp.v[k]] : [];
         }
         function lerne(spots) {
           LERN = {};
-          var besucht = spots.filter(function (sp) {
-            return Array.isArray(sp.fund);
+          var besucht = [];
+          spots.forEach(function (sp) {
+            stelleNormal(sp).besuche.forEach(function (b) {
+              if (Array.isArray(b.fund)) besucht.push({ b: b, sp: sp });
+            });
           });
           lernStand = {
             besuche: besucht.length,
-            funde: besucht.filter(function (sp) {
-              return sp.fund.length;
+            funde: besucht.filter(function (x) {
+              return x.b.fund.length;
             }).length,
           };
           if (besucht.length < 3) return;
           ARTEN.forEach(function (a) {
             var gsum = 0,
               gn = 0;
-            besucht.forEach(function (sp) {
-              var w = besuchGewicht(sp, a);
-              gsum += w * fundGewicht(sp.fund, a);
+            besucht.forEach(function (x) {
+              var w = besuchGewicht(x.b, x.sp, a);
+              gsum += w * besuchWert(x.b, a);
               gn += w;
             });
             var global = gn ? gsum / gn : 0;
             ["baum", "boden", "unter", "lage", "rand", "alter"].forEach(function (k) {
               LERN[k] = LERN[k] || {};
               var gruppen = {};
-              besucht.forEach(function (sp) {
-                var o = sp.v && sp.v[k];
-                if (!o) return;
-                var w = besuchGewicht(sp, a);
-                gruppen[o] = gruppen[o] || { n: 0, h: 0 };
-                gruppen[o].n += w;
-                gruppen[o].h += w * fundGewicht(sp.fund, a);
+              besucht.forEach(function (x) {
+                var w = besuchGewicht(x.b, x.sp, a),
+                  h = besuchWert(x.b, a);
+                besuchMerkmale(x.b, x.sp, k).forEach(function (o) {
+                  gruppen[o] = gruppen[o] || { n: 0, h: 0 };
+                  gruppen[o].n += w;
+                  gruppen[o].h += w * h;
+                });
               });
               for (var o in gruppen) {
                 var g = gruppen[o],
@@ -3227,7 +3339,7 @@
             g = 0;
           for (var k in GEW) {
             if (ohne && ohne.indexOf(k) >= 0) continue;
-            var f = ((k === "boden" ? bodenGewicht(v, a) : W[k][v[k]][a]) / 10) * lernFaktor(k, v[k], a);
+            var f = merkmalFaktor(v, k, a);
             lnS += GEW[k] * Math.log(Math.max(0.05, Math.min(1, f)));
             g += GEW[k];
           }
@@ -3237,7 +3349,7 @@
         function deckel(v, a, rf, tf) {
           var c = 100;
           if (v.boden === "moor") c = Math.min(c, 10);
-          if (v.unter === "brom") c = Math.min(c, 20);
+          if (unterListe(v.unter).indexOf("brom") >= 0) c = Math.min(c, 20); // auch wenn nur mit gewählt
           if (v.alter === "jung") c = Math.min(c, 25);
           if (v.baum === "laub_jung") c = Math.min(c, 25);
           var sg = standortGuete(v, a); // 0–1
@@ -3269,8 +3381,12 @@
             var fakt = {};
             for (var k in GEW) {
               if (ohne && ohne.indexOf(k) >= 0) continue;
-              var f = ((k === "boden" ? bodenGewicht(v, a) : W[k][v[k]][a]) / 10) * lernFaktor(k, v[k], a);
-              fakt[k] = { wert: v[k], f: Math.round(f * 100) / 100, gew: GEW[k] };
+              var f = merkmalFaktor(v, k, a);
+              fakt[k] = {
+                wert: k === "unter" ? unterListe(v.unter).join("+") : v[k],
+                f: Math.round(f * 100) / 100,
+                gew: GEW[k],
+              };
             }
             var sg = standortGuete(v, a, ohne);
             var tf = w ? tempFaktor(a, w.tmin, w.tmax) : { f: 1, text: "kein Wetter" };
@@ -3555,9 +3671,10 @@
             o.push(
               "Neutraler Mineralboden, aber unter Nadelholz versauert die Humusauflage — für die Pilze zählt die.",
             );
-          if (v.unter === "heidel") o.push("Heidelbeere ist der verlässlichste Pfifferling-Zeiger.");
-          if (v.unter === "brom") o.push("Dichte Brombeere verdrängt alle drei Arten.");
-          if (v.unter === "kraut")
+          var ul = unterListe(v.unter);
+          if (ul.indexOf("heidel") >= 0) o.push("Heidelbeere ist der verlässlichste Pfifferling-Zeiger.");
+          if (ul.indexOf("brom") >= 0) o.push("Dichte Brombeere verdrängt alle drei Arten.");
+          if (ul.indexOf("kraut") >= 0)
             o.push(
               "Üppige Krautschicht zeigt stickstoffreichen Boden — Steinpilz und Pfifferling fruchten dort schwach.",
             );
@@ -3596,10 +3713,12 @@
           if (lernAktiv && lernStand.besuche >= 3) {
             var eff = [];
             ["baum", "boden", "unter", "lage", "rand"].forEach(function (k) {
-              ARTEN.forEach(function (a) {
-                var f = lernFaktor(k, v[k], a);
-                if (f >= 1.15) eff.push(ARTNAME[a] + " ↑ " + v[k]);
-                if (f <= 0.85) eff.push(ARTNAME[a] + " ↓ " + v[k]);
+              (k === "unter" ? unterListe(v.unter) : [v[k]]).forEach(function (o) {
+                ARTEN.forEach(function (a) {
+                  var f = lernFaktor(k, o, a);
+                  if (f >= 1.15) eff.push(ARTNAME[a] + " ↑ " + o);
+                  if (f <= 0.85) eff.push(ARTNAME[a] + " ↓ " + o);
+                });
               });
             });
             if (eff.length) o.push("Aus deinen Funden gelernt: " + eff.slice(0, 4).join(", ") + ".");
@@ -3661,6 +3780,231 @@
             if (BEGLEIT[f] && BEGLEIT[f].zeigt[a]) g = Math.max(g, BEGLEIT[f].zeigt[a]);
           });
           return g;
+        }
+        // ---- Besuche: jede Stelle hat stelle.besuche = [Besuch, …] ----
+        // Besuch: { ts, fund: [] (leer = nichts gefunden), alter: jung|mittel|alt|gemischt|null,
+        //   finger: trocken|maessig|feucht|null, unter: [], bestand, bewertung: {pf,st,som}|null,
+        //   wetter: {regen7, regen26, streu, tageSeitRegen, temp20}|null, wf: {pf,st,som}|null, nachgetragen }
+        // Die alten Felder fund/besucht/finger/fundAlter bleiben an der Stelle stehen (Rückwärtslesbarkeit).
+        var FUNDKURZ = {
+          pf: "Pfifferling",
+          st: "Steinpilz",
+          som: "Sommerst.",
+          marone: "Marone",
+          hexflock: "Hexe flockig",
+          hexnetz: "Hexe netzig",
+          fliegen: "Fliegenpilz",
+          pfeffer: "Pfefferröhrling",
+          semmel: "Semmelstoppel",
+        };
+        var FINGERKURZ = { trocken: "trocken", maessig: "mäßig", feucht: "feucht" };
+        // Alte Stelle (fund/besucht/finger/fundAlter) einmalig in einen ersten Besuch umwandeln
+        function stelleNormal(sp) {
+          if (Array.isArray(sp.besuche)) return sp;
+          sp.besuche = [];
+          if (Array.isArray(sp.fund))
+            sp.besuche.push({
+              ts: sp.besucht || sp.ts || 0,
+              fund: sp.fund.slice(),
+              alter: sp.fund.length ? sp.fundAlter || null : null,
+              finger: sp.finger || null,
+              unter: sp.v && sp.v.unter ? unterListe(sp.v.unter).slice() : [],
+              bestand: (sp.v && sp.v.alter) || null,
+              bewertung: { pf: sp.pf, st: sp.st, som: sp.som },
+              wetter: null,
+              wf: sp.wf || null,
+              nachgetragen: false,
+              umgewandelt: true,
+            });
+          return sp;
+        }
+        function letzterBesuch(sp) {
+          var l = sp.besuche || [];
+          return l.length ? l[l.length - 1] : null;
+        }
+        function besuchKurz(b) {
+          var d = new Date(b.ts),
+            s = d.getDate() + "." + (d.getMonth() + 1) + ". ";
+          s += b.fund.length
+            ? b.fund
+                .map(function (f) {
+                  return FUNDKURZ[f] || f;
+                })
+                .join(", ") + (b.alter ? " (" + b.alter + ")" : "")
+            : "nichts";
+          if (b.finger) s += ", " + FINGERKURZ[b.finger];
+          return s;
+        }
+        // Markerfarbe nach dem letzten Besuch: Zielart gold, nur Zeiger braun, nichts grau, unbesucht grün
+        function besuchFarbe(b) {
+          if (!b) return "#7ea262";
+          if (
+            b.fund.some(function (f) {
+              return ARTEN.indexOf(f) >= 0;
+            })
+          )
+            return "#e8a516";
+          return b.fund.length ? "#b8763c" : "#9a9a90";
+        }
+        // Besuche zusammenführen; gleicher Zeitstempel ±5 Min. gilt als Dublette. Liefert die Zahl neuer Besuche.
+        function besucheZusammenfuehren(ziel, neu) {
+          var n = 0;
+          (neu || []).forEach(function (b) {
+            if (!b || typeof b.ts !== "number") return;
+            var dub = ziel.some(function (x) {
+              return Math.abs(x.ts - b.ts) <= 5 * 60e3;
+            });
+            if (dub) return;
+            if (!Array.isArray(b.fund)) b.fund = [];
+            ziel.push(b);
+            n++;
+          });
+          ziel.sort(function (x, y) {
+            return x.ts - y.ts;
+          });
+          return n;
+        }
+        // Lokales Datum JJJJ-MM-TT und Abstand zu heute in Tagen
+        function datumIso(d) {
+          var p = function (x) {
+            return (x < 10 ? "0" : "") + x;
+          };
+          return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+        }
+        function tageZurueck(iso) {
+          var p = iso.split("-"),
+            t = new Date(+p[0], +p[1] - 1, +p[2]),
+            h = new Date();
+          h.setHours(0, 0, 0, 0);
+          return Math.round((h - t) / 864e5);
+        }
+        // Wetterreihe so kürzen, dass der Tag vor d Tagen als „heute" gilt (letztes Element = heute).
+        // Liegt der Tag vor Beginn der Reihe (Open-Meteo: 35 Tage), gibt es kein Wetter → null.
+        function wetterBisTag(w, d) {
+          if (!w || !w.tw || d < 0 || d > w.tw.length - 1) return null;
+          if (d === 0) return w;
+          var n = w.tw.length - d,
+            s = function (arr) {
+              return arr ? arr.slice(0, n) : arr;
+            };
+          return {
+            tw: s(w.tw),
+            et0: s(w.et0 || []),
+            tmin: s(w.tmin),
+            tmax: s(w.tmax),
+            f: { tw: [], et0: [], tmin: [], tmax: [], pp: [] },
+            hoehe: w.hoehe,
+            unsicher: w.unsicher,
+          };
+        }
+        // Wetter-Schnappschuss zum Besuch (w bereits auf den Besuchstag gekürzt); fehlende Fenster → null
+        function wetterSchnappschuss(w, v, hoehe, dichte) {
+          if (!w || !w.tw || !w.tw.length) return null;
+          var tw = w.tw,
+            n = tw.length,
+            r1 = function (x) {
+              return Math.round(x * 10) / 10;
+            },
+            summe = function (k) {
+              if (n < k) return null;
+              var x = 0;
+              for (var i = n - k; i < n; i++) x += tw[i] || 0;
+              return r1(x);
+            };
+          var S = wasserBilanz(tw, w.et0 || [], hoehe, dichte, v.alter, w.tmax),
+            seit = 0;
+          for (var i = n - 1; i >= 0 && tw[i] < 5; i--) seit++; // wie wetter.tage: Regen ≥ 5 mm
+          var t20 = null;
+          if (w.tmin && w.tmax && w.tmin.length >= 20) {
+            t20 = 0;
+            for (var j = n - 20; j < n; j++) t20 += (w.tmin[j] + w.tmax[j]) / 2;
+            t20 = r1(t20 / 20);
+          }
+          return {
+            regen7: summe(7),
+            regen26: summe(26),
+            streu: r1(S[n - 1]),
+            tageSeitRegen: seit,
+            temp20: t20,
+          };
+        }
+        // GeoJSON-Export: alte Felder + besuche vollständig
+        function stellenGeojson(liste) {
+          return {
+            type: "FeatureCollection",
+            features: liste.map(function (s) {
+              return {
+                type: "Feature",
+                geometry: { type: "Point", coordinates: [s.lng, s.lat] },
+                properties: {
+                  name: s.name,
+                  pfifferling: s.pf,
+                  fichtensteinpilz: s.st,
+                  sommersteinpilz: s.som,
+                  merkmale: s.v,
+                  fund: s.fund,
+                  besucht: s.besucht || null,
+                  quelle: s.quelle || "manuell",
+                  wetterfaktor: s.wf || null,
+                  notiz: s.notiz || null,
+                  fingerprobe: s.finger || null,
+                  fundalter: s.fundAlter || null,
+                  besuche: stelleNormal(s).besuche,
+                },
+              };
+            }),
+          };
+        }
+        // GeoJSON-Import in liste: Stellen im Umkreis 25 m werden zusammengeführt, Besuch-Dubletten übersprungen.
+        // Alte Exporte ohne besuche werden über stelleNormal umgewandelt.
+        function stellenImport(liste, gj, vorgabeV) {
+          var neu = 0,
+            nb = 0;
+          (gj.features || []).forEach(function (ft) {
+            var c = ft.geometry && ft.geometry.coordinates,
+              pr = ft.properties || {};
+            if (!c) return;
+            var imp = {
+              name: pr.name || "Importiert",
+              lat: c[1],
+              lng: c[0],
+              pf: pr.pfifferling || 0,
+              st: pr.fichtensteinpilz || 0,
+              som: pr.sommersteinpilz || 0,
+              v: pr.merkmale || vorgabeV(),
+              fund: pr.fund === undefined ? null : pr.fund,
+              besucht: pr.besucht || null,
+              quelle: pr.quelle || "import",
+              wf: pr.wetterfaktor || null,
+              notiz: pr.notiz || "",
+              finger: pr.fingerprobe || null,
+              fundAlter: pr.fundalter || null,
+              ts: Date.now(),
+            };
+            if (Array.isArray(pr.besuche)) imp.besuche = [];
+            stelleNormal(imp);
+            if (Array.isArray(pr.besuche)) besucheZusammenfuehren(imp.besuche, pr.besuche);
+            var dub = liste.find(function (sp) {
+              return kmSchnell(sp.lat, sp.lng, c[1], c[0]) * 1000 < 25;
+            });
+            if (dub) {
+              nb += besucheZusammenfuehren(stelleNormal(dub).besuche, imp.besuche);
+              if (Array.isArray(pr.fund)) {
+                dub.fund = Array.isArray(dub.fund) ? dub.fund : [];
+                pr.fund.forEach(function (a) {
+                  if (dub.fund.indexOf(a) < 0) dub.fund.push(a);
+                });
+                if (pr.besucht && (!dub.besucht || pr.besucht > dub.besucht)) dub.besucht = pr.besucht;
+              }
+              if (pr.fingerprobe && !dub.finger) dub.finger = pr.fingerprobe;
+              if (pr.notiz && !dub.notiz) dub.notiz = pr.notiz;
+              return;
+            }
+            liste.push(imp);
+            neu++;
+            nb += imp.besuche.length;
+          });
+          return { stellen: neu, besuche: nb };
         }
         // Tabelle: Zeile je Art, Spalte je Tag; darunter Regen je Tag
         function prognoseHtml(reihe, kompakt) {
@@ -3780,7 +4124,7 @@
             li.textContent = t;
             ul.appendChild(li);
           });
-          if (pin && pin.getPopup() && pin.isPopupOpen()) pin.setPopupContent(pinPopupHtml(""));
+          if (pin && pin.getPopup() && pin.isPopupOpen()) pinInhalt("");
           if (pos && $("rw-box").open) {
             try {
               $("rechenweg").innerHTML =
@@ -3851,6 +4195,22 @@
           $(id).addEventListener("change", update);
           $(id).addEventListener("input", update);
         });
+        // Unterwuchs-Mehrfachauswahl am Rechner ohne Strg-Taste: Klick schaltet eine Klasse um (mind. eine bleibt)
+        $("f-unter").addEventListener("mousedown", function (ev) {
+          var o = ev.target;
+          if (!o || o.tagName !== "OPTION") return;
+          ev.preventDefault();
+          var l = unterAusForm().slice(),
+            i = l.indexOf(o.value);
+          if (i >= 0) {
+            if (l.length > 1) l.splice(i, 1);
+          } else l.push(o.value);
+          setzeUnterForm(l);
+          update();
+        });
+        $("f-unter").addEventListener("change", function () {
+          if (!this.selectedOptions || !this.selectedOptions.length) setzeUnterForm(unterAusForm());
+        });
         ["f-regen", "f-mm"].forEach(function (id) {
           $(id).addEventListener("input", function () {
             wetter = null;
@@ -3908,74 +4268,10 @@
           );
         }
         function pinPopupHtml(status) {
+          entwurfFuerPin(); // vor readForm: belegt den Unterwuchs vom letzten Besuch der Stelle vor
           var v = readForm(),
             r = bewerte(v);
           return pinPopupMobil(status, v, r);
-          if (erkannt.keinWald) {
-            return (
-              '<div class="pinpop"><div class="u"><b>Kein Wald</b> an diesem Punkt laut Baumartenkarte.</div>' +
-              '<div class="i">' +
-              (pinInfo.length ? pinInfo.join("<br>") : "") +
-              "</div>" +
-              '<button class="btn" onclick="window.__spTab()">Trotzdem bewerten</button></div>'
-            );
-          }
-          var h =
-            '<div class="pinpop"><div class="u">' +
-            urteilText(v, r) +
-            "</div>" +
-            (letztePrognose
-              ? '<div class="u" style="color:#7ea262">' +
-                empfehlung(letztePrognose, "best") +
-                "</div>" +
-                prognoseHtml(letztePrognose, true) +
-                '<div class="u" style="font-size:11.5px">' +
-                empfehlungArten(letztePrognose) +
-                '</div><div class="u" style="font-size:11px;color:var(--papier-2)">' +
-                prognoseGrund(letztePrognose, wetter) +
-                "</div>"
-              : "") +
-            '<div class="z">' +
-            '<div><b style="color:' +
-            farbeStetig(r.pf) +
-            '">' +
-            r.pf +
-            "</b><small>Pfifferling</small></div>" +
-            '<div><b style="color:' +
-            farbeStetig(r.st) +
-            '">' +
-            r.st +
-            "</b><small>Fichten-<br>steinpilz</small></div>" +
-            '<div><b style="color:' +
-            farbeStetig(r.som) +
-            '">' +
-            r.som +
-            "</b><small>Sommer-<br>steinpilz</small></div></div>" +
-            '<div class="u" style="font-size:12px;color:var(--papier-2)">' +
-            merkmalHtml() +
-            '</div><div class="i">';
-          if (status) h += "<div>" + status + "</div>";
-          pinInfo.forEach(function (t) {
-            h += "<div>" + t + "</div>";
-          });
-          if (pinFehler.length)
-            h +=
-              '<div style="color:#e8a516;margin-top:3px">Nicht erkannt: ' +
-              pinFehler.join(", ") +
-              ' — „?" sind Annahmen</div>';
-          h +=
-            '</div><div class="u" style="font-size:11px;color:var(--papier-2);margin-top:6px">Fund hier eintragen:</div>' +
-            '<button class="btn" onclick="window.__spFund(\'pf\')">Pfifferling</button><button class="btn" onclick="window.__spFund(\'st\')">Steinpilz</button>' +
-            '<button class="btn" onclick="window.__spFund(\'som\')">Sommerst.</button><button class="btn" onclick="window.__spFund(null)">Nichts</button><br>' +
-            '<span style="font-size:11px;color:var(--papier-2)">Fingerprobe: </span><button class="btn" onclick="window.__spFinger(\'trocken\')">trocken</button><button class="btn" onclick="window.__spFinger(\'maessig\')">mäßig</button><button class="btn" onclick="window.__spFinger(\'feucht\')">feucht</button><br>' +
-            '<span style="font-size:11px;color:var(--papier-2)">auch: </span><button class="btn" onclick="window.__spFund(\'marone\')">Marone</button><button class="btn" onclick="window.__spFund(\'hexflock\')">Hexe flockig</button><button class="btn" onclick="window.__spFund(\'hexnetz\')">Hexe netzig</button><br>' +
-            (MOBIL
-              ? "<button class=\"btn\" onclick=\"this.closest('.pinpop').classList.toggle('offen')\">Details</button>"
-              : "") +
-            '<button class="btn" onclick="window.__spUmkreis()">Umkreis</button>' +
-            '<button class="btn" onclick="window.__spSpeichern()">Speichern</button>' +
-            '<button class="btn" onclick="window.__spTab()">Anpassen</button></div>';
-          return h;
         }
         // Kompaktes Popup fürs Handy: zwei Zeilen Urteil, 5-Tage-Tabelle, eine Zeile Merkmale, zwei Knopfreihen
         function pinPopupMobil(status, v, r) {
@@ -4041,86 +4337,14 @@
             h += "<div>" + t + "</div>";
           });
           h += "</div>";
-          var spN =
-            pos &&
-            spots.find(function (x) {
-              return map.distance(L.latLng(x.lat, x.lng), pos) < 60;
-            });
+          var spN = pos && stelleBei(pos, 25); // gleicher Umkreis wie „Besuch speichern"
           if (spN)
             h +=
               '<div class="u" style="font-size:11px;color:var(--moos-hell)">Gespeichert als „' +
               spN.name +
               '"</div>';
-          var spHier =
-            pos &&
-            spots.find(function (x) {
-              return map.distance(L.latLng(x.lat, x.lng), pos) < 60;
-            });
-          var fl = spHier && Array.isArray(spHier.fund) ? spHier.fund : null;
-          var fundStand =
-            fl === null
-              ? ""
-              : fl.length
-                ? fl
-                    .map(function (a) {
-                      return ARTKURZ[a] || (BEGLEIT[a] && BEGLEIT[a].name) || a;
-                    })
-                    .join(", ")
-                : "nichts gefunden";
+          h += besuchBlockHtml(v);
           h +=
-            '<div class="reihe sel"><span>Fund</span><select onchange="window.__spFundSel(this)">' +
-            '<option value="">' +
-            (fundStand ? "✓ " + fundStand : "— eintragen —") +
-            "</option>" +
-            '<option value="pf">Pfifferling</option><option value="st">Fichtensteinpilz</option><option value="som">Sommersteinpilz</option>' +
-            '<option value="marone">Marone (Zeiger)</option><option value="hexflock">Hexe flockig (Zeiger)</option><option value="hexnetz">Hexe netzig (Zeiger)</option><option value="fliegen">Fliegenpilz (Zeiger)</option><option value="pfeffer">Pfefferröhrling (Zeiger)</option><option value="semmel">Semmelstoppelpilz (Zeiger)</option>' +
-            '<option value="nichts">Nichts gefunden</option>' +
-            (fl && fl.length ? '<option value="leer">Funde löschen</option>' : "") +
-            "</select></div>" +
-            (fl && fl.length
-              ? '<div class="reihe sel"><span>Alter</span><select onchange="window.__spAlterFund(this)"><option value="">Fruchtkörper —</option><option value="jung"' +
-                (spHier.fundAlter === "jung" ? " selected" : "") +
-                '>jung (1–2 Tage)</option><option value="mittel"' +
-                (spHier.fundAlter === "mittel" ? " selected" : "") +
-                '>mittel (3–6 Tage)</option><option value="alt"' +
-                (spHier.fundAlter === "alt" ? " selected" : "") +
-                '>alt / überständig</option><option value="gemischt"' +
-                (spHier.fundAlter === "gemischt" ? " selected" : "") +
-                ">gemischt</option></select></div>"
-              : "") +
-            '<div class="reihe sel"><span>Bestand</span><select onchange="window.__spAlter(this)">' +
-            ["hoch", "mittel", "dickung", "jung"]
-              .map(function (k) {
-                return (
-                  '<option value="' +
-                  k +
-                  '"' +
-                  (v.alter === k ? " selected" : "") +
-                  ">" +
-                  {
-                    hoch: "Altbestand >25 m",
-                    mittel: "15–25 m",
-                    dickung: "Dickung 5–15 m",
-                    jung: "Kultur <5 m",
-                  }[k] +
-                  "</option>"
-                );
-              })
-              .join("") +
-            "</select></div>" +
-            '<div class="reihe sel"><span>Boden</span><select onchange="window.__spFingerSel(this)">' +
-            '<option value=""' +
-            (!fingerprobe ? " selected" : "") +
-            ">Fingerprobe —</option>" +
-            '<option value="trocken"' +
-            (fingerprobe === "trocken" ? " selected" : "") +
-            ">trocken</option>" +
-            '<option value="maessig"' +
-            (fingerprobe === "maessig" ? " selected" : "") +
-            ">mäßig feucht</option>" +
-            '<option value="feucht"' +
-            (fingerprobe === "feucht" ? " selected" : "") +
-            ">feucht</option></select></div>" +
             '<div class="reihe"><button class="btn" onclick="this.closest(\'.pinpop\').classList.toggle(\'offen\')">Details</button>' +
             '<button class="btn" onclick="window.__spUmkreis()">Umkreis</button><button class="btn" onclick="window.__spSpeichern()">Speichern</button>' +
             '<button class="btn" onclick="window.__spNotiz()">Notiz</button></div></div>';
@@ -4135,134 +4359,335 @@
               autoPanPaddingTopLeft: [10, 56],
               closeButton: true,
             });
-          pin.setPopupContent(pinPopupHtml(status));
+          pinInhalt(status);
           if (!pin.isPopupOpen()) pin.openPopup();
+        }
+        // Popup nie höher als die sichtbare Karte (Blatt kann sie verkleinern); Leaflet scrollt dann den Inhalt
+        function pinInhalt(status) {
+          var pp = pin.getPopup(),
+            el = pp.getElement() && pp.getElement().querySelector(".leaflet-popup-content"),
+            oben = el ? el.scrollTop : 0; // Scrollstand halten, sonst springt das Popup bei jedem Tipp nach oben
+          pp.options.maxHeight = Math.max(220, map.getSize().y - 90);
+          pin.setPopupContent(pinPopupHtml(status));
+          if (el && oben) el.scrollTop = oben;
         }
         window.__spTab = function () {
           zeigeTab("punkt");
         };
-        // Fund am aktuellen Pin: Stelle anlegen (oder nahe bestehende nutzen) und Fund eintragen
-        window.__spFund = function (art) {
-          if (!pos) return;
-          var d = new Date(),
-            datum = d.getDate() + "." + (d.getMonth() + 1) + ".";
-          var sp = spots.find(function (x) {
-            return map.distance(L.latLng(x.lat, x.lng), pos) < 60;
+        // ---- Besuch erfassen (Popup): Entwurf je Pin, gespeichert als Besuch an der Stelle im Umkreis 25 m ----
+        var entwurf = null;
+        function stelleBei(ll, m) {
+          return spots.find(function (x) {
+            return kmSchnell(x.lat, x.lng, ll.lat, ll.lng) * 1000 < m;
           });
+        }
+        // Neuer Entwurf, sobald der Pin woanders steht; Unterwuchs vom letzten Besuch dieser Stelle vorbelegen
+        function entwurfFuerPin() {
+          if (!pos) return null;
+          if (entwurf && entwurf.lat === pos.lat && entwurf.lng === pos.lng) return entwurf;
+          var sp = stelleBei(pos, 25),
+            lb = sp ? letzterBesuch(stelleNormal(sp)) : null;
+          entwurf = {
+            lat: pos.lat,
+            lng: pos.lng,
+            fund: [],
+            nichts: false,
+            alter: null,
+            mehr: false,
+            datum: datumIso(new Date()),
+          };
+          if (lb && lb.unter && lb.unter.length) setzeUnterForm(lb.unter);
+          return entwurf;
+        }
+        function besucheKurz(sp, n) {
+          return (sp.besuche || [])
+            .slice(-(n || 3))
+            .map(besuchKurz)
+            .join(" · ");
+        }
+        function besuchBlockHtml(v) {
+          var e = entwurf || entwurfFuerPin();
+          if (!e) return "";
+          // stopPropagation: der Inhalt wird beim Tippen neu gezeichnet; ohne Stopp hielte die Karte den
+          // (dann gelösten) Knopf für einen Kartenklick und schlösse das Popup bzw. setzte einen neuen Pin
+          var k = function (g, w, text, an) {
+            return (
+              '<button class="btn wahl' +
+              (an ? " an" : "") +
+              '" onclick="event.stopPropagation();window.__bz(\'' +
+              g +
+              "','" +
+              w +
+              "')\">" +
+              text +
+              "</button>"
+            );
+          };
+          var zeile = function (titel, inhalt) {
+            return (
+              '<div class="reihe wahl"><span>' + titel + '</span><div class="kn">' + inhalt + "</div></div>"
+            );
+          };
+          var liste = function (g, paare, istAn) {
+            return paare
+              .map(function (x) {
+                return k(g, x[0], x[1], istAn(x[0]));
+              })
+              .join("");
+          };
+          var hatFund = function (w) {
+            return e.fund.indexOf(w) >= 0;
+          };
+          var MEHR = [
+            ["fliegen", "Fliegenpilz"],
+            ["pfeffer", "Pfefferröhrling"],
+            ["semmel", "Semmelstoppel"],
+          ];
+          var mehrOffen =
+            e.mehr ||
+            MEHR.some(function (x) {
+              return hatFund(x[0]);
+            });
+          var ul = unterListe(v.unter),
+            sp = stelleBei(pos, 25),
+            heute = datumIso(new Date()),
+            tage = tageZurueck(e.datum);
+          var h = '<div class="besuch"><div class="u"><b>Besuch erfassen</b></div>';
+          if (sp && sp.besuche && sp.besuche.length)
+            h += '<div class="u" style="font-size:11px;color:var(--papier-2)">' + besucheKurz(sp) + "</div>";
+          h += zeile(
+            "Fund",
+            k("fund", "nichts", "Nichts", e.nichts) +
+              liste(
+                "fund",
+                [
+                  ["pf", "Pfifferling"],
+                  ["st", "Steinpilz"],
+                  ["som", "Sommerst."],
+                  ["marone", "Marone"],
+                  ["hexflock", "Hexe flockig"],
+                  ["hexnetz", "Hexe netzig"],
+                ],
+                hatFund,
+              ) +
+              (mehrOffen ? liste("fund", MEHR, hatFund) : k("mehr", "", "mehr …", false)),
+          );
+          if (e.fund.length)
+            h += zeile(
+              "Alter",
+              liste(
+                "alter",
+                [
+                  ["jung", "jung"],
+                  ["mittel", "mittel"],
+                  ["alt", "alt"],
+                  ["gemischt", "gemischt"],
+                ],
+                function (w) {
+                  return e.alter === w;
+                },
+              ),
+            );
+          h += zeile(
+            "Boden",
+            liste(
+              "finger",
+              [
+                ["trocken", "trocken"],
+                ["maessig", "mäßig"],
+                ["feucht", "feucht"],
+              ],
+              function (w) {
+                return fingerprobe === w;
+              },
+            ),
+          );
+          h += zeile(
+            "Unterwuchs",
+            liste(
+              "unter",
+              [
+                ["moos", "Moos"],
+                ["heidel", "Heidelbeere"],
+                ["gras", "Gras"],
+                ["nadel", "Streu"],
+                ["kraut", "Kraut"],
+                ["brom", "Brombeere"],
+              ],
+              function (w) {
+                return ul.indexOf(w) >= 0;
+              },
+            ),
+          );
+          h += zeile(
+            "Bestand",
+            liste(
+              "bestand",
+              [
+                ["hoch", "Alt &gt;25 m"],
+                ["mittel", "15–25 m"],
+                ["dickung", "Dickung"],
+                ["jung", "Kultur"],
+              ],
+              function (w) {
+                return v.alter === w;
+              },
+            ),
+          );
+          h += zeile(
+            "Datum",
+            '<input type="date" class="datum" value="' +
+              e.datum +
+              '" max="' +
+              heute +
+              '" onchange="window.__bzDatum(this.value)">' +
+              (tage > 0
+                ? "<small>nachgetragen" +
+                  (wetterBisTag(wetter, tage) ? ", Wetter vom Tag" : ", ohne Wetter") +
+                  "</small>"
+                : ""),
+          );
+          h +=
+            '<button class="btn speichern" onclick="event.stopPropagation();window.__bzSpeichern()">' +
+            "Besuch speichern</button></div>";
+          return h;
+        }
+        window.__bz = function (g, w) {
+          var e = entwurf || entwurfFuerPin();
+          if (!e) return;
+          if (g === "fund") {
+            if (w === "nichts") {
+              e.nichts = !e.nichts;
+              if (e.nichts) {
+                e.fund = [];
+                e.alter = null;
+              }
+            } else {
+              var i = e.fund.indexOf(w);
+              if (i >= 0) e.fund.splice(i, 1);
+              else e.fund.push(w);
+              e.nichts = false;
+              if (!e.fund.length) e.alter = null;
+            }
+          } else if (g === "mehr") e.mehr = true;
+          else if (g === "alter") e.alter = e.alter === w ? null : w;
+          else if (g === "finger") {
+            window.__spFinger(w);
+            return;
+          } else if (g === "unter") {
+            var l = unterAusForm().slice(),
+              j = l.indexOf(w);
+            if (j >= 0) {
+              if (l.length > 1) l.splice(j, 1); // mindestens eine Klasse bleibt gewählt
+            } else l.push(w);
+            setzeUnterForm(l);
+            update();
+            return;
+          } else if (g === "bestand") {
+            $("f-alter").value = w;
+            update();
+            return;
+          }
+          aktualisierePin("");
+        };
+        window.__bzDatum = function (wert) {
+          if (!entwurf || !wert) return;
+          entwurf.datum = wert;
+          aktualisierePin("");
+        };
+        // Alte Felder spiegeln den letzten Besuch – ältere App-Stände lesen so weiterhin etwas Sinnvolles
+        function altfelderSpiegeln(sp) {
+          var lb = letzterBesuch(sp);
+          sp.fund = lb ? lb.fund.slice() : null;
+          sp.besucht = lb ? lb.ts : null;
+          sp.finger = lb ? lb.finger : null;
+          sp.fundAlter = lb ? lb.alter : null;
+        }
+        window.__bzSpeichern = function () {
+          var e = entwurf;
+          if (!pos || !e) return;
+          if (!e.nichts && !e.fund.length) {
+            toast("Erst Fund wählen – oder „Nichts“.");
+            return;
+          }
+          var tage = tageZurueck(e.datum);
+          if (isNaN(tage) || tage < 0) {
+            toast("Datum liegt in der Zukunft.");
+            return;
+          }
+          var v = readForm(),
+            wT = wetterBisTag(wetter, tage),
+            p = e.datum.split("-");
+          var b = {
+            ts: tage === 0 ? Date.now() : new Date(+p[0], +p[1] - 1, +p[2], 12).getTime(),
+            fund: e.nichts ? [] : e.fund.slice(),
+            alter: e.nichts ? null : e.alter,
+            finger: fingerprobe,
+            unter: unterListe(v.unter).slice(),
+            bestand: v.alter,
+            bewertung: null,
+            wetter: wT ? wetterSchnappschuss(wT, v, hoehePunkt, dichtePunkt) : null,
+            wf: null,
+            nachgetragen: tage > 0,
+          };
+          if (tage === 0 || wT) {
+            var r = tage === 0 ? bewerte(v) : bewerte(v, wT);
+            b.bewertung = { pf: r.pf, st: r.st, som: r.som };
+            b.wf = wetterFaktoren(v, tage === 0 ? undefined : wT);
+          }
+          var sp = stelleBei(pos, 25);
           if (!sp) {
-            var v = readForm(),
-              r = bewerte(v);
+            var rj = bewerte(v),
+              d = new Date(b.ts);
             sp = {
               name:
-                (art ? ARTKURZ[art] || (BEGLEIT[art] && BEGLEIT[art].name) || art : "Kein Fund") +
+                (b.fund.length ? FUNDKURZ[b.fund[0]] || b.fund[0] : "Kein Fund") +
                 " " +
-                datum,
+                d.getDate() +
+                "." +
+                (d.getMonth() + 1) +
+                ".",
               lat: pos.lat,
               lng: pos.lng,
-              pf: r.pf,
-              st: r.st,
-              som: r.som,
+              pf: rj.pf,
+              st: rj.st,
+              som: rj.som,
               v: v,
               fund: null,
               ts: Date.now(),
               wf: wetterFaktoren(v),
-              finger: fingerprobe,
+              finger: null,
+              besuche: [],
             };
             spots.push(sp);
           }
-          if (!Array.isArray(sp.fund)) sp.fund = [];
-          var entfernt = false;
-          if (art) {
-            var ix = sp.fund.indexOf(art);
-            if (ix >= 0) {
-              sp.fund.splice(ix, 1);
-              entfernt = true;
-            } else sp.fund.push(art);
-          } else sp.fund = [];
-          sp.besucht = Date.now();
-          if (wetter || reglerHand) sp.wf = wetterFaktoren(sp.v || readForm());
+          stelleNormal(sp).besuche.push(b);
+          sp.besuche.sort(function (x, y) {
+            return x.ts - y.ts;
+          });
+          sp.v = sp.v || v;
+          sp.v.unter = b.unter.slice();
+          sp.v.alter = b.bestand;
+          altfelderSpiegeln(sp);
+          if (b.nachgetragen) fingerprobe = null; // Tastbefund eines früheren Tags gilt nicht für heute
           persist();
           lerne(spots);
+          entwurf = null;
+          if (pin) pin.closePopup();
           render();
           update();
-          var artName = art ? ARTNAME[art] || (BEGLEIT[art] && BEGLEIT[art].name) || art : null;
+          // Inhalt frisch aufbauen, sonst öffnet ein Tipp auf den Pin den alten, schon gespeicherten Entwurf
+          if (pin && pin.getPopup()) pinInhalt("");
           toast(
-            entfernt
-              ? artName + " entfernt"
-              : artName
-                ? artName + " gespeichert — " + sp.name
-                : "Besucht ohne Fund — " + sp.name,
+            "Besuch gespeichert — " +
+              sp.name +
+              (b.nachgetragen ? " (nachgetragen" + (b.wetter ? ")" : ", ohne Wetter)") : "") +
+              (wetter || b.nachgetragen ? "" : " · ohne Wetterdaten"),
           );
-          aktualisierePin("");
         };
-        window.__spAlter = function (sel) {
-          $("f-alter").value = sel.value;
-          var sp =
-            pos &&
-            spots.find(function (x) {
-              return map.distance(L.latLng(x.lat, x.lng), pos) < 60;
-            });
-          if (sp && sp.v) {
-            sp.v.alter = sel.value;
-            persist();
-          }
-          update();
-          aktualisierePin("");
-        };
-        window.__spFundSel = function (sel) {
-          var v = sel.value;
-          if (!v) return;
-          if (v === "leer") {
-            var sp =
-              pos &&
-              spots.find(function (x) {
-                return map.distance(L.latLng(x.lat, x.lng), pos) < 60;
-              });
-            if (sp) {
-              sp.fund = null;
-              persist();
-              lerne(spots);
-              render();
-              update();
-              toast("Funde gelöscht");
-              aktualisierePin("");
-            }
-            return;
-          }
-          window.__spFund(v === "nichts" ? null : v);
-        };
-        window.__spAlterFund = function (sel) {
-          var sp =
-            pos &&
-            spots.find(function (x) {
-              return map.distance(L.latLng(x.lat, x.lng), pos) < 60;
-            });
-          if (sp) {
-            sp.fundAlter = sel.value || null;
-            persist();
-            toast(sel.value ? "Fruchtkörperalter: " + sel.options[sel.selectedIndex].text : "Alter entfernt");
-          }
-        };
-        window.__spFingerSel = function (sel) {
-          fingerprobe = null;
-          if (sel.value) window.__spFinger(sel.value);
-          else {
-            update();
-            aktualisierePin("");
-          }
-        };
+        // Fingerprobe: wirkt sofort auf die Bewertung am Pin und wird beim Speichern in den Besuch übernommen
         window.__spFinger = function (w) {
           fingerprobe = fingerprobe === w ? null : w;
-          var sp =
-            pos &&
-            spots.find(function (x) {
-              return map.distance(L.latLng(x.lat, x.lng), pos) < 60;
-            });
-          if (sp) {
-            sp.finger = fingerprobe;
-            sp.besucht = Date.now();
-            persist();
-          }
           update();
           aktualisierePin(
             fingerprobe
@@ -4327,6 +4752,7 @@
           hoehePunkt = null;
           fingerprobe = null;
           dichtePunkt = null;
+          entwurf = null;
           erkannt = { baum: null, boden: null, lage: null, wetter: null, keinWald: false };
           if (pin) map.removeLayer(pin);
           pin = L.marker(pos).addTo(map);
@@ -8918,6 +9344,7 @@
           } catch (e) {
             spots = [];
           }
+          spots.forEach(stelleNormal); // alte Stellen → erster Besuch; die alten Felder bleiben erhalten
           lerne(spots);
           render();
           update();
@@ -8958,7 +9385,9 @@
           var ls = $("lernstand");
           if (lernStand.besuche === 0)
             ls.textContent =
-              'Noch keine Besuche eingetragen. Nach jedem Waldgang bei der Stelle „Fund" oder „Nichts" antippen — ab drei Besuchen passt die App die Gewichte an. „Nichts" ist genauso wichtig wie ein Fund; Begleitfunde zählen halb.';
+              'Noch keine Besuche eingetragen. Nach jedem Waldgang im Popup „Besuch erfassen" ausfüllen —' +
+              ' ab drei Besuchen passt die App die Gewichte an. „Nichts" ist genauso wichtig wie ein Fund;' +
+              " Begleitfunde zählen halb.";
           else
             ls.textContent =
               lernStand.besuche +
@@ -8970,26 +9399,30 @@
                   ? " — angepasste Gewichte aktiv."
                   : " — Anpassung ausgeschaltet."
                 : " — ab 3 Besuchen wird gelernt.") +
-              " Leerfunde bei Trockenheit zählen abgeschwächt.";
+              " Leerfunde bei Trockenheit zählen abgeschwächt. Marker nach letztem Besuch: gold Zielart," +
+              " braun nur Zeiger, grau nichts, grün noch nicht besucht.";
           if (!spots.length) {
             box.innerHTML =
               '<div class="empty">Noch nichts gespeichert. Punkt setzen, im Popup „Stelle speichern".</div>';
             return;
           }
           spots.forEach(function (s, i) {
+            stelleNormal(s);
             var d = document.createElement("div");
             d.className = "spot";
             d.innerHTML =
               '<div class="b"><div class="nm"></div><div class="mt"></div><a class="nav" target="_blank" rel="noopener">Navigation</a>' +
-              '<div class="fund"><span>Fund:</span><button data-a="pf">Pfifferling</button><button data-a="st">Steinpilz</button><button data-a="som">Sommerst.</button><button data-a="nichts">Nichts</button></div>' +
-              '<div class="fund"><span>auch:</span><button data-a="marone">Marone</button><button data-a="hexflock">Hexe flockig</button><button data-a="hexnetz">Hexe netzig</button><button data-a="fliegen">Fliegenpilz</button><button data-a="pfeffer">Pfefferröhrling</button><button data-a="semmel">Semmelstoppel</button></div>' +
+              '<div class="besuche"></div>' +
+              '<div class="fund"><button data-x="erfassen">Besuch erfassen</button>' +
+              (s.besuche.length ? '<button data-x="letzten-weg">Letzten Besuch löschen</button>' : "") +
+              "</div>" +
               '<div class="notiz"></div></div><button class="weg">Löschen</button>';
+            d.querySelector(".besuche").textContent = s.besuche.length
+              ? besucheKurz(s) + (s.besuche.length > 3 ? " (" + s.besuche.length + " Besuche)" : "")
+              : "Noch kein Besuch";
             var nz = d.querySelector(".notiz");
             nz.textContent =
-              (s.finger
-                ? "Boden " + { trocken: "trocken", maessig: "mäßig", feucht: "feucht" }[s.finger] + " · "
-                : "") +
-              (s.fundAlter ? "Fruchtkörper " + s.fundAlter + " · " : "") +
+              (!s.besuche.length && s.finger ? "Boden " + FINGERKURZ[s.finger] + " · " : "") +
               (s.notiz ? "„" + s.notiz + '"' : "+ Notiz");
             nz.className = "notiz" + (s.notiz ? "" : " leer");
             nz.addEventListener("click", function (ev) {
@@ -9001,28 +9434,25 @@
                 render();
               }
             });
-            Array.prototype.forEach.call(d.querySelectorAll(".fund button"), function (bt) {
-              var a = bt.dataset.a,
-                aktiv =
-                  Array.isArray(s.fund) && (a === "nichts" ? s.fund.length === 0 : s.fund.indexOf(a) >= 0);
-              if (aktiv) bt.classList.add("an");
-              bt.addEventListener("click", function (ev) {
+            d.querySelector('[data-x="erfassen"]').addEventListener("click", function (ev) {
+              ev.stopPropagation();
+              map.setView([s.lat, s.lng], Math.max(map.getZoom(), 15));
+              setzePunkt(L.latLng(s.lat, s.lng)); // Popup mit „Besuch erfassen" an der Stelle
+            });
+            var weg1 = d.querySelector('[data-x="letzten-weg"]');
+            if (weg1)
+              weg1.addEventListener("click", function (ev) {
                 ev.stopPropagation();
-                if (a === "nichts") {
-                  s.fund = Array.isArray(s.fund) && s.fund.length === 0 ? null : [];
-                } else {
-                  if (!Array.isArray(s.fund)) s.fund = [];
-                  var ix = s.fund.indexOf(a);
-                  if (ix >= 0) s.fund.splice(ix, 1);
-                  else s.fund.push(a);
-                }
-                s.besucht = Date.now();
+                var lb = letzterBesuch(s);
+                if (!confirm("Besuch „" + besuchKurz(lb) + "“ löschen?")) return;
+                s.besuche.pop();
+                altfelderSpiegeln(s);
                 persist();
                 lerne(spots);
                 render();
                 update();
+                toast("Besuch gelöscht");
               });
-            });
             d.querySelector(".nm").textContent = s.name;
             d.querySelector(".mt").innerHTML =
               ARTEN.map(function (a) {
@@ -9054,10 +9484,11 @@
               }
             });
             box.appendChild(d);
+            var fb = besuchFarbe(letzterBesuch(s));
             var mk = L.circleMarker([s.lat, s.lng], {
               radius: 6,
-              color: "#7ea262",
-              fillColor: "#7ea262",
+              color: fb,
+              fillColor: fb,
               fillOpacity: 0.6,
             }).addTo(spotGruppe);
             mk.on("click", function () {
@@ -9076,6 +9507,7 @@
                 s.st +
                 " · Sst " +
                 s.som +
+                (s.besuche.length ? "<br>" + besucheKurz(s, 2) : "") +
                 '<br><a href="' +
                 navUrl(s) +
                 '" target="_blank" rel="noopener" style="color:#7ea262">Navigation starten</a>',
@@ -9083,12 +9515,14 @@
           });
         }
         // Wetterfaktor je Art zum Zeitpunkt (Regen × Temperatur), damit das Lernen Besuche bei Trockenheit schwächer gewichtet
-        function wetterFaktoren(v) {
-          var out = {};
+        // wt: optional eine auf einen früheren Tag gekürzte Wetterreihe (nachgetragener Besuch)
+        function wetterFaktoren(v, wt) {
+          var out = {},
+            w = wt === undefined ? wetter : wt;
           ARTEN.forEach(function (a) {
-            var tf = wetter ? tempFaktor(a, wetter.tmin, wetter.tmax).f : 1;
-            var rf = wetter
-              ? regenFaktorArt(a, v, wetter, hoehePunkt)
+            var tf = w ? tempFaktor(a, w.tmin, w.tmax).f : 1;
+            var rf = w
+              ? regenFaktorArt(a, v, w, hoehePunkt)
               : reglerHand
                 ? regenFaktorArt(a, v, null, hoehePunkt)
                 : 0.7;
@@ -9159,51 +9593,12 @@
           var rd = new FileReader();
           rd.onload = function () {
             try {
-              var gj = JSON.parse(rd.result),
-                n = 0;
-              (gj.features || []).forEach(function (ft) {
-                var c = ft.geometry && ft.geometry.coordinates,
-                  pr = ft.properties || {};
-                if (!c) return;
-                var dub = spots.find(function (sp) {
-                  return map.distance(L.latLng(sp.lat, sp.lng), L.latLng(c[1], c[0])) < 25;
-                });
-                if (dub) {
-                  if (Array.isArray(pr.fund)) {
-                    dub.fund = Array.isArray(dub.fund) ? dub.fund : [];
-                    pr.fund.forEach(function (a) {
-                      if (dub.fund.indexOf(a) < 0) dub.fund.push(a);
-                    });
-                    if (pr.besucht && (!dub.besucht || pr.besucht > dub.besucht)) dub.besucht = pr.besucht;
-                  }
-                  if (pr.fingerprobe && !dub.finger) dub.finger = pr.fingerprobe;
-                  if (pr.notiz && !dub.notiz) dub.notiz = pr.notiz;
-                  return;
-                }
-                spots.push({
-                  name: pr.name || "Importiert",
-                  lat: c[1],
-                  lng: c[0],
-                  pf: pr.pfifferling || 0,
-                  st: pr.fichtensteinpilz || 0,
-                  som: pr.sommersteinpilz || 0,
-                  v: pr.merkmale || readForm(),
-                  fund: pr.fund === undefined ? null : pr.fund,
-                  besucht: pr.besucht || null,
-                  quelle: pr.quelle || "import",
-                  wf: pr.wetterfaktor || null,
-                  notiz: pr.notiz || "",
-                  finger: pr.fingerprobe || null,
-                  fundAlter: pr.fundalter || null,
-                  ts: Date.now(),
-                });
-                n++;
-              });
+              var erg = stellenImport(spots, JSON.parse(rd.result), readForm);
               persist();
               lerne(spots);
               render();
               update();
-              toast(n + " Stelle(n) importiert.");
+              toast(erg.stellen + " Stelle(n), " + erg.besuche + " Besuch(e) importiert.");
             } catch (e) {
               toast("Datei nicht lesbar.");
             }
@@ -9216,29 +9611,7 @@
             toast("Noch keine Stellen.");
             return;
           }
-          var gj = {
-            type: "FeatureCollection",
-            features: spots.map(function (s) {
-              return {
-                type: "Feature",
-                geometry: { type: "Point", coordinates: [s.lng, s.lat] },
-                properties: {
-                  name: s.name,
-                  pfifferling: s.pf,
-                  fichtensteinpilz: s.st,
-                  sommersteinpilz: s.som,
-                  merkmale: s.v,
-                  fund: s.fund,
-                  besucht: s.besucht || null,
-                  quelle: s.quelle || "manuell",
-                  wetterfaktor: s.wf || null,
-                  notiz: s.notiz || null,
-                  fingerprobe: s.finger || null,
-                  fundalter: s.fundAlter || null,
-                },
-              };
-            }),
-          };
+          var gj = stellenGeojson(spots);
           var a = document.createElement("a");
           a.href = URL.createObjectURL(
             new Blob([JSON.stringify(gj, null, 2)], { type: "application/geo+json" }),

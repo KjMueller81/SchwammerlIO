@@ -8,7 +8,7 @@ Bewertet Waldstandorte für **Pfifferling (pf)**, **Fichtensteinpilz (st)** und 
 aus Geodaten (Baumart, Boden, Kronendichte, Gelände) und gemessenem Wetter. Nutzer: ein Sammler,
 Bedienung meist am iPhone im Wald, Auswertung am Windows-Rechner.
 
-Stand dieser Datei: v2026-09-26.4. Die Entwicklung bis hierhin lief in einem claude.ai-Chat.
+Stand dieser Datei: v2026-09-26.5. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
 
 ---
 
@@ -40,6 +40,10 @@ Stand dieser Datei: v2026-09-26.4. Die Entwicklung bis hierhin lief in einem cla
 **Modell**
 - `standortGuete(v, art)` – gewichtetes geometrisches Mittel der Standortfaktoren aus `W` / `GEW`
   (Baum, Boden, Unterwuchs, Lage, Bestand, Struktur), mit `lernFaktor` aus den eigenen Funden.
+  Einzelfaktor über `merkmalFaktor`.
+- Unterwuchs `v.unter` ist eine **Liste** (`unterListe` liest auch alte Einzelwerte): `unterFaktor` =
+  Mittelwert der Klassengewichte; Kraut deckelt den Mittelwert auf sein eigenes Gewicht, Brombeere
+  in der Liste → `deckel` ≤ 20. Formular `#f-unter` ist `<select multiple>` (`unterAusForm`, `setzeUnterForm`).
 - `wasserBilanz(tw, et0, hoehe, dichte, alter, tmax)` – Streufeuchte, Speicher `SPEICHER = 25` mm,
   Kronenabfang (`bodenRegen`), temperaturabhängige Verdunstung (`etAnteil`), Höhendehnung.
 - `wirksamerRegen(art, w, …)` – artspezifischer Auslöse-Kern (Verzögerung) × Haltefaktor
@@ -80,6 +84,26 @@ Stand dieser Datei: v2026-09-26.4. Die Entwicklung bis hierhin lief in einem cla
 - Regen-Ebene 3/7/14/30 Tage aus dem Stationsnetz (`zeichneRegenfeld`).
 - Diagnose: Protokoll, `bericht()`, Pin-Fall als JSON (`pinFall`), CSV-Export des Rasters.
 
+**Stellen und Besuche (Datenmodell)**
+- Stelle (`spots[]`, Gerätespeicher `schwammerl:spots`): `name, lat, lng, pf, st, som, v` (Merkmale), `notiz`,
+  `besuche[]`. Die alten Felder `fund`, `besucht`, `finger`, `fundAlter`, `wf` bleiben stehen und spiegeln
+  den letzten Besuch (`altfelderSpiegeln`), damit ältere Stände lesbar bleiben.
+- Besuch: `{ ts, fund: [] (leer = nichts), alter (jung|mittel|alt|gemischt, nur bei Fund), finger
+  (trocken|maessig|feucht), unter: [], bestand, bewertung: {pf,st,som}|null, wetter: {regen7, regen26,
+  streu, tageSeitRegen, temp20}|null, wf: {pf,st,som}|null, nachgetragen }`.
+- `stelleNormal(sp)` wandelt alte Stellen beim Laden/Import einmalig um (nur wenn `fund` ein Array ist,
+  wird daraus ein erster Besuch mit `umgewandelt: true`); idempotent.
+- Popup-Block „Besuch erfassen“ (`besuchBlockHtml`, Entwurf `entwurf` je Pin, Handler `__bz`,
+  `__bzDatum`, `__bzSpeichern`): speichert an eine Stelle im Umkreis 25 m (`stelleBei`) oder legt sie an.
+  Früheres Datum → `wetterBisTag` kürzt die Wetterreihe auf den Tag (≤ 35 Tage, sonst ohne Wetter),
+  `wetterSchnappschuss` bildet die Werte; der Besuch gilt als `nachgetragen`.
+- Lernen (`lerne`): jeder Besuch einzeln. `besuchWert` = 1 bei Zielart, sonst stärkstes `BEGLEIT`-Gewicht
+  (`fundGewicht`), sonst 0. `besuchGewicht`: Fund 1, Leerfund nach `wf` (mind. 0,1); nachgetragen ohne
+  Schnappschuss × 0,5. Unterwuchs/Bestand kommen vom Besuch, übrige Merkmale von der Stelle.
+- GeoJSON: `stellenGeojson` (alte Felder + `besuche`), `stellenImport` (Stellen < 25 m zusammenführen,
+  Besuche mit gleichem Zeitstempel ±5 Min. = Dublette; alte Exporte ohne `besuche` über `stelleNormal`).
+- Markerfarbe nach letztem Besuch (`besuchFarbe`): gold Zielart, braun nur Zeiger, grau nichts, grün unbesucht.
+
 ---
 
 ## Bekannte Fallstricke (alle schon einmal passiert)
@@ -93,6 +117,10 @@ Stand dieser Datei: v2026-09-26.4. Die Entwicklung bis hierhin lief in einem cla
 - **Implizite Globals** brechen im strikten Modus nur bei bestimmten Daten – immer `var` setzen.
 - Große Schleifen im Überblick: keine `map.distance` pro Tag und Zelle (→ `kmSchnell`, Gewichte je Zelle einmal).
 - Popups/Formulare am iPhone: kein `prompt()` für neue Funktionen.
+- **Knöpfe im Pin-Popup, die den Inhalt neu zeichnen,** brauchen `event.stopPropagation()` im `onclick`.
+  Sonst ist der Knopf beim Kartenklick schon aus dem DOM gelöst, Leaflet hält ihn für einen Kartenklick
+  und schließt das Popup (am Rechner setzt der nächste Klick sogar einen neuen Pin). Neu zeichnen über
+  `pinInhalt()` – hält Scrollstand und begrenzt die Höhe auf die sichtbare Karte.
 
 ---
 
