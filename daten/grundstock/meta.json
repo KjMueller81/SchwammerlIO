@@ -1,0 +1,143 @@
+{
+ "version": 1,
+ "stand": "2026-09-25",
+ "raster": {
+  "latN": 49.03528659719727,
+  "latS": 47.23911340280273,
+  "lngW": 10.229847806943564,
+  "lngE": 12.921352193056435,
+  "NX": 1333,
+  "NY": 1333,
+  "dLat": 0.0013474667624865254,
+  "dLng": 0.0020191330728528667,
+  "zelle_m": 150,
+  "mitte": [
+   48.1372,
+   11.5756
+  ],
+  "radius_m": 100000
+ },
+ "dateien": {
+  "grundlage.png": {
+   "R": "Baumart-Code (0 = kein Wald)",
+   "G": "Boden-Code (0 = unbekannt)",
+   "B": "Lage-Code"
+  },
+  "hoehe.png": {
+   "R": "Höhe in m = R·12",
+   "G": "Kronendichte % in 5er-Stufen (255 = unbekannt)",
+   "B": "frei (0)"
+  }
+ },
+ "codes": {
+  "baum": [
+   {
+    "code": 1,
+    "art": "Fichte",
+    "wert": "fichte"
+   },
+   {
+    "code": 2,
+    "art": "Kiefer",
+    "wert": "kiefer"
+   },
+   {
+    "code": 3,
+    "art": "Douglasie",
+    "wert": "fichte"
+   },
+   {
+    "code": 4,
+    "art": "Tanne",
+    "wert": "fichte"
+   },
+   {
+    "code": 5,
+    "art": "Lärche",
+    "wert": "fichte"
+   },
+   {
+    "code": 6,
+    "art": "Buche",
+    "wert": "buche"
+   },
+   {
+    "code": 7,
+    "art": "Eiche",
+    "wert": "buche"
+   },
+   {
+    "code": 8,
+    "art": "Erle",
+    "wert": "laub_jung"
+   },
+   {
+    "code": 9,
+    "art": "Birke",
+    "wert": "laub_jung"
+   },
+   {
+    "code": 10,
+    "art": "sonst. Laub, langlebig",
+    "wert": "buche"
+   },
+   {
+    "code": 11,
+    "art": "sonst. Laub, kurzlebig",
+    "wert": "laub_jung"
+   }
+  ],
+  "boden": {
+   "sauer": 1,
+   "neutral": 2,
+   "kalk": 3,
+   "moor": 4
+  },
+  "lage": {
+   "eben": 0,
+   "nord": 1,
+   "sued": 2,
+   "ost": 3,
+   "west": 4
+  }
+ },
+ "quellen": [
+  {
+   "daten": "Baumarten",
+   "quelle": "Thünen-Institut, Dominant_Species_Class (Sentinel 2017/18)",
+   "lizenz": "CC BY 4.0"
+  },
+  {
+   "daten": "Boden",
+   "quelle": "Bayerisches Landesamt für Umwelt, ÜBK25 (Kartiereinheiten)",
+   "lizenz": "CC BY 4.0"
+  },
+  {
+   "daten": "Höhe",
+   "quelle": "AWS Terrain Tiles (Mapzen), u. a. SRTM, EU-DEM (Copernicus)",
+   "lizenz": "Namensnennung der Quellen"
+  },
+  {
+   "daten": "Kronendichte",
+   "quelle": "Copernicus HRL Tree Cover Density 2018 (EEA)",
+   "lizenz": "frei, Quellenangabe"
+  }
+ ],
+ "statistik": {
+  "waldZellen": 483649,
+  "bodenBekanntWaldProzent": 97.4,
+  "bodenFarbenGedeutet": 148,
+  "punktabfragenBoden": 453,
+  "lageWald": {
+   "sued": 92847,
+   "eben": 53677,
+   "nord": 134181,
+   "ost": 99407,
+   "west": 103537
+  },
+  "bytes": {
+   "grundlage.png": 1190550,
+   "hoehe.png": 1459627
+  }
+ }
+}

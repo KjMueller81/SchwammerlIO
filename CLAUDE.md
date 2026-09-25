@@ -35,6 +35,32 @@ Stand dieser Datei: v2026-09-26.12. Die Entwicklung bis v2026-09-26.4 lief in ei
 
 ---
 
+## Schichten der Rechnung (Architektur-Umbau ab v2026-09-26.13)
+
+Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funktion (`endwert`) für Schicht 4 und 5.
+
+| Schicht | Inhalt | ändert sich | woher |
+|---|---|---|---|
+| 1 Grundlage | Waldmaske, Baumart, Boden, Höhe, Hangrichtung, Kronendichte | Monate–Jahre | Grundstock-Dateien `daten/grundstock/` |
+| 2 Standortgüte | je Pixel und Pilzart, Unterwuchs neutral | nur mit den Modellgewichten | beim App-Start aus Schicht 1 |
+| 3 Wetterlage | Wetterfaktoren je Wetterpunkt, Art und Tag (heute … +3), Regen-Ensemble je Punkt | 1–2× täglich | beim Start aus `wetter.json` (nur Rohreihen) |
+| 4 Anzeige | Bewertung, Schwelle, Tag, Art, Darstellung, Ausschnitt | bei jeder Bedienung | nur Rechnen und Zeichnen, **keine Netzabfrage** |
+| 5 Pin | wie bisher live | je Pin | Live-Abrufe |
+
+### Grundstock (Schicht 1)
+- `werkzeuge/grundstock.js` (Node, `cd werkzeuge && npm install && node grundstock.js`, ≈ 1–2 min, Abrufe werden in
+  `werkzeuge/.cache/` zwischengespeichert). Nutzt über `werkzeuge/app.js` dieselben Tabellen/Funktionen wie die App
+  (`BAUM_FARBEN`, `naechsteFarbe`, `bodenDeuten`, `lageAusHoehen`).
+- Gebiet München ±100 km, Raster 150 m (1333 × 1333, gleiche Gradschritte). Ablage `daten/grundstock/`:
+  `grundlage.png` (R Baumart-Code, G Boden-Code, B Lage-Code), `hoehe.png` (R Höhe/12 m, G Kronendichte in 5-%-Stufen,
+  nur im Wald, 255 = unbekannt), `meta.json` (Raster, Stand, Codes, Quellen, Lizenzen, Statistik). ≈ 2,6 MB.
+- Baumart: Thünen bei 50 m, Wald ab 4 von 9 Teilpunkten, häufigste Art. Boden: LfU bei 30 m (ScaleHint!), Zellmitte,
+  Farben per GetFeatureInfo gedeutet (3 Stellen je Farbe, Mehrheit), seltene Farben → nächste bekannte (< 36).
+  Höhe: AWS Terrain Tiles z11. Hangrichtung: `lageAusHoehen` mit Nachbarn ±150 m auf 200 m hochgerechnet, keine
+  Senke. Kronendichte: Copernicus HRL 2018 roh (`format=bsq`), Mittel aus 3 × 3 Teilpunkten.
+- **Neu rechnen**, wenn: eine Quelle einen neuen Stand hat (Baumartenkarte, ÜBK25, HRL-Jahrgang), sich Klassen/Codes
+  oder `bodenDeuten`/`lageAusHoehen` ändern, oder das Gebiet wachsen soll. Danach `meta.json`-Stand prüfen, committen.
+
 ## Architektur (Funktionen in index.html)
 
 **Modell**
@@ -203,6 +229,10 @@ Stand dieser Datei: v2026-09-26.12. Die Entwicklung bis v2026-09-26.4 lief in ei
   und leere erst danach verwirft, verliert nahe Stationen. Im Ebersberger Forst fehlte dem Überblick so
   Ebersberg-Halbing (7 km, dominierendes Gewicht) → Zelle 56 % Wetter statt 36 % am Pin. Immer „die nächsten
   N mit Daten“ und dichte Suchfelder (30 km).
+- **Copernicus-Kronendichte (ImageServer):** `identify` braucht die Koordinaten **mit** `spatialReference` im Punkt;
+  der Parameter `sr=4326` wird ignoriert → „NoData“ (so lief der Pin bis v2026-09-26.12 immer ohne Kronendichte).
+  `exportImage` hält die Pixel in Grad quadratisch und dehnt den Ausschnitt → Werte über `extent` der Antwort
+  zuordnen, nicht über die Anfrage. Rohwerte nur mit `format=bsq` (erst Daten, dann Maske), PNG ist eingefärbt.
 - **Interne Leaflet-Funktionen:** `mdZu()` ruft nach dem Schließen einer Mehrfach-Liste `popup._updateLayout()`
   und `popup._updatePosition()` auf, damit das Popup ohne Neuzeichnen schrumpft. Beides ist nicht öffentliche
   Leaflet-API (1.9.4) und kann bei einem Leaflet-Update wegfallen oder sich ändern – dann bleibt unten im

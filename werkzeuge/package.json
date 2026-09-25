@@ -1,0 +1,9 @@
+{
+  "name": "schwammerl-werkzeuge",
+  "private": true,
+  "description": "Grundstock- und Wetterlauf für die Schwammerl-Karte (Node)",
+  "type": "commonjs",
+  "dependencies": {
+    "pngjs": "^7.0.0"
+  }
+}
