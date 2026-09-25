@@ -1864,7 +1864,7 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-26.13";
+        var VERSION = "2026-09-26.14";
         // Radar nur als Kartenebene; in der Bewertung zu unzuverlässig (gelernte Farbskala, leere Bilder)
         var RADAR_IM_MODELL = false;
         var LOG = [];
@@ -2152,7 +2152,7 @@
           var u =
             TCD_IDENT +
             "?f=json&geometryType=esriGeometryPoint&sr=4326&returnGeometry=false&geometry=" +
-            encodeURIComponent(JSON.stringify({ x: ll.lng, y: ll.lat }));
+            encodeURIComponent(JSON.stringify({ x: ll.lng, y: ll.lat, spatialReference: { wkid: 4326 } }));
           var res = await fetch(u);
           if (!res.ok) throw new Error(res.status);
           var j = await res.json(),
@@ -2568,6 +2568,23 @@
                 "Ohne Wetter kein Idealwert (≤ 80)",
                 function () {
                   return bewerte(V(), null, 600, undefined, 85).st <= 80;
+                },
+              ],
+              [
+                "Überblick: Nordhang für Steinpilz nicht schlechter als eben",
+                function () {
+                  var meta = {
+                      raster: { NX: 2, NY: 1 },
+                      codes: { baum: [{ wert: "fichte" }], boden: { sauer: 1 }, lage: { eben: 0, nord: 1 } },
+                    },
+                    g = {
+                      baum: Uint8Array.of(1, 1),
+                      boden: Uint8Array.of(1, 1),
+                      lage: Uint8Array.of(0, 1),
+                      dichte: Uint8Array.of(85, 85),
+                    },
+                    sgF = standortFeldBauen(g, meta);
+                  return sgF.st[1] >= sgF.st[0];
                 },
               ],
               [
@@ -3855,13 +3872,16 @@
           lernAktiv = aktiv !== false;
         }
         // Schicht 2: Standortgüte je Grundstock-Pixel und Art (0–100), 255 = kein Wald, 254 = Boden unbekannt.
-        // Wie im bisherigen Überblick: Lage eben, Struktur innen, Bestand mittel, Unterwuchs neutral.
+        // Hangrichtung aus dem Grundstock (Nord/Süd/Ost/West/eben, keine Senke), Fichte mit < 80 % Kronendichte gilt
+        // wie am Pin als „Fichte, licht“. Struktur innen, Bestand mittel, Unterwuchs neutral.
         function standortFeldBauen(grund, meta) {
           var N = meta.raster.NX * meta.raster.NY,
             out = { pf: new Uint8Array(N), st: new Uint8Array(N), som: new Uint8Array(N) },
             bodenName = {},
+            lageName = {},
             cache = {};
           for (var bn in meta.codes.boden) bodenName[meta.codes.boden[bn]] = bn;
+          for (var ln in meta.codes.lage) lageName[meta.codes.lage[ln]] = ln;
           for (var q = 0; q < N; q++) {
             var bc = grund.baum[q],
               bo = grund.boden[q];
@@ -3873,15 +3893,18 @@
               out.pf[q] = out.st[q] = out.som[q] = 254;
               continue;
             }
-            var key = bc * 8 + bo,
+            var licht = grund.dichte && grund.dichte[q] < 80 ? 1 : 0,
+              lc = grund.lage ? grund.lage[q] : 0,
+              key = ((bc * 8 + bo) * 8 + lc) * 2 + licht,
               c = cache[key];
             if (!c) {
+              var bw = meta.codes.baum[bc - 1].wert;
               var v = {
-                baum: meta.codes.baum[bc - 1].wert,
+                baum: bw === "fichte" && licht ? "fichte_licht" : bw,
                 alter: "mittel",
                 boden: bodenName[bo],
                 unter: UNTER_FERN,
-                lage: "eben",
+                lage: lageName[lc] || "eben",
                 rand: "innen",
               };
               c = cache[key] = ARTEN.map(function (a) {
@@ -3898,7 +3921,8 @@
         // à 250 m über die Waldhöhen seiner Umgebung (Alpen!), je Stufe für heute … +3 und jede Art: Regenfaktor
         // (Ensemble-Mitte, Min, Max) und Temperaturfaktor – dieselbe Rechnung wie am Pin (wetterFaktorenArt).
         var WF_STUFE = 250,
-          WF_WERTE = 4; // rf, rfMin, rfMax, tf
+          WF_WERTE = 4, // rf, rfMin, rfMax, tf
+          WF_DICHTE = [60, 85, 100]; // Kronendichte-Klassen: Zellen interpolieren zwischen den beiden nächsten
         function wetterFeldBauen(wj, grund, meta, melde) {
           var RG = wj.regen,
             OM = wj.om,
@@ -3946,7 +3970,7 @@
             nl[k2] = Math.min(40, (l1 - l0) / WF_STUFE + 1);
             h0[k2] = l0;
             off[k2] = summe;
-            summe += nl[k2] * 4 * ARTEN.length * WF_WERTE;
+            summe += nl[k2] * WF_DICHTE.length * 4 * ARTEN.length * WF_WERTE;
           }
           var werte = new Float32Array(summe),
             fertig = 0,
@@ -3964,14 +3988,15 @@
               for (var t = 1; t <= 35; t++) if (stat[t - 1] >= 0) w.tw[35 - t] = stat[t - 1] / 10;
               for (var tg = 0; tg <= 3; tg++) {
                 var wt = wetterAmTag(w, tg);
-                for (var ai = 0; ai < ARTEN.length; ai++) {
-                  var fk = wetterFaktorenArt(ARTEN[ai], V_WETTER, wt, hl, 85),
-                    o = off[k4] + ((l * 4 + tg) * ARTEN.length + ai) * WF_WERTE;
-                  werte[o] = fk.rf;
-                  werte[o + 1] = Math.min.apply(null, fk.rfEinzel);
-                  werte[o + 2] = Math.max.apply(null, fk.rfEinzel);
-                  werte[o + 3] = fk.tf;
-                }
+                for (var di = 0; di < WF_DICHTE.length; di++)
+                  for (var ai = 0; ai < ARTEN.length; ai++) {
+                    var fk = wetterFaktorenArt(ARTEN[ai], V_WETTER, wt, hl, WF_DICHTE[di]),
+                      o = wfIndex(off[k4], l, di, tg, ai);
+                    werte[o] = fk.rf;
+                    werte[o + 1] = Math.min.apply(null, fk.rfEinzel);
+                    werte[o + 2] = Math.max.apply(null, fk.rfEinzel);
+                    werte[o + 3] = fk.tf;
+                  }
               }
               fertig++;
               if (melde && fertig % 200 === 0) melde(fertig / gesamt);
@@ -3985,6 +4010,9 @@
             werte: werte,
             stand: wj.stand,
           };
+        }
+        function wfIndex(off, l, di, tg, ai) {
+          return off + (((l * WF_DICHTE.length + di) * 4 + tg) * ARTEN.length + ai) * WF_WERTE;
         }
         // Open-Meteo-Reihen bilinear aus dem 0,2°-Raster, Temperatur je Eckpunkt von der Modellhöhe auf h umgerechnet
         function omMischen(OM, daten, lat, lng, h) {
@@ -4058,8 +4086,12 @@
             bodenF: bw ? bf / bw : null,
           };
         }
-        // Wetterfaktoren an einem Ort (Schicht 4): bilinear über 4 Knoten, linear über die Höhenstufen. Nur Rechnen.
-        function wetterAmPixel(WF, lat, lng, h, tg, ai, aus) {
+        // Wetterfaktoren an einem Ort (Schicht 4): bilinear über 4 Knoten, linear über die Höhenstufen und zwischen den
+        // beiden nächsten Kronendichte-Klassen (unbekannt = 85 %). Nur Rechnen.
+        function wetterAmPixel(WF, lat, lng, h, dichte, tg, ai, aus) {
+          var dz = dichte === undefined || dichte === null || dichte > 100 ? 85 : Math.max(60, dichte),
+            da = dz <= 85 ? 0 : 1,
+            dt = dz <= 85 ? (dz - 60) / 25 : (dz - 85) / 15;
           var RG = WF.RG,
             gy = (RG.latN - lat) / RG.schritt,
             gx = (lng - RG.lngW) / RG.schritt,
@@ -4081,9 +4113,15 @@
               la = Math.floor(lf),
               lb = Math.min(n - 1, la + 1),
               t = lf - la,
-              oa = WF.off[k] + ((la * 4 + tg) * ARTEN.length + ai) * WF_WERTE,
-              ob = WF.off[k] + ((lb * 4 + tg) * ARTEN.length + ai) * WF_WERTE;
-            for (var v = 0; v < WF_WERTE; v++) aus[v] += gw * ((1 - t) * W[oa + v] + t * W[ob + v]);
+              oaa = wfIndex(WF.off[k], la, da, tg, ai),
+              oab = wfIndex(WF.off[k], la, da + 1, tg, ai),
+              oba = wfIndex(WF.off[k], lb, da, tg, ai),
+              obb = wfIndex(WF.off[k], lb, da + 1, tg, ai);
+            for (var v = 0; v < WF_WERTE; v++)
+              aus[v] +=
+                gw *
+                ((1 - t) * ((1 - dt) * W[oaa + v] + dt * W[oab + v]) +
+                  t * ((1 - dt) * W[oba + v] + dt * W[obb + v]));
             ws += gw;
           }
           if (!ws) return false;
@@ -5510,7 +5548,10 @@
                       (CZ.FS.baum[qT] || "Wald") +
                       ", " +
                       CZ.FS.boden[qT] +
-                      ", eben, innen, Unterwuchs neutral.",
+                      ", " +
+                      (CZ.FS.lage ? LG[CZ.FS.lage[qT]] : "eben") +
+                      (CZ.D && CZ.D[qT] <= 100 ? ", Kronen " + CZ.D[qT] + " %" : "") +
+                      ", innen, Unterwuchs neutral.",
               );
             }
           } else if (bildOverlay && rasterCache && rasterCache.grob) {
@@ -7646,7 +7687,8 @@
           if (C.WF) {
             var lat = C.latN - ((fy + 0.5) / C.FY) * (C.latN - C.latS),
               lng = C.lngW + ((fx + 0.5) / C.FX) * (C.lngE - C.lngW);
-            return wetterAmPixel(C.WF, lat, lng, C.H[fy * C.FX + fx], tg, ARTEN.indexOf(a), WP_AUS);
+            var qq = fy * C.FX + fx;
+            return wetterAmPixel(C.WF, lat, lng, C.H[qq], C.D ? C.D[qq] : 85, tg, ARTEN.indexOf(a), WP_AUS);
           }
           var g = C.GW[tg];
           WP_AUS[0] = feldAn(C, g.rf[a], fy, fx);
@@ -7707,10 +7749,12 @@
           return best;
         }
         // Erwartete Bewertung am Feinpixel: dieselbe Endformel wie am Pin (endwert inkl. Deckel), mit der Standortgüte
-        // des Pixels (Lage eben, Struktur innen, Unterwuchs neutral) und Regen-/Temperaturfaktor aus dem Wetterfeld
+        // des Pixels (Hangrichtung aus dem Grundstock bzw. eben im Live-Weg, Struktur innen, Unterwuchs neutral)
+        // und Regen-/Temperaturfaktor aus dem Wetterfeld
         var V_PIXEL = {};
         function bewertungAn(C, tg, a, q, fy, fx, rfFeld) {
-          var key = C.FS.bwert[q] + "|" + C.FS.boden[q],
+          var lage = C.FS.lage ? C.FS.lage[q] : "eben",
+            key = C.FS.bwert[q] + "|" + C.FS.boden[q] + "|" + lage,
             v = V_PIXEL[key];
           if (!v || v.saison !== C.saison)
             v = V_PIXEL[key] = {
@@ -7718,7 +7762,7 @@
               alter: "mittel",
               boden: C.FS.boden[q],
               unter: UNTER_FERN,
-              lage: "eben",
+              lage: lage,
               rand: "innen",
               saison: C.saison,
             };
@@ -7942,7 +7986,7 @@
             : modus === "standort"
               ? "Standortgüte ohne Wetter: Baumart und Boden aus den Karten, Unterwuchs neutral; Farben relativ zum Ausschnitt (10.–90. Perzentil). Etwa 100–200 m Auflösung."
               : "Farbe = erwartete Bewertung (Wetterpotenzial × Standortgüte mit denselben Deckeln wie am Pin), " +
-                "Lage eben, Struktur innen, Unterwuchs neutral. " +
+                "Hangrichtung und Kronendichte aus dem Grundstock, Struktur innen, Unterwuchs neutral. " +
                 "Der Pin ergänzt Hang, Rand, Unterwuchs und Kronendichte.";
         }
         // Stichproben: echte Pin-Rechnung an bis zu 60 Waldpunkten
@@ -9704,8 +9748,10 @@
             FX = Math.floor((j1 - j0) / s),
             n = FX * FY,
             codes = daten.meta.codes,
-            bodenName = {};
+            bodenName = {},
+            lageName = {};
           for (var bn in codes.boden) bodenName[codes.boden[bn]] = bn;
+          for (var ln in codes.lage) lageName[codes.lage[ln]] = ln;
           var FS = {
               pf: new Uint8Array(n),
               st: new Uint8Array(n),
@@ -9713,8 +9759,10 @@
               baum: new Array(n),
               bwert: new Array(n),
               boden: new Array(n),
+              lage: new Array(n),
             },
             H = new Float32Array(n),
+            D = new Uint8Array(n),
             unbekannt = 0;
           for (var y = 0; y < FY; y++)
             for (var x = 0; x < FX; x++) {
@@ -9725,9 +9773,13 @@
               FS.st[k] = daten.SG.st[q];
               FS.som[k] = daten.SG.som[q];
               H[k] = daten.grund.hoehe[q] * 12;
+              D[k] = daten.grund.dichte[q];
               if (bc) {
-                FS.baum[k] = codes.baum[bc - 1].art;
-                FS.bwert[k] = codes.baum[bc - 1].wert;
+                var bwk = codes.baum[bc - 1].wert,
+                  licht = bwk === "fichte" && D[k] < 80; // wie am Pin
+                FS.baum[k] = codes.baum[bc - 1].art + (licht ? ", licht" : "");
+                FS.bwert[k] = licht ? "fichte_licht" : bwk;
+                FS.lage[k] = lageName[daten.grund.lage[q]] || "eben";
                 FS.boden[k] = bodenName[daten.grund.boden[q]] || null;
                 if (FS.pf[k] === 254) unbekannt++;
               }
@@ -9747,7 +9799,7 @@
             zellM: 150 * s,
             hinweise: [
               "Grundstock " + daten.meta.stand + " (" + 150 * s + " m)",
-              'Lage „eben" und Struktur „innen" angenommen',
+              "Hangrichtung und Kronendichte aus dem Grundstock, Struktur „innen“ angenommen",
               "Unterwuchs neutral (Mittel aller Klassen)",
               "Tageswetter " +
                 standKurz(daten.wetter.stand) +
@@ -9762,6 +9814,7 @@
             FX: FX,
             FY: FY,
             H: H,
+            D: D,
             WF: daten.WF,
             GW: null,
             saison: form.saison,
