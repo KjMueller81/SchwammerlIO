@@ -432,6 +432,11 @@
         margin: 4px 0;
       }
       .progt th,
+      .progt small.sp {
+        font-size: 0.78em;
+        opacity: 0.8;
+        white-space: nowrap;
+      }
       .progt td {
         text-align: center;
         padding: 2px 0;
@@ -1802,7 +1807,7 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-26.11";
+        var VERSION = "2026-09-26.12";
         // Radar nur als Kartenebene; in der Bewertung zu unzuverlässig (gelernte Farbskala, leere Bilder)
         var RADAR_IM_MODELL = false;
         var LOG = [];
@@ -2353,7 +2358,7 @@
             {},
             { pf: 11, st: 2, som: 2 },
           ],
-          ["Landregen 30 mm vor 9 T, kühl", [[9, 30]], 1.5, 9, 17, 600, {}, { pf: 27, st: 41, som: 4 }],
+          ["Landregen 30 mm vor 9 T, kühl", [[9, 30]], 1.5, 9, 17, 600, {}, { pf: 26, st: 40, som: 4 }],
           [
             "Nasser Herbst, alle 3 T 10 mm",
             [
@@ -2368,7 +2373,7 @@
             15,
             600,
             {},
-            { pf: 39, st: 49, som: 3 },
+            { pf: 38, st: 48, som: 3 },
           ],
           [
             "Schliersee 22.9.: 13 mm vor 13 T, 31 mm vor 5 T",
@@ -2394,10 +2399,10 @@
             25,
             500,
             { baum: "buche", boden: "kalk", saison: "sommer", lage: "sued", unter: "gras" },
-            { pf: 20, st: 2, som: 53 },
+            { pf: 19, st: 2, som: 50 },
           ],
           ["4 Wochen trocken", [], 3, 11, 22, 600, {}, { pf: 4, st: 4, som: 1 }],
-        ]; // Sollwerte ab v2026-09-26.1 (Regensumme + 20-Tage-Temperatur)
+        ]; // Sollwerte ab v2026-09-26.12 (Regen-Ensemble ×0,85/1/1,15; vorher v2026-09-26.1)
         function selbsttest() {
           var alt = { fp: fingerprobe, rh: reglerHand, la: lernAktiv },
             z = [],
@@ -2506,6 +2511,35 @@
                 "Ohne Wetter kein Idealwert (≤ 80)",
                 function () {
                   return bewerte(V(), null, 600, undefined, 85).st <= 80;
+                },
+              ],
+              [
+                "Schliersee 22.9. ist der beste Steinpilz-Fall (echte Funde)",
+                function () {
+                  var sch = SELBSTTEST[3],
+                    stS = bewerte(V(sch[6]), mk(sch[1], sch[2], sch[3], sch[4]), sch[5], undefined, 85).st;
+                  return SELBSTTEST.every(function (t, k) {
+                    return (
+                      k === 3 || bewerte(V(t[6]), mk(t[1], t[2], t[3], t[4]), t[5], undefined, 85).st < stS
+                    );
+                  });
+                },
+              ],
+              [
+                "4 Wochen trocken bleibt unter 10 (alle Arten)",
+                function () {
+                  var t = SELBSTTEST[5],
+                    b = bewerte(V(t[6]), mk(t[1], t[2], t[3], t[4]), t[5], undefined, 85);
+                  return b.pf < 10 && b.st < 10 && b.som < 10;
+                },
+              ],
+              [
+                "Spanne umschließt den Wert (min ≤ Wert ≤ max)",
+                function () {
+                  var b = bewerte(V(), W1, 600, undefined, 85);
+                  return ARTEN.every(function (a) {
+                    return b[a + "_min"] <= b[a] && b[a] <= b[a + "_max"];
+                  });
                 },
               ],
               [
@@ -3567,14 +3601,14 @@
               };
             }
             var sg = standortGuete(v, a, ohne);
-            var tf = w ? tempFaktor(a, w.tmin, w.tmax) : { f: 1, text: "kein Wetter" };
+            var fkR = wetterFaktorenArt(a, v, w, hoehe, dichte),
+              tf = { f: fkR.tf, text: w ? fkR.text : "kein Wetter" };
             var wirk = w ? wirksamerRegen(a, w, 0, hoehe, dichte, v.alter) : null;
-            var rf = w
-              ? regenFaktorArt(a, v, w, hoehe, dichte)
-              : reglerHand
-                ? regenFaktorArt(a, v, null, hoehe)
-                : 0.7;
+            var rf = fkR.rf;
             var rfB = !fingerprobe || hoehe !== hoehePunkt ? Math.min(1, rf * bestandFeuchte(v)) : rf;
+            var spanne = fkR.rfEinzel.map(function (r) {
+              return endwert(v, a, r, fkR.tf, hoehe, ohne);
+            });
             var roh = 100 * sg * rfB * tf.f * s[a],
               cap = deckel(v, a, rfB, tf.f);
             out[a] = {
@@ -3582,6 +3616,10 @@
               standort: Math.round(sg * 100) / 100,
               wirksam: wirk === null ? null : Math.round(wirk),
               regen: Math.round(rfB * 100) / 100,
+              regenEinzel: fkR.rfEinzel.map(function (r) {
+                return Math.round(r * 100) / 100;
+              }),
+              spanne: spanne,
               temp: Math.round(tf.f * 100) / 100,
               tempText: tf.text,
               saison: s[a],
@@ -3642,7 +3680,10 @@
           h += zeile("wirksamer Regen", function (x) {
             return x.wirksam === null ? "–" : x.wirksam + " mm";
           });
-          h += zeile("Regenfaktor", function (x) {
+          h += zeile("Regen ×0,85 / 1 / 1,15", function (x) {
+            return x.regenEinzel.join(" / ");
+          });
+          h += zeile("Regenfaktor (Mittel)", function (x) {
             return x.regen;
           });
           h += zeile("Temperatur", function (x) {
@@ -3660,6 +3701,9 @@
           h += zeile("<b>Ergebnis</b>", function (x) {
             return "<b>" + x.ergebnis + "</b>";
           });
+          h += zeile("Einzelwerte", function (x) {
+            return x.spanne.join(" / ");
+          });
           h +=
             '</table><div class="hint">' +
             (rw.st.tempText || "") +
@@ -3675,14 +3719,32 @@
           var roh = 100 * sg * rf * tf * SAISON[v.saison][a];
           return Math.round(Math.min(roh, deckel(v, a, rf, tf, sgVorab === undefined ? undefined : sg)));
         }
+        // Regen-Unsicherheit: Die Stationsinterpolation liegt typisch ±15–20 % daneben. Der Regenfaktor wird deshalb
+        // mit dem Regen der Vergangenheit ×0,85 / ×1 / ×1,15 gerechnet und gemittelt – das glättet Kanten, an denen
+        // die Streu gerade leer oder voll wird (Ebersberger Forst: ±0 → +10 % Regen sprang 36 → 54). Die Vorhersage
+        // bleibt unskaliert. Gilt überall, wo der Regenfaktor gebraucht wird (Pin, Wetterfeld, Stichproben, Lernen).
+        var REGEN_ENSEMBLE = [0.85, 1, 1.15];
+        function regenMitFaktor(w, k) {
+          if (k === 1) return w;
+          var nv = w.vergangen !== undefined ? w.vergangen : w.tw.length,
+            c = {};
+          for (var key in w) c[key] = w[key];
+          c.tw = w.tw.map(function (x, i) {
+            return i < nv ? x * k : x;
+          });
+          return c;
+        }
+        function regenFaktorEnsemble(a, v, w, hoehe, dichte) {
+          var e = REGEN_ENSEMBLE.map(function (k) {
+            return regenFaktorArt(a, v, regenMitFaktor(w, k), hoehe, dichte);
+          });
+          return { rf: (e[0] + e[1] + e[2]) / 3, einzel: e };
+        }
         function wetterFaktorenArt(a, v, w, hoehe, dichte) {
           var tf = w ? tempFaktor(a, w.tmin, w.tmax) : { f: 1, text: null };
           // Ohne Wetterdaten und ohne bewusste Handeingabe: Standortgüte allein, Wetterfaktor neutral (0,7)
-          var rf = w
-            ? regenFaktorArt(a, v, w, hoehe, dichte)
-            : reglerHand
-              ? regenFaktorArt(a, v, null, hoehe)
-              : 0.7;
+          var ens = w ? regenFaktorEnsemble(a, v, w, hoehe, dichte) : null;
+          var rf = ens ? ens.rf : reglerHand ? regenFaktorArt(a, v, null, hoehe) : 0.7;
           var tff = tf.f,
             txt = tf.text;
           // Ausschluss Steinpilz: 5-Tage-Mittel > 17,5 °C bei < 1 mm Regen/Tag — in 10 Jahren Bielefeld kein einziger Fund
@@ -3707,7 +3769,7 @@
                 " mm) — dabei in 10 Jahren Beobachtung kein Fund";
             }
           }
-          return { rf: rf, tf: tff, text: txt };
+          return { rf: rf, tf: tff, text: txt, rfEinzel: ens ? ens.einzel : [rf, rf, rf] };
         }
         // Wetterpotenzial eines Orts für Art a: Regen- und Temperaturfaktor wie am Pin (wetterFaktorenArt), für einen
         // mittelalten Bestand mit fester Kronendichte 85 % (Ortsfestigkeit). pot = was ein idealer Standort hier hätte.
@@ -3723,6 +3785,8 @@
           var fk = wetterFaktorenArt(a, V_WETTER, w, hoehe, 85);
           return {
             rf: fk.rf,
+            rfMin: Math.min.apply(null, fk.rfEinzel),
+            rfMax: Math.max.apply(null, fk.rfEinzel),
             tf: fk.tf,
             pot: Math.round(100 * Math.min(1, fk.rf) * fk.tf * SAISON[saison][a]),
           };
@@ -3734,6 +3798,12 @@
             var fk = wetterFaktorenArt(a, v, w, hoehe, dichte);
             out[a] = endwert(v, a, fk.rf, fk.tf, hoehe, ohne);
             out[a + "_temp"] = fk.text;
+            // Spanne: dieselbe Endformel mit dem Regenfaktor der Einzelrechnungen (Regen ×0,85 … ×1,15)
+            var ew = fk.rfEinzel.map(function (r) {
+              return endwert(v, a, r, fk.tf, hoehe, ohne);
+            });
+            out[a + "_min"] = Math.min(out[a], ew[0], ew[1], ew[2]);
+            out[a + "_max"] = Math.max(out[a], ew[0], ew[1], ew[2]);
           });
           return out;
         }
@@ -3750,6 +3820,8 @@
             f: { tw: [], et0: [], tmin: [], tmax: [], pp: [] },
             hoehe: w.hoehe,
             unsicher: w.unsicher,
+            bodenF: w.bodenF,
+            vergangen: w.vergangen !== undefined ? w.vergangen : w.tw.length, // Vorhersage nicht im Ensemble skalieren
           };
         }
         // Bewertung je Tag 0..7; liefert Reihe und Empfehlung
@@ -4215,7 +4287,10 @@
           ARTEN.forEach(function (a) {
             h += '<tr><td class="a">' + ARTKURZ[a] + "</td>";
             reihe.forEach(function (x) {
-              var v = x.r[a];
+              var v = x.r[a],
+                lo = x.r[a + "_min"],
+                hi = x.r[a + "_max"];
+              // heute mit Spanne aus der Regen-Unsicherheit (Regen ×0,85 … ×1,15), z. B. „34 (28–43)“
               h +=
                 "<td" +
                 (x.t > 3 ? ' class="u"' : "") +
@@ -4223,6 +4298,9 @@
                 farbeStetig(v) +
                 '">' +
                 v +
+                (x.t === 0 && lo !== undefined && hi > lo
+                  ? ' <small class="sp">(' + lo + "–" + hi + ")</small>"
+                  : "") +
                 "</td>";
             });
             h += "</tr>";
@@ -5117,6 +5195,12 @@
                         ? "Wetter nicht verfügbar · Standort " + wT.sg + " %"
                         : "Bewertung ≈ " +
                           Math.round(wT.prod) +
+                          (function () {
+                            var tg = CZ.tagIdx || 0,
+                              lo = bewertungAn(CZ, tg, wT.a, qT, fyT, fxT, "rfMin"),
+                              hi = bewertungAn(CZ, tg, wT.a, qT, fyT, fxT, "rfMax");
+                            return hi > lo ? " (Spanne " + lo + "–" + hi + ")" : "";
+                          })() +
                           " (Wetter " +
                           Math.round(wT.pot) +
                           " %, Standort " +
@@ -7305,7 +7389,7 @@
         // Erwartete Bewertung am Feinpixel: dieselbe Endformel wie am Pin (endwert inkl. Deckel), mit der Standortgüte
         // des Pixels (Lage eben, Struktur innen, Unterwuchs neutral) und Regen-/Temperaturfaktor aus dem Wetterfeld
         var V_PIXEL = {};
-        function bewertungAn(C, tg, a, q, fy, fx) {
+        function bewertungAn(C, tg, a, q, fy, fx, rfFeld) {
           var key = C.FS.bwert[q] + "|" + C.FS.boden[q],
             v = V_PIXEL[key];
           if (!v || v.saison !== C.saison)
@@ -7318,7 +7402,7 @@
               rand: "innen",
               saison: C.saison,
             };
-          var rf = feldAn(C, C.GW[tg].rf[a], fy, fx),
+          var rf = feldAn(C, (rfFeld ? C.GW[tg][rfFeld] : C.GW[tg].rf)[a], fy, fx),
             tf = feldAn(C, C.GW[tg].tf[a], fy, fx);
           return endwert(v, a, rf, tf, undefined, undefined, C.FS[a][q] / 100);
         }
@@ -9280,7 +9364,7 @@
                 WFx[a] = WW.map(function (w, k) {
                   var wt = wetterAmTag(w, tg),
                     h = WH ? WH[k] : null;
-                  return regenFaktorArt(a, v0, wt, h, 85) * tempFaktor(a, wt.tmin, wt.tmax).f;
+                  return regenFaktorEnsemble(a, v0, wt, h, 85).rf * tempFaktor(a, wt.tmin, wt.tmax).f;
                 });
               });
               WFT.push(WFx);
@@ -9827,6 +9911,16 @@
                   st: new Float32Array(GN * GN),
                   som: new Float32Array(GN * GN),
                 },
+                rfMin: {
+                  pf: new Float32Array(GN * GN),
+                  st: new Float32Array(GN * GN),
+                  som: new Float32Array(GN * GN),
+                },
+                rfMax: {
+                  pf: new Float32Array(GN * GN),
+                  st: new Float32Array(GN * GN),
+                  som: new Float32Array(GN * GN),
+                },
                 tf: {
                   pf: new Float32Array(GN * GN),
                   st: new Float32Array(GN * GN),
@@ -9868,6 +9962,8 @@
                     GW[tgG][aG][gy * GN + gx] = wpG.pot;
                     GW[tgG].rf[aG][gy * GN + gx] = wpG.rf;
                     GW[tgG].tf[aG][gy * GN + gx] = wpG.tf;
+                    GW[tgG].rfMin[aG][gy * GN + gx] = wpG.rfMin;
+                    GW[tgG].rfMax[aG][gy * GN + gx] = wpG.rfMax;
                   }
                 }
               }
@@ -10413,7 +10509,7 @@
           ARTEN.forEach(function (a) {
             var tf = w ? tempFaktor(a, w.tmin, w.tmax).f : 1;
             var rf = w
-              ? regenFaktorArt(a, v, w, hoehePunkt)
+              ? regenFaktorEnsemble(a, v, w, hoehePunkt).rf
               : reglerHand
                 ? regenFaktorArt(a, v, null, hoehePunkt)
                 : 0.7;

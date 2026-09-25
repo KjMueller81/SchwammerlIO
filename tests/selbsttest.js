@@ -373,6 +373,44 @@ pruefe("(e) Wetterfeld und Pin: gleiches Wetterpotenzial und gleiche Bewertung",
   });
 });
 
+// (g) Regen-Ensemble glättet die Streu-Kante: Wetterreihen des Ebersberger Pins (Diagnosebericht v2026-09-26.7),
+// Regen der Vergangenheit −20 … +20 % → Wetterpotenzial Steinpilz ohne Sprung über 12 Punkte je 10 %
+pruefe("(g) Regen ±10 % ändert das Wetterpotenzial höchstens um 12 (Ebersberger Forst)", () => {
+  const pinW = {
+    tw: [
+      17.6, 3.5, 0, 0, 1.2, 0.5, 0, 16.1, 1, 0.1, 0.5, 0.1, 0, 0, 0, 3.6, 0, 0, 0, 10.9, 0, 0.7, 0, 9.2, 4.4,
+      0, 15.3, 2, 0, 0, 0.5, 2.1, 0, 0, 0.3, 0,
+    ],
+    et0: [
+      1.5, 2.8, 3.5, 4.2, 1.3, 3.4, 4.2, 2.7, 3.5, 3.7, 3.5, 3.3, 3.4, 3.5, 5.1, 2.3, 3.6, 3.1, 3.9, 0.9, 2.1,
+      1.8, 3.1, 2.1, 1.9, 3.2, 2.2, 2.4, 2.1, 2.8, 3.3, 2.1, 2, 2.5, 1.5, 2.5,
+    ],
+    tmin: [
+      12.7, 11.7, 8.3, 8.6, 13.3, 13.7, 15.6, 15.6, 13.2, 15.2, 16.4, 13.3, 10.5, 13.8, 17.1, 15, 11, 12.5,
+      17.4, 11.9, 9.6, 9.8, 8.8, 11.4, 13.6, 10.7, 13.8, 11.3, 10.2, 7.6, 12, 7.6, 5.5, 2.9, 7.8, 3.8,
+    ],
+    tmax: [
+      20.4, 18.7, 21.7, 23.3, 16.7, 25.6, 29.5, 27.3, 24.1, 26.2, 23.8, 23.5, 24.3, 24.4, 30.6, 22.6, 24.3,
+      27.9, 31.5, 21.3, 16.8, 18.1, 21.6, 22, 20.4, 23.7, 25.8, 18.8, 19, 21.1, 23.4, 15.5, 15.4, 17.4, 15.6,
+      17.9,
+    ],
+    f: {
+      tw: [0, 0, 0, 0, 0, 0, 0.6],
+      et0: [2.9, 2.8, 2.7, 2.4, 2.2, 2.2, 0.7],
+      tmin: [7.4, 9.1, 8.7, 8.8, 6.7, 7.6, 6.3],
+      tmax: [22.3, 22.8, 24.3, 22, 20.6, 18, 14.9],
+    },
+    bodenF: 0.16248,
+    unsicher: 0,
+  };
+  const pot = [0.8, 0.9, 1, 1.1, 1.2].map((f) => {
+    const w = JSON.parse(JSON.stringify(pinW));
+    w.tw = w.tw.map((x) => x * f);
+    return T.wetterPotenzial("st", w, 568, "herbst").pot;
+  });
+  return pot.every((x, i) => i === 0 || (x >= pot[i - 1] && x - pot[i - 1] <= 12));
+});
+
 t.zeilen.forEach((z) => console.log(z));
 console.log("Ergebnis:", t.ok + "/" + t.n + (t.ok === t.n ? " – grün" : " – ABWEICHUNG"));
 process.exit(t.ok === t.n ? 0 : 2);

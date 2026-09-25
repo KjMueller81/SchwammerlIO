@@ -8,7 +8,7 @@ Bewertet Waldstandorte für **Pfifferling (pf)**, **Fichtensteinpilz (st)** und 
 aus Geodaten (Baumart, Boden, Kronendichte, Gelände) und gemessenem Wetter. Nutzer: ein Sammler,
 Bedienung meist am iPhone im Wald, Auswertung am Windows-Rechner.
 
-Stand dieser Datei: v2026-09-26.11. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
+Stand dieser Datei: v2026-09-26.12. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
 
 ---
 
@@ -50,6 +50,13 @@ Stand dieser Datei: v2026-09-26.11. Die Entwicklung bis v2026-09-26.4 lief in ei
   (Streubilanz 60 % + Modell-Bodenfeuchte 40 %). Regen auf feuchte Streu verkürzt die Verzögerung bis 30 %.
 - `summenFaktor(art, tw)` – lange Regensumme: st 26 Tage, pf 35 Tage, som 21 Tage.
 - `regenFaktorArt` – √(Auslöser × Regensumme), gedämpft bei widersprüchlichen Messquellen.
+- **Regen-Ensemble** (`regenFaktorEnsemble`, `REGEN_ENSEMBLE = [0.85, 1, 1.15]`): Der Regenfaktor wird mit dem
+  Regen der Vergangenheit ×0,85 / ×1 / ×1,15 gerechnet und gemittelt; die Vorhersage bleibt unskaliert
+  (`wetterAmTag` merkt die Grenze in `vergangen`). Glättet die Streu-Kante (Ebersberger Forst: Wetterpotenzial
+  bei Regen −20…+20 % vorher 27/32/36/54/70, jetzt 28/34/43/55/64). Gilt überall über `wetterFaktorenArt`
+  (Pin, Rechenweg, Wetterfeld, Stichproben, Lernen). `bewerte` liefert zusätzlich `<art>_min`/`_max` aus den
+  drei Einzelrechnungen; Prognose/Popup zeigen heute „34 (24–50)“, der Rechenweg die Einzelwerte, der
+  Überblick die Mitte und die Spanne im Tipp (`GW[tag].rfMin/rfMax`). Rechenzeit Überblick etwa ×3.
 - `tempFaktor(art, tmin, tmax)` – st: 20-Tage-Mittel, Optimum 13,7 °C; pf: 14-Tage-Mittel; plus Hitze/Frost.
 - `wetterFaktorenArt` – bündelt Regen- und Temperaturfaktor; enthält die **Ausschlussregel Steinpilz**
   (5-Tage-Mittel > 17,5 °C und < 5 mm in 5 Tagen → Temperaturfaktor ≤ 0,15).
@@ -212,6 +219,9 @@ Stand dieser Datei: v2026-09-26.11. Die Entwicklung bis v2026-09-26.4 lief in ei
 - Pilz4You (Potsdam 1988–2019): Steinpilzsaison 3–5 Dekaden zusammenhängend, 120-Tage-Mittel von
   Temperatur/Bodenfeuchte/Niederschlag wichtig – noch nicht umgesetzt (siehe offene Punkte).
 - Martínez-Peña et al. 2012: Steinpilzertrag am höchsten in mittelalten Beständen.
+- Messunsicherheit des Stationsregens: Die Interpolation aus DWD-Stationen (1/(d²+2), 30 km) weicht am Ort
+  typisch ±15–20 % ab (konvektive Schauer, Stationsabstand 7–15 km); daher das Regen-Ensemble ×0,85/1/1,15.
+  Belegt im eigenen Datensatz: Ebersberger Forst, Nachbarstationen 16.9. zwischen 2,9 und 19,2 mm.
 - Erfahrungswissen (schwächer gewichtet): Osthang für Pfifferling, Zeigerpilze Marone, Hexenröhrlinge,
   Fliegenpilz, Pfefferröhrling, Semmelstoppelpilz; stickstoffreiche Krautschicht ungünstig.
 
