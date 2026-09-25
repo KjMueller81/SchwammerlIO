@@ -8,7 +8,7 @@ Bewertet Waldstandorte für **Pfifferling (pf)**, **Fichtensteinpilz (st)** und 
 aus Geodaten (Baumart, Boden, Kronendichte, Gelände) und gemessenem Wetter. Nutzer: ein Sammler,
 Bedienung meist am iPhone im Wald, Auswertung am Windows-Rechner.
 
-Stand dieser Datei: v2026-09-26.9. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
+Stand dieser Datei: v2026-09-26.10. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
 
 ---
 
@@ -93,6 +93,13 @@ Stand dieser Datei: v2026-09-26.9. Die Entwicklung bis v2026-09-26.4 lief in ein
   `bewerteBereich`, 500 m–3 km, Top 5, `#u-list`) → zugeklappt „Merkmale & Wetter anpassen“, „Rechenweg“
   (`#rw-box`), „Anzeige“ (Deckkraft `#r-deck`, Schwelle `#r-min`, Fläche zeigen/löschen).
   Schwelle je Ansicht gemerkt (`SCHWELLE.region` 40, `SCHWELLE.umkreis` 20, `setzeSchwelle`).
+- Schwelle im Region-Feld: Regler „Zeigen ab“ (`#g-min`, 0–80, Schritt 5) über dem Tagesregler. Für den
+  Überblick sind `#g-min` und `#r-min` (Anzeige) derselbe Wert (`setzeRegionSchwelle`), die Umkreis-Suche
+  behält ihren eigenen. Beim Ziehen Zahl sofort, Fläche nach 150 ms neu (`schwelleNeuZeichnen`, ohne
+  Neuberechnung); Kopfzeile `#rg-info` „x Waldpixel ab 40 · Best y“ (`tagInfo`). Bedeutung: „Bewertung“ →
+  erwartete Bewertung, „Standort“ → echte Standortgüte (nicht die Perzentil-Farbskala), „Wetter“ → Regler
+  ausgegraut (`schwelleAktiv`). Regler im Feld 40 px hoch; das Feld ist höchstens Kartenhöhe − 130 px
+  (GPS-Knöpfe bleiben frei) und scrollt sonst innen.
 - Region-Überblick als Feld auf der Karte (`#region`, zugeklappt Knopf `#region-knopf`, `regionOffen`):
   Umkreis-Knöpfe 25/50/100 km und Pilzart-Knöpfe schreiben in versteckte Felder `#g-r`/`#g-art`
   (`knopfGruppe`), Darstellung `#g-modus` („Bewertung“ = Wert `zwei`, „Wetter“, „Standort“),

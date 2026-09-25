@@ -313,6 +313,12 @@ pruefe("(b) Unbekannter Boden fließt nicht in die Standortgüte-Statistik ein",
   );
 });
 
+// (f) Schwelle in „Standort“ gilt für die echte Standortgüte (60 bleibt, 30 fällt weg), nicht für die Farbskala
+pruefe("(f) Schwelle in „Standort“ auf echte Standortgüte", () => {
+  const R = T.zweiRaster(ueberblick(false), "standort", "best", 40);
+  return R.maske[0] === 255 && R.maske[1] === 0 && R.maske[2] === 255 && R.ueber === 1;
+});
+
 // (e) gleicher Wetterdatensatz: Wetterfeld und Pin-Rechnung ergeben dasselbe Wetterpotenzial und – bei gleichen
 // Standortannahmen – dieselbe Bewertung (Pixel „Bewertung“ = endwert wie am Pin, Toleranz 1 für die gerundete Güte)
 pruefe("(e) Wetterfeld und Pin: gleiches Wetterpotenzial und gleiche Bewertung", () => {

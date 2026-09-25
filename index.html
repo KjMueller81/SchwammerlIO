@@ -1001,9 +1001,41 @@
         font-weight: 600;
         color: var(--papier);
       }
-      #tagregler .tr-kopf #tr-info {
+      #rg-schwelle {
+        margin-top: 8px;
+      }
+      #rg-schwelle .tr-kopf {
+        display: flex;
+        justify-content: space-between;
+        font-size: 12.5px;
+      }
+      #rg-schwelle .tr-kopf label {
+        margin: 0;
+        font-size: 12.5px;
+        font-weight: 600;
+        color: var(--papier);
+      }
+      #rg-schwelle.aus {
+        opacity: 0.4;
+      }
+      /* Regler im Region-Feld: 40 px hohe Berührungsfläche für den Daumen */
+      #region input[type="range"] {
+        display: block;
+        width: 100%;
+        height: 40px;
+        margin: -6px 0 -8px;
+        accent-color: var(--moos-hell);
+        cursor: pointer;
+      }
+      .rg-info {
+        flex: 1;
+        margin: 0 6px 0 8px;
+        font-size: 11px;
         color: var(--papier-2);
-        font-size: 11.5px;
+        text-align: right;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
       #tagregler input[type="range"] {
         width: 100%;
@@ -1131,6 +1163,10 @@
         right: 10px;
         padding: 6px 10px 6px;
         font-size: 12.5px;
+        /* nie bis unter die GPS-Knöpfe oben rechts; bei niedriger Karte scrollt das Feld */
+        max-height: calc(100% - 130px);
+        overflow-y: auto;
+        overscroll-behavior: contain;
       }
       .rg-kopf {
         display: flex;
@@ -1316,7 +1352,7 @@
         <button id="region-knopf" class="region-knopf" title="Regionen-Überblick">Region</button>
         <div id="region" style="display: none">
           <div class="rg-kopf">
-            <b>Region</b
+            <b>Region</b><span class="rg-info" id="rg-info"></span
             ><button class="rg-zu" id="rg-zu" title="Einklappen" aria-label="Einklappen">×</button>
           </div>
           <div class="rg-zeile" id="rg-r">
@@ -1335,8 +1371,12 @@
             </select>
             <button class="act" id="g-los">Region bewerten</button>
           </div>
+          <div class="rg-schwelle" id="rg-schwelle">
+            <div class="tr-kopf"><label for="g-min">Zeigen ab</label><span id="g-min-v">40</span></div>
+            <input type="range" id="g-min" min="0" max="80" step="5" value="40" />
+          </div>
           <div id="tagregler" style="display: none">
-            <div class="tr-kopf"><span id="tr-label">Heute</span><span id="tr-info"></span></div>
+            <div class="tr-kopf"><span id="tr-label">Heute</span></div>
             <input
               type="range"
               id="tr-slider"
@@ -1761,7 +1801,7 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-26.9";
+        var VERSION = "2026-09-26.10";
         // Radar nur als Kartenebene; in der Bewertung zu unzuverlässig (gelernte Farbskala, leere Bilder)
         var RADAR_IM_MODELL = false;
         var LOG = [];
@@ -7285,6 +7325,7 @@
               farbe = GRAU_UNBEKANNT;
               alpha = 0.55;
             } else if (eff === "standort") {
+              if (SG[q2] < min) continue; // Schwelle gilt für die echte Standortgüte, nicht für die Farbskala
               farbe = farbeGrobRgb(100 * norm(SG[q2]));
               alpha = 1;
               erg.gezeigt++;
@@ -7966,17 +8007,44 @@
           $("l-fill").style.width = Math.round(p * 100) + "%";
         }
         // Ein Schwellen-Regler (Tab Punkt, Anzeige); Überblick und Umkreis merken sich je ihren Wert
-        var SCHWELLE = { region: 40, umkreis: 20 };
+        // Schwelle: Überblick und Umkreis je eigener Wert. Für den Überblick sind der Regler im Region-Feld (#g-min)
+        // und „Anzeige“ im Tab Punkt (#r-min) derselbe Wert; #r-min zeigt den Wert der gerade sichtbaren Fläche.
+        var SCHWELLE = { region: 40, umkreis: 20 },
+          schwelleTimer = null;
         function setzeSchwelle(w) {
           $("r-min").value = w;
           $("r-min-v").textContent = w;
         }
+        function setzeRegionSchwelle(w) {
+          SCHWELLE.region = +w;
+          $("g-min").value = w;
+          $("g-min-v").textContent = w;
+          if (rasterCache && rasterCache.grob) setzeSchwelle(w);
+        }
+        // Beim Ziehen nur Zahl sofort, Fläche nach 150 ms neu zeichnen (ohne Neuberechnung)
+        function schwelleNeuZeichnen() {
+          clearTimeout(schwelleTimer);
+          schwelleTimer = setTimeout(function () {
+            zeichneRaster();
+            if (rasterCache && rasterCache.grob) tagInfo(regionMeldung());
+          }, 150);
+        }
         $("r-min").addEventListener("input", function () {
           $("r-min-v").textContent = this.value;
-          SCHWELLE[rasterCache && rasterCache.grob ? "region" : "umkreis"] = +this.value;
-          zeichneRaster();
-          if (rasterCache && rasterCache.grob) tagInfo(regionMeldung());
+          if (rasterCache && rasterCache.grob) setzeRegionSchwelle(this.value);
+          else SCHWELLE.umkreis = +this.value;
+          schwelleNeuZeichnen();
         });
+        $("g-min").addEventListener("input", function () {
+          setzeRegionSchwelle(this.value);
+          if (rasterCache && rasterCache.grob) schwelleNeuZeichnen();
+        });
+        // „Nur Wetter“ wird flächig gezeichnet – dort gibt es keine Schwelle
+        function schwelleAktiv() {
+          var aus = zweiModus() === "wetter";
+          $("g-min").disabled = aus;
+          $("rg-schwelle").classList.toggle("aus", aus);
+        }
         // Kern: bewertet ein Rechteck (bounds) mit N×N Zellen, optional nur innerhalb eines Kreises
         async function bewerteBereich(b, N, kreis) {
           var note = $("r-note"),
@@ -9692,6 +9760,7 @@
           };
           $("r-art").value = $("g-art").value;
           setzeSchwelle(SCHWELLE.region);
+          schwelleAktiv();
           $("r-deck").value = 85;
           zeichneRaster();
           var rm = regionMeldung();
@@ -9710,6 +9779,7 @@
           rasterEnde(btn, "Region bewerten");
         }
         $("g-modus").addEventListener("change", function () {
+          schwelleAktiv();
           if (rasterCache && rasterCache.grob) {
             zeichneRaster();
             regionMeldung();
@@ -9859,11 +9929,19 @@
           zeichneRaster();
           tagInfo(regionMeldung());
         }
+        // Kopfzeile des Region-Felds: „15 732 Waldpixel ab 40 · Best 50“
+        function tausender(n) {
+          return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, "\u202f");
+        }
         function tagInfo(rm) {
-          $("tr-info").textContent =
-            rm && rasterCache && !rasterCache.trend
-              ? rm.n + " Waldpixel ab " + $("r-min").value + " · Best " + rm.top
-              : "";
+          var C = rasterCache,
+            R = C && C.darstellung;
+          $("rg-info").textContent =
+            !rm || !C || C.trend
+              ? ""
+              : R && R.modus === "wetter"
+                ? "Wetter · Best " + rm.top
+                : tausender(rm.n) + " Waldpixel ab " + SCHWELLE.region + " · Best " + rm.top;
         }
         L.DomEvent.disableClickPropagation($("tagregler"));
         L.DomEvent.disableScrollPropagation($("tagregler"));
