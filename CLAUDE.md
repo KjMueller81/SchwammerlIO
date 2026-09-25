@@ -29,6 +29,9 @@ Stand dieser Datei: v2026-09-26.4. Die Entwicklung bis hierhin lief in einem cla
 6. **Keine Zugangsdaten** (Tokens, Passwörter) in Code, Commits oder Chat.
 7. Deutsche Oberfläche und Kommentare. Keine `alert()`-Dialoge (Ausnahme GPS-Fehler), stattdessen `toast()`.
 8. Kleine, begründete Änderungen; bei Modellwerten die Quelle im Kommentar nennen.
+9. **Vor jedem Commit `node tests/selbsttest.js` ausführen – muss grün sein** (Exitcode 0).
+   Das Skript prüft die Syntax im strikten Modus und rechnet `selbsttest()` ohne Browser;
+   Exitcode 1 = Syntax-/Ladefehler, 2 = Fall oder Regel weicht ab.
 
 ---
 
