@@ -1551,7 +1551,7 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-23.2";
+        var VERSION = "2026-09-24.2";
         var LOG = [];
         function logZeile(art, text) {
           var z = new Date(),
@@ -3319,8 +3319,36 @@
           if (pos && $("rw-box").open) {
             try {
               $("rechenweg").innerHTML =
-                rechenwegHtml(rechenweg(v, undefined, hoehePunkt, dichtePunkt), "Pin") +
-                (letzteZelle ? rechenwegHtml(letzteZelle.rw, "Zelle " + letzteZelle.titel) : "");
+                rechenwegHtml(
+                  (function () {
+                    var rwP = rechenweg(v, undefined, hoehePunkt, dichtePunkt);
+                    if (wetter) {
+                      var S = wasserBilanz(
+                        wetter.tw,
+                        wetter.et0,
+                        hoehePunkt,
+                        dichtePunkt,
+                        v.alter,
+                        wetter.tmax,
+                      );
+                      ARTEN.forEach(function (a) {
+                        rwP[a].tempText =
+                          (rwP[a].tempText || "") +
+                          " · Streu " +
+                          Math.round(S[S.length - 1]) +
+                          "/25 mm · Regen 7 T " +
+                          wetter.mm7 +
+                          " mm" +
+                          (wetter.bodenF !== undefined && wetter.bodenF !== null
+                            ? " · Modell-Bodenfeuchte " + Math.round(wetter.bodenF * 100) + " %"
+                            : "") +
+                          (dichtePunkt !== null ? " · Kronen " + Math.round(dichtePunkt) + " %" : "");
+                      });
+                    }
+                    return rwP;
+                  })(),
+                  "Pin",
+                ) + (letzteZelle ? rechenwegHtml(letzteZelle.rw, "Zelle " + letzteZelle.titel) : "");
             } catch (e) {
               $("rechenweg").textContent = "Rechenweg: " + (e.message || e);
             }
@@ -3870,16 +3898,31 @@
                     LB[z.v.boden] +
                     (z.mm7 !== null && z.mm7 !== undefined ? " / " + Math.round(z.mm7) + " mm" : ""),
                   rw: (function () {
-                    var rw = rechenweg(z.v, null, z.hoehe, 85);
-                    ARTEN.forEach(function (a) {
-                      rw[a].ergebnis = z.rr[a];
-                      rw[a].wirksam = z.mm7 !== null && z.mm7 !== undefined ? Math.round(z.mm7) : null;
-                      rw[a].tempText =
-                        "Zelle: Regen/Temperatur aus dem Überblick, Standortfaktoren wie Pin-Formel";
-                    });
+                    var rw = rechenweg(z.v, z.w || null, z.hoehe === undefined ? null : z.hoehe, 85);
+                    if (z.w) {
+                      var S = wasserBilanz(z.w.tw, z.w.et0, z.hoehe, 85, z.v.alter, z.w.tmax);
+                      ARTEN.forEach(function (a) {
+                        rw[a].tempText =
+                          (rw[a].tempText || "") +
+                          " · Streu " +
+                          Math.round(S[S.length - 1]) +
+                          "/25 mm · Regen 7 T " +
+                          Math.round(
+                            z.w.tw.slice(-8).reduce(function (x, y) {
+                              return x + y;
+                            }, 0),
+                          ) +
+                          " mm" +
+                          (z.w.bodenF !== undefined && z.w.bodenF !== null
+                            ? " · Modell-Bodenfeuchte " + Math.round(z.w.bodenF * 100) + " %"
+                            : " · ohne Modell-Bodenfeuchte") +
+                          (z.radZ ? " · Radar " + z.radZ + " T" : "");
+                      });
+                    }
                     return rw;
                   })(),
                 };
+                if ($("rw-box")) $("rw-box").open = true;
               } catch (e) {}
               toast(
                 "Zelle: " +
@@ -5051,8 +5094,50 @@
             });
           if (!res.ok || !j) throw new Error((j && j.reason) || "HTTP " + res.status);
           var arr = Array.isArray(j) ? j : [j];
+          // Modell-Bodenfeuchte 0–7 cm (Mittel der letzten 24 h) wie am Pin — eigener, kleiner Abruf
+          var bf = null;
+          try {
+            var ub =
+              "https://api.open-meteo.com/v1/forecast?latitude=" +
+              punkte
+                .map(function (p) {
+                  return p[0].toFixed(3);
+                })
+                .join(",") +
+              "&longitude=" +
+              punkte
+                .map(function (p) {
+                  return p[1].toFixed(3);
+                })
+                .join(",") +
+              "&hourly=soil_moisture_0_to_7cm&past_days=1&forecast_days=1&timezone=Europe%2FBerlin";
+            var rb = await fetch(ub),
+              jb = await rb.json().catch(function () {
+                return null;
+              });
+            if (rb.ok && jb) {
+              var ab = Array.isArray(jb) ? jb : [jb],
+                jetzt = 24 + new Date().getHours();
+              bf = ab.map(function (x) {
+                var hm = x.hourly && x.hourly.soil_moisture_0_to_7cm;
+                if (!hm) return null;
+                var v = [];
+                for (var q = Math.max(0, jetzt - 24); q <= jetzt && q < hm.length; q++)
+                  if (hm[q] !== null) v.push(hm[q]);
+                return v.length
+                  ? v.reduce(function (a, b) {
+                      return a + b;
+                    }, 0) / v.length
+                  : null;
+              });
+            }
+          } catch (e) {
+            logZeile("NET", "Bodenfeuchte (Raster): " + (e.message || e));
+          }
           return arr.map(function (x, k) {
-            return wetterAusDaily(x.daily, hoehen ? hoehen[k] : null);
+            var w = wetterAusDaily(x.daily, hoehen ? hoehen[k] : null);
+            if (bf && bf[k] !== null && bf[k] !== undefined) w.bodenF = bf[k];
+            return w;
           });
         }
         async function holeWetterHaupt(ll, hoehe) {
@@ -5796,18 +5881,26 @@
             d[o + 3] = 255;
           });
           cx.putImageData(img, 0, 0);
-          // Weichzeichnen: 4-fach hochskalieren mit Glättung, leichter Blur, Alpha bleibt an Waldgrenzen
+          // Weichzeichnen nur innerhalb des Waldes: erst Grundfarbe, darüber geglättet, dann auf die Waldmaske beschneiden
           var F = 4,
             big = document.createElement("canvas");
           big.width = NX * F;
           big.height = NY * F;
           var bx = big.getContext("2d");
+          bx.imageSmoothingEnabled = false;
+          bx.drawImage(cv, 0, 0, NX * F, NY * F); // Grundfarbe, volle Deckung im Wald
           bx.imageSmoothingEnabled = true;
           bx.imageSmoothingQuality = "high";
           try {
-            bx.filter = "blur(" + F * 0.6 + "px)";
+            bx.filter = "blur(" + F * 0.9 + "px)";
           } catch (e) {}
+          bx.drawImage(cv, 0, 0, NX * F, NY * F); // geglättete Übergänge zwischen Waldzellen
+          try {
+            bx.filter = "none";
+          } catch (e) {}
+          bx.globalCompositeOperation = "destination-in"; // nichts außerhalb des Waldes
           bx.drawImage(cv, 0, 0, NX * F, NY * F);
+          bx.globalCompositeOperation = "source-over";
           var b = L.latLngBounds([C.latN - NY * C.dLat, C.lngW], [C.latN, C.lngW + NX * C.dLng]);
           if (bildOverlay) {
             map.removeLayer(bildOverlay);
@@ -7303,16 +7396,20 @@
                 if (wz.radarZelle) radZ = wz.radarZelle;
               }
               for (var tg = 0; tg <= 3; tg++) {
-                var rr = {};
-                ARTEN.forEach(function (a) {
-                  var wf;
-                  if (wz) {
-                    var wt = wetterAmTag(wz, tg),
-                      hz = hInterp(lat, lng);
-                    wf = regenFaktorArt(a, v0, wt, hz, 85) * tempFaktor(a, wt.tmin, wt.tmax).f;
-                  } else wf = wfInterp(a, lat, lng, tg);
-                  rr[a] = Math.round(Math.min(100 * sg[a] * wf * sais[a], deckel(v, a, wf, 1)));
-                });
+                // exakt dieselbe Bewertungsfunktion wie am Pin (Kronendichte fest 85 %)
+                var rr;
+                if (wz) {
+                  var wt = wetterAmTag(wz, tg),
+                    hz = hInterp(lat, lng);
+                  var bw = bewerte(v, wt, hz === undefined ? null : hz, undefined, 85);
+                  rr = { pf: bw.pf, st: bw.st, som: bw.som };
+                } else {
+                  rr = {};
+                  ARTEN.forEach(function (a) {
+                    var wf = wfInterp(a, lat, lng, tg);
+                    rr[a] = Math.round(Math.min(100 * sg[a] * wf * sais[a], deckel(v, a, wf, 1)));
+                  });
+                }
                 rrT.push(rr);
               }
               zellen.push({
@@ -7322,6 +7419,7 @@
                 rr: rrT[Math.min(3, Math.max(0, +tagV || 0))],
                 rrT: rrT,
                 hoehe: hInterp(lat, lng),
+                w: wz,
                 artText: BR[i][j].art || null,
                 geschaetzt: !WW || !bodenOk,
                 ll: L.latLng(lat, lng),
