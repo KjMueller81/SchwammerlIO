@@ -61,6 +61,19 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
 - **Neu rechnen**, wenn: eine Quelle einen neuen Stand hat (Baumartenkarte, ÜBK25, HRL-Jahrgang), sich Klassen/Codes
   oder `bodenDeuten`/`lageAusHoehen` ändern, oder das Gebiet wachsen soll. Danach `meta.json`-Stand prüfen, committen.
 
+### Täglicher Wetterlauf (Rohdaten für Schicht 3)
+- `werkzeuge/wetter.js` (reines Node, keine Pakete) + `.github/workflows/wetter.yml` (3:30 und 10:30 UTC = 5:30/12:30
+  MESZ, auch von Hand: Actions → Wetterlauf → Run workflow). Ergebnis `wetter.json` liegt als **einziger Commit** auf dem
+  Zweig `wetterdaten` (Force-Push, keine Historie) und wird über
+  `https://raw.githubusercontent.com/KjMueller81/SchwammerlIO/wetterdaten/wetter.json` geladen (CORS `*`, 5 min CDN-Cache,
+  gzip ≈ 90 kB, roh ≈ 340 kB).
+- Inhalt: Open-Meteo auf 0,2° (≈ 200 Punkte: Modellhöhe `e`, 36 Tage `tw/et0/tmin/tmax`, Vorhersage `f`, Bodenfeuchte
+  `bf`), Stationsregen auf 0,05° (Tage 1–35 zurück, Zehntel mm, −1 = keine Station in 30 km), interpoliert wie in der App
+  (Suchfelder 30 km, je 14 Stationen mit Daten, 1/(d²+2), ≥ 12 Stundenwerte). Nur Rohreihen, keine Faktoren.
+- Verbrauch je Lauf: Open-Meteo ≈ 630 Abrufe (≈ 1 250/Tag), Bright Sky ≈ 800 Anfragen, Laufzeit ≈ 30 s + Einrichtung.
+- Open-Meteo-Limit (GitHub-Adressen sind geteilt): eine Wiederholung nach 5 min, sonst Exitcode 3 → Warnung im Log,
+  der alte Stand auf `wetterdaten` bleibt. Geplante Läufe schaltet GitHub nach 60 Tagen ohne Repo-Aktivität ab.
+
 ## Architektur (Funktionen in index.html)
 
 **Modell**

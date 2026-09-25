@@ -1,0 +1,49 @@
+# Täglicher Wetterlauf: holt Open-Meteo (0,2°) und DWD-Stationen (Bright Sky) für das Grundstock-Gebiet und legt
+# daten/wetter.json als einzigen Commit auf den Zweig „wetterdaten“ (Force-Push, keine Historie).
+# Die App lädt sie über raw.githubusercontent.com. Zeiten in UTC: 3:30 und 10:30 = 5:30 und 12:30 MESZ
+# (im Winter 4:30 und 11:30 MEZ). GitHub startet geplante Läufe teils mit Verspätung.
+name: Wetterlauf
+on:
+  schedule:
+    - cron: "30 3 * * *"
+    - cron: "30 10 * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: wetterlauf
+  cancel-in-progress: false
+jobs:
+  wetter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Wetter holen
+        id: lauf
+        working-directory: werkzeuge
+        run: |
+          set +e
+          node wetter.js ../daten/wetter.json
+          code=$?
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          if [ "$code" -eq 3 ]; then
+            echo "::warning::Open-Meteo-Limit erschöpft (geteilte GitHub-Adresse) – letzter Stand auf wetterdaten bleibt"
+            exit 0
+          fi
+          exit "$code"
+      - name: Zweig wetterdaten ersetzen (nur letzter Stand)
+        if: steps.lauf.outputs.code == '0'
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p /tmp/w && cp daten/wetter.json /tmp/w/ && cd /tmp/w
+          git init -q -b wetterdaten
+          git config user.name "wetterlauf"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add wetter.json
+          git commit -q -m "Wetter $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -q -f "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" wetterdaten
