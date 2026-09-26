@@ -8,7 +8,7 @@ Bewertet Waldstandorte für **Pfifferling (pf)**, **Fichtensteinpilz (st)** und 
 aus Geodaten (Baumart, Boden, Kronendichte, Gelände) und gemessenem Wetter. Nutzer: ein Sammler,
 Bedienung meist am iPhone im Wald, Auswertung am Windows-Rechner.
 
-Stand dieser Datei: v2026-09-26.22. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
+Stand dieser Datei: v2026-09-26.23. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
 
 ---
 
@@ -112,8 +112,13 @@ Tagesregler, Schwellenregler, Besuch speichern, Umkreis-Suche, Offline-Hinweis.
 - Breite Spanne (> 20 Punkte bei einer Art, ohne Fingerprobe): Popup zeigt „Unsicher — Fingerprobe klärt
   das“ (`.unsicher`), der Link springt zum Boden-Feld `#bz-boden` im Besuchsblock (`__bzFinger`).
 - Tippflächen: Selects, Regler, Aufklapper, Ebenen-Zeilen, GPS-Knöpfe und Region-Bedienung ≥ 40 px.
+- Sicherer Bereich (iPhone als Home-Bildschirm-App, `viewport-fit=cover`, Statusleiste durchscheinend): Variablen
+  `--sicher-oben/-unten/-links/-rechts` aus `env(safe-area-inset-*)`; Kopfzeile oben, Schublade (auch zugeklappt)
+  unten. Zum Testen die Variablen per Stil überschreiben (z. B. 47 px / 34 px). Version im Kopf ohne Umbruch,
+  unter 480 px ohne Jahr (`#version .jahr`).
 - Überlappung: Ladeanzeigen (`#start`, `#lade`) lassen rechts 60 px für GPS/Folgen frei; das Pin-Popup hält am
-  Handy oben 104 px Abstand (`autoPanPaddingTopLeft`). Umkreis-Kreise sind dunkel (`--humus`), sonst auf der
+  Handy oben 104 px Abstand, unten Zuschreibungshöhe + 10 px, Höhe = freie Karte (`pinInhalt`, auch nach
+  `setzeStufe`). Umkreis-Kreise sind dunkel (`--humus`), sonst auf der
   hellen OSM-Karte unsichtbar.
 - Region-Feld: Handy nach dem Lauf kompakte Leiste (`regionKompakt`, `#rg-kompakt` „Steinpilz · 25 km · Heute ·
   ab 40“ + Tagesregler, Tipp klappt auf); die Leiste wird **vor** dem Einpassen gesetzt, damit der Kreis mit

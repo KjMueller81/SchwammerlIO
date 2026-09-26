@@ -1,16 +1,19 @@
 # Status Schwammerl-Karte
 
-Stand: v2026-09-26.22 (26.09.2026)
+Stand: v2026-09-26.23 (26.09.2026)
 
 ## Offene Aufträge
 Angenommen, aber noch nicht ausgeliefert. Beim Start hier eintragen, bei Auslieferung nach „Zuletzt ausgeliefert“.
 
 | Auftrag | Stand |
 |---|---|
-| B – iPhone-Nachtrag: sicherer Bereich oben/unten, Popup-Größe und Zuschreibung, Quellenangaben, Erklärtext Tab „Punkt“ | begonnen |
-| C – Offline-Karte umgewichten: Gebiet bis Zoom 11, Umgebungen 5/10/15 km mit Liste, Angebot beim Stelle-Speichern | wartet |
+| C – Offline-Karte umgewichten: Gebiet bis Zoom 11, Umgebungen 5/10/15 km mit Liste, Angebot beim Stelle-Speichern | begonnen |
 
 ## Zuletzt ausgeliefert
+- **iPhone-Nachtrag (v2026-09-26.23):** Kopfzeile unter der Statusleiste, Tabs über der Home-Leiste (sicherer
+  Bereich), Version bricht nicht mehr um (schmal „v09-26.23“); Pin-Popup auf die freie Karte begrenzt, Abstand zu
+  GPS-Knöpfen und Zuschreibung, passt sich beim Öffnen der Schublade neu an; Quellenangaben aktualisiert (ohne
+  Radar, mit AWS Terrain Tiles, Grundstock, Webkarte Bayern, Natural Earth); Erklärtext im Tab „Punkt“ als Tooltip.
 - **Kältesumme abgesichert (v2026-09-26.22):** Fehlt dem Tageslauf der Vorstand, meldet er das deutlich und holt die
   Lücke einmalig aus dem Open-Meteo-Archiv; das Region-Feld zeigt „Kältesumme unvollständig“, solange Werte fehlen.
 - **Saisonende (v2026-09-26.21):** Frostschlag (`frostFaktor`) und Kältesumme ab 1.9. (`kaelteFaktor`) in der
@@ -73,9 +76,10 @@ Angenommen, aber noch nicht ausgeliefert. Beim Start hier eintragen, bei Auslief
   unterstützt; gewährt wird nach Heuristik, vor allem wenn die Seite als Home-Bildschirm-App geöffnet ist. Im
   Safari-Tab ist mit „nein“ zu rechnen. Home-Bildschirm-Apps sind ohnehin von der 7-Tage-Löschregel ausgenommen;
   die Speichergrenze liegt je Seite bei bis zu 60 % des Gerätespeichers (Browser) bzw. 15 % (andere Apps).
-  Am Rechner (Chrome, lokal) ergab die Anfrage „nein“. **Am iPhone noch zu prüfen:** App vom Home-Bildschirm
-  starten, einmal „Umgebung speichern“, dann im Tab „Karten“ ablesen: „Speicher dauerhaft: ja/nein“ – bitte
-  das Ergebnis hier nachtragen.
+  Am Rechner (Chrome, lokal) ergab die Anfrage „nein“.
+- **iPhone-Test (Home-Bildschirm-App, v2026-09-26.20):** `navigator.storage.persist()` = **ja**. Gebiet
+  1 371 Kacheln = 80 MB, Umgebung 15 km = 389 Kacheln = 20 MB (Ø ≈ 55–60 kB je Kachel, weniger als geschätzt).
+  Offline-Umschaltung auf die Webkarte funktioniert.
 
 ## Wartet auf Entscheidung
 - **Frost- und Kältewerte kalibrieren, sobald Oktober-Besuche vorliegen.** Alle Zahlen sind Annahmen
@@ -88,5 +92,4 @@ Angenommen, aber noch nicht ausgeliefert. Beim Start hier eintragen, bei Auslief
 - Offline-Start am iPhone einmal im Flugmodus prüfen (App vorher einmal online geöffnet).
 
 ## Nächste Schritte
-- Am iPhone (Home-Bildschirm-App): Offline-Karte speichern, Flugmodus testen, „Speicher dauerhaft“ nachtragen.
 - Validierung der Zeitkurven mit weiteren Funden (inkl. Fruchtkörperalter).

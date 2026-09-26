@@ -35,6 +35,11 @@
         --kontrolle-hover: #f4f4f4;
         --glas: rgba(29, 33, 25, 0.93);
         --karte-leer: #e6e4da;
+        /* sicherer Bereich (iPhone als Home-Bildschirm-App: Statusleiste oben, Home-Leiste unten) */
+        --sicher-oben: env(safe-area-inset-top, 0px);
+        --sicher-unten: env(safe-area-inset-bottom, 0px);
+        --sicher-links: env(safe-area-inset-left, 0px);
+        --sicher-rechts: env(safe-area-inset-right, 0px);
         --standort: #2b7de9;
         --folgen-an: #cfe6ff;
         --grau-leer: #9a9a90;
@@ -67,7 +72,8 @@
       }
 
       header {
-        padding: 8px 14px;
+        padding: calc(8px + var(--sicher-oben)) calc(14px + var(--sicher-rechts)) 8px
+          calc(14px + var(--sicher-links));
         border-bottom: 1px solid var(--linie);
         display: flex;
         align-items: center;
@@ -79,6 +85,18 @@
         font-size: 16px;
         font-weight: 600;
         flex: 1;
+        min-width: 0;
+        white-space: nowrap; /* Version bricht nie um */
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      #version {
+        white-space: nowrap;
+      }
+      @media (max-width: 479px) {
+        #version .jahr {
+          display: none; /* schmal: „v09-26.22“ statt „v2026-09-26.22“ */
+        }
       }
       .chip {
         font-size: 11.5px;
@@ -121,12 +139,15 @@
         -webkit-overflow-scrolling: touch;
       }
       .sheet .pane {
-        padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px));
+        padding-bottom: calc(90px + var(--sicher-unten));
       }
       .sheet.zu {
-        max-height: 48px;
+        max-height: calc(48px + var(--sicher-unten)); /* Tabs über der Home-Leiste */
         overflow: hidden;
-        padding-bottom: 0;
+        padding-bottom: var(--sicher-unten);
+      }
+      .sheet.zu .pane {
+        visibility: hidden; /* sonst schaut Inhalt in den Bereich der Home-Leiste */
       }
       .sheet.voll {
         max-height: 88vh;
@@ -165,7 +186,8 @@
       }
       @media (max-width: 700px) {
         header {
-          padding: 6px 12px;
+          padding: calc(6px + var(--sicher-oben)) calc(12px + var(--sicher-rechts)) 6px
+            calc(12px + var(--sicher-links));
         }
         header h1 {
           font-size: 15px;
@@ -1127,7 +1149,7 @@
       #toast {
         position: fixed;
         left: 50%;
-        bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+        bottom: calc(70px + var(--sicher-unten));
         transform: translateX(-50%);
         background: var(--papier);
         color: var(--humus);
@@ -1296,7 +1318,8 @@
         padding: 6px 8px;
         font-size: 13px;
       }
-      .rg-note:empty {
+      .rg-note:empty,
+      #r-note:empty {
         display: none;
       }
       /* Handy nach dem Lauf: kompakte Leiste (eine Zeile + Tagesregler) */
@@ -1523,6 +1546,9 @@
         .sheet .pane {
           padding-bottom: 28px;
         }
+        .sheet.zu .pane {
+          visibility: visible;
+        }
         .tabs .griff,
         .tabs::before {
           display: none;
@@ -1735,9 +1761,16 @@
             ></pre>
           </details>
           <div class="note">
-            Luftbild &amp; Relief: Bayerische Vermessungsverwaltung · Boden: LfU Bayern (ÜBK25) · Baumarten:
-            Thünen-Institut (Sentinel, 2017/18) · Kronendichte: Copernicus HRL 2018 (EEA) · Wetter:
-            Open-Meteo, DWD-Radar (RADOLAN SF) und Bright Sky · Höhen: Open-Meteo / EU-DEM · alle CC BY 4.0
+            Grundkarte: © OpenStreetMap-Mitwirkende (ODbL) · Offline-Karte: Webkarte Bayern, © Datenquellen:
+            Bayerische Vermessungsverwaltung, GeoBasis-DE / BKG 2023 – Daten verändert, CC BY 4.0 · Luftbild
+            &amp; Relief: Bayerische Vermessungsverwaltung, CC BY 4.0 · Grundstock des Überblicks (abgeleitet,
+            Daten verändert): Boden LfU Bayern (ÜBK25, CC BY 4.0), Baumarten Thünen-Institut (Sentinel
+            2017/18, CC BY 4.0), Kronendichte Copernicus HRL 2018 (© European Union, Copernicus Land
+            Monitoring Service, EEA), Höhen AWS Terrain Tiles (Mapzen; Produced using Copernicus data and
+            information funded by the European Union – EU-DEM layers; SRTM data courtesy of the U.S.
+            Geological Survey; © offene Daten Österreichs – Digitales Geländemodell Österreich), Staatsgrenze
+            Natural Earth (gemeinfrei) · Wetter: Open-Meteo (CC BY 4.0), Deutscher Wetterdienst über Bright
+            Sky · Höhen am Pin: AWS Terrain Tiles, Rückfall Open-Meteo / Open Topo Data
           </div>
         </section>
 
@@ -1783,13 +1816,19 @@
                 <option value="3">3 km</option>
               </select>
             </div>
-            <div><button class="act" id="u-los" style="margin-top: 0">Umkreis bewerten</button></div>
+            <div>
+              <button
+                class="act"
+                id="u-los"
+                style="margin-top: 0"
+                title="Unterwuchs, Bestandshöhe und Struktur kommen aus „Merkmale &amp; Wetter anpassen“"
+              >
+                Umkreis bewerten
+              </button>
+            </div>
           </div>
           <div class="fort" id="r-fort"><i></i></div>
-          <div class="note" id="r-note">
-            Unterwuchs, Bestandshöhe und Struktur kommen aus „Merkmale &amp; Wetter anpassen" — die stehen in
-            keiner Karte.
-          </div>
+          <div class="note" id="r-note"></div>
           <div id="u-list"></div>
           <button class="act ghost" id="u-save" style="display: none">Alle fünf speichern</button>
           <div class="gk" id="gk-punkt">
@@ -2095,7 +2134,7 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-26.22";
+        var VERSION = "2026-09-26.23";
         // Radar nur als Kartenebene; in der Bewertung zu unzuverlässig (gelernte Farbskala, leere Bilder)
         var RADAR_IM_MODELL = false;
         var LOG = [];
@@ -2278,7 +2317,15 @@
         // Online-Grundkarte; offline ersetzt sie die gespeicherte Webkarte Bayern (grundkarteWahl)
         var osmEbene = L.tileLayer(
           "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-          Object.assign({ maxZoom: 19, attribution: "© OpenStreetMap" }, KACHEL),
+          Object.assign(
+            {
+              maxZoom: 19,
+              attribution:
+                '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">' +
+                "OpenStreetMap</a>-Mitwirkende",
+            },
+            KACHEL,
+          ),
         ).addTo(map);
 
         var EBENEN = [
@@ -2374,7 +2421,7 @@
             an: false,
             deck: 60,
             misch: "normal",
-            attr: "© OpenTopoMap",
+            attr: "Kartendaten © OpenStreetMap-Mitwirkende, SRTM · Darstellung © OpenTopoMap (CC BY-SA)",
           },
         ];
         var rollen = { boden: null, baum: null, dichte: null };
@@ -2565,7 +2612,8 @@
           $("diagnose").textContent = "Luftbild DOP20: blockiert — Datei lokal öffnen oder hosten";
         });
 
-        $("version").textContent = "v" + VERSION;
+        $("version").innerHTML = 'v<span class="jahr">' + VERSION.slice(0, 5) + "</span>" + VERSION.slice(5);
+        $("version").title = "Version " + VERSION;
         // ---- Pin-Fall: alle Eingaben von Pin und Zelle darunter, zum exakten Nachrechnen ----
         function wetterKurz(w) {
           if (!w) return null;
@@ -3453,6 +3501,8 @@
           $("griff").textContent = stufe === 0 ? "▴" : stufe === 1 ? "▴▾" : "▾";
           setTimeout(function () {
             map.invalidateSize();
+            // Schublade geändert → Karte kleiner/größer: Popup neu begrenzen und einpassen
+            if (typeof pin !== "undefined" && pin && pin.isPopupOpen && pin.isPopupOpen()) pinInhalt();
           }, 240);
         }
         function zeigeTab(name) {
@@ -5674,7 +5724,7 @@
               maxWidth: Math.min(MOBIL ? 320 : 380, window.innerWidth - 36),
               autoPan: true,
               // Handy: oben rechts liegen GPS- und Folgen-Knopf (2 × 40 px), das Popup soll darunter bleiben
-              autoPanPaddingTopLeft: [10, MOBIL ? 104 : 56],
+              autoPanPaddingTopLeft: [10, MOBIL ? 104 : 56], // wird in pinInhalt laufend angepasst
               closeButton: true,
             });
           pinInhalt(status);
@@ -5685,7 +5735,14 @@
           var pp = pin.getPopup(),
             el = pp.getElement() && pp.getElement().querySelector(".leaflet-popup-content"),
             oben = el ? el.scrollTop : 0; // Scrollstand halten, sonst springt das Popup bei jedem Tipp nach oben
-          pp.options.maxHeight = Math.max(220, map.getSize().y - 90);
+          // Abstand oben: GPS-/Folgen-Knopf (Handy); unten: Kartenzuschreibung – sie darf keine Knöpfe verdecken.
+          // Höhe auf den freien Kartenbereich begrenzt, der Inhalt scrollt innen (≈ 60 px für Rahmen und Spitze).
+          var ac = map.attributionControl && map.attributionControl.getContainer(),
+            abOben = MOBIL ? 104 : 56,
+            abUnten = (ac ? ac.offsetHeight : 18) + 10;
+          pp.options.autoPanPaddingTopLeft = L.point(10, abOben);
+          pp.options.autoPanPaddingBottomRight = L.point(10, abUnten);
+          pp.options.maxHeight = Math.max(160, map.getSize().y - abOben - abUnten - 60);
           pin.setPopupContent(pinPopupHtml(status));
           if (el && oben) el.scrollTop = oben;
         }
@@ -8752,10 +8809,15 @@
             opacity: deck,
             interactive: false,
             className: "weich",
+            attribution: ZUSCHREIBUNG_UEBERBLICK,
           });
           rasterGruppe.addLayer(bildOverlay);
           return R;
         }
+        // Kartenzuschreibung, solange der Überblick sichtbar ist (volle Liste unter der Diagnose)
+        var ZUSCHREIBUNG_UEBERBLICK =
+          "Überblick: LfU Bayern, Thünen-Institut, Copernicus HRL, AWS Terrain Tiles (EU-DEM, SRTM), Natural Earth" +
+          " · Wetter: Open-Meteo, DWD über Bright Sky";
         // Überblicksbild in einem Durchgang (keine Zeilenstreifen → keine Nahtlinien): k-fach vergrößert,
         // Zeilen gleich in Web-Mercator, Farben innerhalb gleicher Klasse bilinear geglättet, Kanten hart (Pixel ohne Maske bleiben
         // leer), außerhalb des Kartengebiets bzw. ohne Daten dezent grau schraffiert.
