@@ -8,7 +8,7 @@ Bewertet Waldstandorte für **Pfifferling (pf)**, **Fichtensteinpilz (st)** und 
 aus Geodaten (Baumart, Boden, Kronendichte, Gelände) und gemessenem Wetter. Nutzer: ein Sammler,
 Bedienung meist am iPhone im Wald, Auswertung am Windows-Rechner.
 
-Stand dieser Datei: v2026-09-26.26. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
+Stand dieser Datei: v2026-09-26.27. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
 
 ---
 
@@ -115,7 +115,11 @@ Tagesregler, Schwellenregler, Besuch speichern, Umkreis-Suche, Offline-Hinweis.
 - Sicherer Bereich (iPhone als Home-Bildschirm-App, `viewport-fit=cover`, Statusleiste durchscheinend): Variablen
   `--sicher-oben/-unten/-links/-rechts` aus `env(safe-area-inset-*)`; Kopfzeile oben, Schublade (auch zugeklappt)
   unten. Zum Testen die Variablen per Stil überschreiben (z. B. 47 px / 34 px). Version im Kopf ohne Umbruch,
-  unter 480 px ohne Jahr (`#version .jahr`).
+  unter 480 px ohne Jahr (`#version .jahr`). `#app` liegt `position: fixed; inset: 0` über dem ganzen Bildschirm
+  (kein `-webkit-fill-available` – das zog in der Home-Bildschirm-App die Home-Leiste schon ab, der Streifen unten
+  war doppelt). Zugeklappte Schublade = `--tabs-hoehe` (57 px) + 1 px Rand + `--sicher-unten`.
+- Toasts oben über der Karte (`top: --sicher-oben + 100 px`; Handy links 10 / rechts 60 px frei für GPS, Desktop
+  mittig über der Karte) – sie verdecken keine Knöpfe der Schublade.
 - Überlappung: Ladeanzeigen (`#start`, `#lade`) lassen rechts 60 px für GPS/Folgen frei; das Pin-Popup hält am
   Handy oben 104 px Abstand, unten Zuschreibungshöhe + 10 px, Höhe = freie Karte (`pinInhalt`, auch nach
   `setzeStufe`). Umkreis-Kreise sind dunkel (`--humus`), sonst auf der
@@ -224,7 +228,10 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
   das rote Band (`zeigeFehler` aus `merkeBlockade`) kommt nur, wenn Netz da ist und die Dienste abweisen.
 - Kartenhintergrund hell (`--karte-leer`): wo offline keine Kachel liegt, bleiben die Bewertungsfarben lesbar.
 - **Offline-Grundkarte** (Webkarte Bayern, WMTS Geobasisdaten Bayern, Kachelsatz `smerc`, CC BY 4.0): nur auf
-  Knopfdruck. „Gebiet grob, Umgebungen fein“ (v2026-09-26.24): Tab „Karten“: „Gebiet offline speichern“
+  Knopfdruck. Stand des Gebiets (`gkGebietStand`, `gk.gebiet`): vollständig → „Gebiet offline ✓ · n Kacheln · MB ·
+  Stand“ mit „Aktualisieren“ (fehlende Kacheln; älter als `GK_GEBIET_ALT_TAGE` = 180: alle neu), sonst grüner
+  Knopf mit „(x % gespeichert)“; 0 neue Kacheln → „… war schon vollständig gespeichert.“
+  „Gebiet grob, Umgebungen fein“ (v2026-09-26.24): Tab „Karten“: „Gebiet offline speichern“
   (`gkGebietKacheln`, Grundstock-Gebiet, Zoom 0–11, 379 Kacheln ≈ 20 MB; ältere Zoom-12-Kacheln bleiben bis zum
   Löschen), Liste der Umgebungen (`gk.umg`, `schwammerl:umgebungen`: Name = Stelle ≤ 100 m oder nächster Ort über
   OSM Nominatim, Radius, Größe, Datum, „Auf Karte zeigen“, „Löschen“), „Offline-Karte löschen“ (alles). Tab

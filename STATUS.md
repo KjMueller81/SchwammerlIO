@@ -1,15 +1,19 @@
 # Status Schwammerl-Karte
 
-Stand: v2026-09-26.26 (26.09.2026)
+Stand: v2026-09-26.27 (26.09.2026)
 
 ## Offene Aufträge
 Angenommen, aber noch nicht ausgeliefert. Beim Start hier eintragen, bei Auslieferung nach „Zuletzt ausgeliefert“.
 
 | Auftrag | Stand |
 |---|---|
-| F – Kleinigkeiten Offline-Speicher und unterer Rand: Stand des Gebiets im Tab „Karten“ (✓-Zeile + „Aktualisieren“), Toast bei 0 neuen Kacheln, Toasts verdecken keine Knöpfe, unterer Rand am iPhone (safe-area nur einmal). | begonnen |
+| – keine – | |
 
 ## Zuletzt ausgeliefert
+- **F – Offline-Speicher und unterer Rand (v2026-09-26.27):** Gebiet vollständig → Zeile „Gebiet offline ✓ · 379
+  Kacheln · 21 MB · Stand 26.9.“ mit „Aktualisieren“ (fehlende Kacheln; älter als 180 Tage: alle neu), sonst der
+  grüne Knopf mit „(x % gespeichert)“; Toast bei 0 neuen Kacheln „… war schon vollständig gespeichert.“; Toasts
+  oben über der Karte statt über der Schublade; unterer Rand am iPhone: sicherer Bereich genau einmal.
 - **D – Stellen und Besuche bearbeiten (v2026-09-26.26):** Aufklapper „Bearbeiten“ je Stelle (Name, Merkmale mit
   Hand-Vermerk ✎, alle Besuche mit Ändern/Löschen/Wetter nachholen), jede Änderung mit „Rückgängig“; Fund
   „unsicher“ zählt halb (auch in „Besuch erfassen“); Datumsänderung bildet das Wetter an der Stelle neu; feste
@@ -94,6 +98,8 @@ Angenommen, aber noch nicht ausgeliefert. Beim Start hier eintragen, bei Auslief
 - **iPhone-Test (Home-Bildschirm-App, v2026-09-26.20):** `navigator.storage.persist()` = **ja**. Gebiet
   1 371 Kacheln = 80 MB, Umgebung 15 km = 389 Kacheln = 20 MB (Ø ≈ 55–60 kB je Kachel, weniger als geschätzt).
   Offline-Umschaltung auf die Webkarte funktioniert.
+- **iPhone-Stand 26.9. 21:46 (v2026-09-26.25):** Aufräumen nach dem Umbau hat gegriffen: 80 MB → 40 MB,
+  767 Kacheln (Gebiet Zoom 11 + Umgebung Hofolding 15 km / 19 MB), „Speicher dauerhaft: ja“.
 
 ## Wartet auf Entscheidung
 - **Offene Modellbeobachtungen** (mit Felddaten prüfen):

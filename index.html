@@ -38,6 +38,7 @@
         /* sicherer Bereich (iPhone als Home-Bildschirm-App: Statusleiste oben, Home-Leiste unten) */
         --sicher-oben: env(safe-area-inset-top, 0px);
         --sicher-unten: env(safe-area-inset-bottom, 0px);
+        --tabs-hoehe: 57px;
         --sicher-links: env(safe-area-inset-left, 0px);
         --sicher-rechts: env(safe-area-inset-right, 0px);
         --standort: #2b7de9;
@@ -60,12 +61,14 @@
         line-height: 1.45;
         -webkit-font-smoothing: antialiased;
       }
+      /* Fest über den ganzen Bildschirm (mit viewport-fit=cover auch unter Status- und Home-Leiste): der sichere
+         Bereich wird genau einmal über --sicher-* eingerechnet. -webkit-fill-available zog in der Home-Bildschirm-App
+         die Home-Leiste schon ab – zusammen mit dem Polster der Schublade ergab das einen doppelten Streifen. */
       #app {
+        position: fixed;
+        inset: 0;
         display: flex;
         flex-direction: column;
-        height: 100vh;
-        height: 100dvh;
-        height: -webkit-fill-available;
       }
       html {
         height: -webkit-fill-available;
@@ -152,7 +155,8 @@
         padding-bottom: calc(90px + var(--sicher-unten));
       }
       .sheet.zu {
-        max-height: calc(48px + var(--sicher-unten)); /* Tabs über der Home-Leiste */
+        /* genau die Tab-Leiste (8 + 40 + 8 px + Rand) plus 1 px Rand der Schublade, darunter die Home-Leiste */
+        max-height: calc(var(--tabs-hoehe) + 1px + var(--sicher-unten));
         overflow: hidden;
         padding-bottom: var(--sicher-unten);
       }
@@ -516,6 +520,22 @@
       .spot .mm .hand {
         color: var(--pfiff);
         cursor: help;
+      }
+      .gk-gebiet-ok {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12.5px;
+        margin-top: 6px;
+      }
+      .gk-gebiet-ok span {
+        flex: 1;
+      }
+      .gk-gebiet-ok button {
+        width: auto;
+        min-height: 40px;
+        margin-top: 0;
+        padding: 0 14px;
       }
       .gk-balken {
         height: 6px;
@@ -1251,10 +1271,12 @@
         font-size: 10px;
         color: var(--papier-2);
       }
+      /* Toast oben über der Karte (unter Kopf und Ladeanzeige), nie über den Knöpfen der Schublade; am Handy
+         rechts 60 px frei für GPS/Folgen, am Desktop mittig über der Karte */
       #toast {
         position: fixed;
         left: 50%;
-        bottom: calc(70px + var(--sicher-unten));
+        top: calc(var(--sicher-oben) + 100px);
         transform: translateX(-50%);
         background: var(--papier);
         color: var(--humus);
@@ -1671,6 +1693,17 @@
           bottom: 24px;
           left: 12px;
         }
+        #toast {
+          left: calc(50% - 200px);
+        }
+      }
+      @media (max-width: 899px) {
+        #toast {
+          left: 10px;
+          right: 60px;
+          transform: none;
+          max-width: none;
+        }
       }
       @media (prefers-reduced-motion: reduce) {
         * {
@@ -1819,6 +1852,9 @@
           <h2>Offline-Karte</h2>
           <div class="gk" id="gk-box">
             <div class="note" id="gk-info">Noch keine Offline-Karte gespeichert.</div>
+            <div class="gk-gebiet-ok" id="gk-gebiet-ok" style="display: none">
+              <span></span><button class="act ghost" id="gk-aktual">Aktualisieren</button>
+            </div>
             <button class="act" id="gk-gebiet">Gebiet offline speichern (bis Zoom 11, ca. 22 MB)</button>
             <div id="gk-liste"></div>
             <div class="gk-fort" style="display: none">
@@ -2256,7 +2292,7 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-26.26";
+        var VERSION = "2026-09-26.27";
         // Radar nur als Kartenebene; in der Bewertung zu unzuverlässig (gelernte Farbskala, leere Bilder)
         var RADAR_IM_MODELL = false;
         var LOG = [];
@@ -10988,6 +11024,23 @@
           }
           return out;
         }
+        // Stand des Gebiets: wie viele seiner Kacheln liegen im Speicher (für ✓-Zeile bzw. „x % gespeichert“)
+        var GK_GEBIET_ALT_TAGE = 180; // älter → „Aktualisieren“ lädt das Gebiet neu (Webkarte ändert sich langsam)
+        async function gkGebietStand() {
+          try {
+            var liste = gkGebietKacheln(),
+              g = await gkGroesse(liste);
+            gk.gebiet = {
+              n: g.n,
+              bytes: g.bytes,
+              total: liste.length,
+              stand: localStorage.getItem("schwammerl:gebiet-stand"),
+            };
+          } catch (e) {
+            gk.gebiet = null;
+          }
+          gkAnzeigen();
+        }
         // Stufe „Umgebung“: Zoom 13–15 im Kreis (Kachelmitte näher als r + halbe Diagonale);
         // bei 15 km Zoom 15 nur im inneren 5-km-Kreis (sonst ≈ 4 × so groß)
         function umgZooms(rKm) {
@@ -11039,7 +11092,7 @@
               gkAnzeigen();
             });
         }
-        async function gkLaden(liste, titel, nachher) {
+        async function gkLaden(liste, titel, nachher, erneuern) {
           if (gk.lauf) return;
           var c = await gkCache(),
             lauf = (gk.lauf = {
@@ -11060,7 +11113,7 @@
               liste.slice(i, i + 4).map(async function (k) {
                 try {
                   var key = gkSchluessel(k[0], k[1], k[2]);
-                  if (!(await c.match(key))) {
+                  if (erneuern || !(await c.match(key))) {
                     geladen = true;
                     var r = await fetch(GK_URL.replace("{s}", 1 + ((k[1] + k[2]) % 3)) + k.join("/"));
                     if (!r.ok) throw new Error("HTTP " + r.status);
@@ -11090,7 +11143,9 @@
           toast(
             lauf.abbruch
               ? "Abgebrochen – bisher gespeicherte Kacheln bleiben."
-              : titel +
+              : !lauf.neu && !lauf.fehler
+                ? titel + " war schon vollständig gespeichert."
+                : titel +
                   " gespeichert: " +
                   lauf.neu +
                   " Kacheln neu (" +
@@ -11308,13 +11363,29 @@
                   mbText(gk.stand.bytes)
                 : "Noch keine Offline-Karte gespeichert.") +
               (gk.persist ? " · Speicher dauerhaft: " + gk.persist : "");
-          if ($("gk-gebiet") && !l)
+          var G = gk.gebiet,
+            voll = G && G.n >= G.total;
+          if ($("gk-gebiet-ok")) {
+            $("gk-gebiet-ok").style.display = voll ? "" : "none";
+            $("gk-gebiet").style.display = voll ? "none" : "";
+            if (voll) {
+              var sd = G.stand ? G.stand.split("-") : null;
+              $("gk-gebiet-ok").querySelector("span").textContent =
+                "Gebiet offline ✓ · " +
+                G.n.toLocaleString("de-DE") +
+                " Kacheln · " +
+                mbText(G.bytes) +
+                (sd ? " · Stand " + +sd[2] + "." + +sd[1] + "." : "");
+            }
+          }
+          if ($("gk-gebiet") && !l && !voll)
             $("gk-gebiet").textContent =
               "Gebiet offline speichern (bis Zoom " +
               GK_GEBIET_ZOOM +
               ", ca. " +
               mbText(gkGebietKacheln().length * gkKb() * 1000) +
-              ")";
+              ")" +
+              (G && G.n ? " (" + Math.floor((100 * G.n) / G.total) + " % gespeichert)" : "");
           document.querySelectorAll(".gk-fort").forEach(function (el) {
             el.style.display = l ? "block" : "none";
             if (!l) return;
@@ -11334,7 +11405,7 @@
                 ? " · noch ~" + (rest < 90 ? Math.round(rest) + " s" : Math.round(rest / 60) + " min")
                 : "");
           });
-          ["gk-gebiet", "gk-umg", "gk-weg", "gk-r"].forEach(function (id) {
+          ["gk-gebiet", "gk-aktual", "gk-umg", "gk-weg", "gk-r"].forEach(function (id) {
             if ($(id)) $(id).disabled = !!l;
           });
         }
@@ -11459,14 +11530,32 @@
             }
             if (gk.umg === null) await umgUebernehmen(keys);
             await gkAufraeumen(keys);
+            await gkGebietStand();
           } catch (e) {}
           gkPersistenz(false);
           gkAnzeigen();
           umgListe();
           grundkarteWahl();
         }
+        function gebietLaden(erneuern) {
+          gkLaden(
+            gkGebietKacheln(),
+            "Gebiet",
+            function (lauf) {
+              if (!lauf.abbruch && !lauf.fehler)
+                localStorage.setItem("schwammerl:gebiet-stand", datumIso(new Date()));
+              return gkGebietStand();
+            },
+            erneuern,
+          );
+        }
         $("gk-gebiet").addEventListener("click", function () {
-          gkLaden(gkGebietKacheln(), "Gebiet");
+          gebietLaden(false);
+        });
+        // Aktualisieren: fehlende Kacheln laden; ist der Stand älter als GK_GEBIET_ALT_TAGE, alle neu
+        $("gk-aktual").addEventListener("click", function () {
+          var st = gk.gebiet && gk.gebiet.stand;
+          gebietLaden(!!st && tageZurueck(st) > GK_GEBIET_ALT_TAGE);
         });
         // Umgebung: erster Tipp nennt Kachelzahl und Größe, zweiter lädt (Bestätigung im Knopf selbst)
         var gkUmgebungListe = null,
@@ -11538,6 +11627,10 @@
           gk.cache = null;
           gk.stand = { n: 0, bytes: 0 };
           gk.umg = [];
+          gk.gebiet = null;
+          try {
+            localStorage.removeItem("schwammerl:gebiet-stand");
+          } catch (e) {}
           gkStandSchreiben();
           umgSchreiben();
           umgKreis.clearLayers();
