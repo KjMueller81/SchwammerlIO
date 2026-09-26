@@ -190,6 +190,19 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
 - Open-Meteo-Limit (GitHub-Adressen sind geteilt): eine Wiederholung nach 5 min, sonst Exitcode 3 → Warnung im Log,
   der alte Stand auf `wetterdaten` bleibt. Geplante Läufe schaltet GitHub nach 60 Tagen ohne Repo-Aktivität ab.
 
+### GBIF-Werkzeug (Prüfdaten, nicht Teil der App)
+- `werkzeuge/gbif.js` (Node 24, nur Standardbibliothek): `cd werkzeuge && node gbif.js` (≈ 4 min beim ersten Lauf,
+  1 Abruf/s), `--nur-zaehlen` (nur Facetten), `--offline` (nur aus dem Zwischenspeicher neu auswerten). Öffentliche
+  GBIF-API ohne Konto; Filter country=DE, HUMAN_OBSERVATION, mit Koordinate, ohne Geo-Problem, Grundstock-Rechteck,
+  2015 bis heute. Taxon-Schlüssel über `species/match` (Flockenstieliger Hexenröhrling = drei GBIF-Arten), Flechten
+  über Klassen/Verrucariales abgezogen. Grundstock-Werte an der Meldestelle wie `grundstockAmPunkt` (PNG von Hand).
+- Zwischenspeicher `werkzeuge/cache/gbif/` (in `.gitignore`, Seiten à 300 einzeln → Abbruch und Fortsetzen);
+  **Rohdaten nie committen:** 70 % der Meldungen CC BY-NC, genaue Fundorte von Steinpilz/Pfifferling (BArtSchV
+  „besonders geschützt“) gehören nicht ins öffentliche Repo. Beobachter nur als Hash mit lokalem Salz (`salz.txt`).
+  Ins Repo nur der Bericht `werkzeuge/berichte/gbif-stufe1.md` + `gbif-stufe1-zellen.png` (Zählungen, 10-km-Zellen).
+- iNaturalist verschleiert viele Steinpilz-Fundorte auf ≈ 27 km (`coordinateUncertaintyInMeters` 20–30 km) – für
+  Ort-genaue Auswertungen herausfiltern.
+
 ### App: Start, Schicht 2/3 und Überblick aus Grundstock
 - Start (`datenLaden`, Ladeanzeige `#start`, Karte sofort bedienbar): `meta.json` (Netz zuerst) → `grundlage.png`/
   `hoehe.png` (`?v=<stand>`, Gerätespeicher zuerst, Cache API `schwammerl-daten-v1`, alte Stände werden gelöscht)
@@ -509,6 +522,11 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
   (Angelini et al.); die Pilzsaison endet allgemein mit Frost (Kauserud et al. 2012, PNAS); die Versorgung durch die
   Wirtsbäume lässt im Herbst nach. Feste Schwellen gibt es in der Literatur nicht – Frostgrenzen (0 / −3 °C),
   Startwerte (0,3 / 0,15), Erholungszeiten (7 / 10 Tage), Kältesumme (Basis 5 °C, Kurve 25/60/100) sind Annahmen.
+- GBIF.org, Occurrence Search API, abgerufen 26.09.2026: country=DE, basisOfRecord=HUMAN_OBSERVATION,
+  hasCoordinate=true, hasGeospatialIssue=false, Grundstock-Rechteck, 2015–2026 (Auswertung
+  `werkzeuge/berichte/gbif-stufe1.md`, nur beschreibend). Für Stufe 2 einen GBIF-Download mit DOI zitieren.
+  Vorbild: Kinoko (github.com/frederikbeimgraben/Kinoko, modell/README.md: 746 827 Pilzmeldungen DE,
+  4 659 *B. edulis*, 2 174 *C. cibarius*).
 - Erfahrungswissen (schwächer gewichtet): Osthang für Pfifferling, Zeigerpilze Marone, Hexenröhrlinge,
   Fliegenpilz, Pfefferröhrling, Semmelstoppelpilz; stickstoffreiche Krautschicht ungünstig.
 

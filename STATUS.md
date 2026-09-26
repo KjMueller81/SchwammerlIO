@@ -12,6 +12,9 @@ Angenommen, aber noch nicht ausgeliefert. Beim Start hier eintragen, bei Auslief
 ## Zuletzt ausgeliefert
 Nur die letzten fünf; ältere Auslieferungen stehen im Git-Verlauf.
 
+- **G – GBIF Stufe 1 (26.09.2026, ohne App-Version):** Werkzeug `werkzeuge/gbif.js` (öffentliche GBIF-API, Zählung
+  + Einzelmeldungen, Zwischenspeicher außerhalb des Repos) und Bericht
+  [werkzeuge/berichte/gbif-stufe1.md](werkzeuge/berichte/gbif-stufe1.md); Kurzfassung unter „Wartet auf Entscheidung“.
 - **I – Toast, unterer Rand, Bearbeiten-Formular, Felddaten (v2026-09-26.28):** Toast-Knopf rechts oder darunter,
   nie über dem Text; Home-Bildschirm-App mit `100lvh` bis zum Bildschirmrand, dazu Diagnose-Zeile (innerHeight,
   visualViewport, safe-area, Unterkanten) zum Ablesen am iPhone; Gebiet-Zeile mit Datum (Kacheln tragen ihr
@@ -27,11 +30,6 @@ Nur die letzten fünf; ältere Auslieferungen stehen im Git-Verlauf.
   Hand-Vermerk ✎, alle Besuche mit Ändern/Löschen/Wetter nachholen), jede Änderung mit „Rückgängig“; Fund
   „unsicher“ zählt halb (auch in „Besuch erfassen“); Datumsänderung bildet das Wetter an der Stelle neu; feste
   Besuchs-id, Import erkennt geänderte Besuche per id. „Letzten Besuch löschen“ entfällt.
-- **E – Offline-Befunde vom iPhone (v2026-09-26.25):** Umkreis offline bzw. ohne Baumartenkarte aus dem Grundstock
-  (150 m) statt aus dem Formular, Unbekanntes grau, keine Scheinrangliste (Gleichstand → näher am Pin, kaum
-  Unterschiede → Hinweis); „Gleich los“ erst ab Urteilsstufe „mittel“, sonst „Diese Woche kaum Aussicht hier.“;
-  Umkreis als ein Bild ohne Gitterlinien; „Wetter von heute …“; neue Version meldet sich („Neue Version — neu
-  laden“); übrig gebliebene Zoom-12-Kacheln werden einmalig freigegeben.
 
 ## Offline-Grundkarte (entschieden: Webkarte Bayern)
 
@@ -44,6 +42,16 @@ Nur die letzten fünf; ältere Auslieferungen stehen im Git-Verlauf.
   (`navigator.storage.persist()`); Offline-Umschaltung auf die Webkarte funktioniert.
 
 ## Wartet auf Entscheidung
+- **GBIF Stufe 2 – ja/nein und in welchem Gebiet?** Bericht: [gbif-stufe1.md](werkzeuge/berichte/gbif-stufe1.md)
+  (Stand 26.9.2026). Im Gebiet 2015–2026: 22 848 Pilzmeldungen ohne Flechten (Suchaufwand 2023–25 ≈ 8,7× 2015–17),
+  Fichtensteinpilz 271, Pfifferling 56, Sommersteinpilz 14. 60 % der Steinpilze sind von iNaturalist auf ≈ 27 km
+  verschleiert, 145 davon von einem einzigen Beobachter → nur 101 ortsgenaue Steinpilz-Meldungen.
+  Zelle-Wochen (Juni–Nov., 5 km, ortsgenau): Steinpilz 95, Pfifferling 37, Sommersteinpilz 8 gegenüber 6 653 im
+  Hintergrund. Standort (≤ 500 m, im Wald): Steinpilz n = 55, Pfifferling n = 14 – nur Tendenzen (Fichte ×1,2–1,3).
+  **Empfehlung:** Stufe 2 nur für Steinpilz (Sommersteinpilz zusammengefasst), 5-km-Zelle × Woche gegen den
+  Hintergrund; Pfifferling nur beschreibend. Für belastbare Zahlen das Prüfgebiet auf Bayern/Deutschland erweitern
+  (Kinoko: 4 659 Steinpilze bundesweit). Wetter aus DWD HYRAS 1 km (≈ 44 Dateien, ≈ 2,8 GB, keine Abrufgrenze)
+  statt Open-Meteo-Archiv (≈ 86 000 Abrufe ≈ 9 Tage Tageslimit); Meldungen als GBIF-Download mit DOI.
 - **Offene Modellbeobachtungen** (mit Felddaten prüfen):
   - Pfifferling fällt nach Frost stärker als Steinpilz (Pin-Werte 38 → 12 gegenüber 48 → 15) – mit Oktober-Funden
     prüfen.
@@ -71,9 +79,9 @@ Offene Punkte ohne Termin (aus CLAUDE.md hierher verschoben, 26.9.).
   (gleiche Endformel, nicht offline, Kalibrierung nur aus Oberbayern).
 - **Live-Weg außerhalb des Gebiets:** Überblick auf den Kreis beschneiden (bisher Rechteck), Flächen ohne Daten
   (z. B. Tschechien) schraffieren wie im Grundstock-Weg.
-- **GBIF-Rückrechnung:** Pilzmeldungen (GBIF, ab 2015) im Gebiet gegen die Endformel prüfen, Hintergrund = alle
-  Pilzmeldungen derselben Zelle und Woche (Vorbild Kinoko, github.com/frederikbeimgraben/Kinoko). Prüft
-  Trennschärfe, Regenverzögerung, Frost, Kältesumme.
+- **GBIF-Rückrechnung (Stufe 1 erledigt, Stufe 2 offen):** Pilzmeldungen (GBIF, ab 2015) im Gebiet gegen die
+  Endformel prüfen, Hintergrund = alle Pilzmeldungen derselben Zelle und Woche (Vorbild Kinoko,
+  github.com/frederikbeimgraben/Kinoko). Prüft Trennschärfe, Regenverzögerung, Frost, Kältesumme.
 - **Pfeil zur Stelle:** Richtung und Entfernung zu einer gespeicherten Stelle, offline über GPS und Kompass.
 
 ## Hinweise
