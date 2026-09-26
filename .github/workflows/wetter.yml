@@ -15,13 +15,14 @@ concurrency:
   cancel-in-progress: false
 jobs:
   wetter:
-    runs-on: ubuntu-latest
+    # feste Version: ubuntu-latest wechselt am 19.10. auf 26.04, der Lauf soll sich nicht unbemerkt ändern
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
       - name: Wetter holen
         id: lauf
         working-directory: werkzeuge
