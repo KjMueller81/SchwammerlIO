@@ -1,6 +1,6 @@
 # Status Schwammerl-Karte
 
-Stand: v2026-09-26.27 (26.09.2026)
+Stand: v2026-09-26.28 (26.09.2026)
 
 ## Offene Aufträge
 Angenommen, aber noch nicht ausgeliefert. Beim Start hier eintragen, bei Auslieferung nach „Zuletzt ausgeliefert“.
@@ -12,6 +12,11 @@ Angenommen, aber noch nicht ausgeliefert. Beim Start hier eintragen, bei Auslief
 ## Zuletzt ausgeliefert
 Nur die letzten fünf; ältere Auslieferungen stehen im Git-Verlauf.
 
+- **I – Toast, unterer Rand, Bearbeiten-Formular, Felddaten (v2026-09-26.28):** Toast-Knopf rechts oder darunter,
+  nie über dem Text; Home-Bildschirm-App mit `100lvh` bis zum Bildschirmrand, dazu Diagnose-Zeile (innerHeight,
+  visualViewport, safe-area, Unterkanten) zum Ablesen am iPhone; Gebiet-Zeile mit Datum (Kacheln tragen ihr
+  Speicherdatum, ohne Datum lädt „Aktualisieren“ neu); „Bestimmung unsicher“ als Häkchen-Zeile je Fund;
+  Datumsfeld ohne iOS-Mindestbreite; Felddaten 25.9. korrigiert.
 - **H – Doku aufgeräumt (26.09.2026, ohne App-Version):** offene Punkte aus CLAUDE.md hierher („Backlog“),
   STATUS.md gekürzt.
 - **F – Offline-Speicher und unterer Rand (v2026-09-26.27):** Gebiet vollständig → Zeile „Gebiet offline ✓ · 379
@@ -27,11 +32,6 @@ Nur die letzten fünf; ältere Auslieferungen stehen im Git-Verlauf.
   Unterschiede → Hinweis); „Gleich los“ erst ab Urteilsstufe „mittel“, sonst „Diese Woche kaum Aussicht hier.“;
   Umkreis als ein Bild ohne Gitterlinien; „Wetter von heute …“; neue Version meldet sich („Neue Version — neu
   laden“); übrig gebliebene Zoom-12-Kacheln werden einmalig freigegeben.
-- **Offline-Karte umgewichtet (v2026-09-26.24):** Gebiet nur noch bis Zoom 11 (379 Kacheln, ≈ 20 MB); Umgebungen
-  5/10/15 km (Standard 10) mit Zoom 13–15 (15 km: Zoom 15 nur im inneren 5-km-Kreis), Größe vorab; Liste im Tab
-  „Karten“ mit Name, Radius, Größe, Datum, „Auf Karte zeigen“, „Löschen“ (gemeinsame Kacheln bleiben); alte
-  15-km-Umgebung als erster Eintrag übernommen; nach „Besuch speichern“ Angebot im Toast. Gemessen lokal:
-  5 km = 176 Kacheln / 6 MB, 10 km = 705 Kacheln (≈ 35–40 MB).
 
 ## Offline-Grundkarte (entschieden: Webkarte Bayern)
 
@@ -80,6 +80,6 @@ Offene Punkte ohne Termin (aus CLAUDE.md hierher verschoben, 26.9.).
 - Offline-Test iPhone 26.9.: Grundkarte und Pin ok.
 
 ## Nächste Schritte
-- Am iPhone: Stand von F prüfen (Gebiet-Zeile, unterer Rand).
-- Schliersee-Besuch 25.9. in der App bearbeiten (Steinpilz, Bestimmung unsicher).
+- Am iPhone: Toast, unteren Rand, Unsicher-Schalter und Datumsfeld prüfen (v2026-09-26.28); bei Streifen unten
+  die Diagnose-Zeile (Tab „Karten“ → Diagnose, „Ansicht: …“) in allen drei Schubladen-Stufen ablesen und schicken.
 - Oktober: Besuche nach Frost erfassen, auch Leerfunde; gezielt Gras-/Kraut-Stellen und einen Kalkstandort.

@@ -70,6 +70,17 @@
         display: flex;
         flex-direction: column;
       }
+      /* Home-Bildschirm-App: Der Anfangs-Viewport (inset: 0) endete am iPhone ≈ 26 pt über der Home-Leiste, der
+         Seitenhintergrund war darunter zu sehen. Dort die große Viewport-Höhe (lvh) nehmen, damit die Schublade bis
+         zum Bildschirmrand reicht; ihr Inhalt hält wie bisher --sicher-unten Abstand. Im Safari-Tab bleibt
+         inset: 0 (lvh läge dort unter der Werkzeugleiste). */
+      @media (display-mode: standalone) {
+        #app {
+          bottom: auto;
+          height: 100vh;
+          height: 100lvh;
+        }
+      }
       html {
         height: -webkit-fill-available;
       }
@@ -473,24 +484,32 @@
       }
       .bz-unsicher {
         display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
+        flex-direction: column;
+        gap: 4px;
       }
       .md-u {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
         min-height: 40px;
-        padding: 0 12px;
+        padding: 0 8px;
         font: inherit;
-        font-size: 12.5px;
-        color: var(--papier-2);
+        font-size: 13px;
+        text-align: left;
+        color: var(--papier);
         background: transparent;
         border: 1px solid var(--linie);
         border-radius: 7px;
         cursor: pointer;
       }
-      .md-u.an {
-        color: var(--humus);
-        background: var(--pfiff);
-        border-color: var(--pfiff);
+      .md-haken {
+        font-size: 18px;
+        line-height: 1;
+        color: var(--papier-2);
+      }
+      .md-u.an .md-haken {
+        color: var(--pfiff);
       }
       .bb-besuche {
         margin-top: 8px;
@@ -1107,6 +1126,17 @@
         margin: 3px 0;
       }
       /* Datum: zeigt „heute", die unsichtbare Datumsauswahl liegt darüber und öffnet sich beim Antippen */
+      :is(.pinpop, .bb) input[type="date"],
+      :is(.pinpop, .bb) .bz-z {
+        min-width: 0;
+        max-width: 100%;
+        box-sizing: border-box;
+      }
+      :is(.pinpop, .bb) input[type="date"] {
+        width: 100%;
+        -webkit-appearance: none;
+        appearance: none;
+      }
       :is(.pinpop, .bb) .bz-datum input {
         position: absolute;
         inset: 0;
@@ -1287,10 +1317,20 @@
         display: none;
         box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
         max-width: 88vw;
+        /* Text und Knopf nie übereinander: passt beides in eine Zeile, steht der Knopf rechts, sonst darunter */
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px 12px;
+      }
+      .toast-text {
+        flex: 1 1 auto;
+        min-width: 0;
+        line-height: 1.35;
       }
       .toast-knopf {
+        flex: 0 0 auto;
+        margin-left: auto;
         min-height: 40px;
-        margin: -6px -6px -6px 12px;
         padding: 0 12px;
         font: inherit;
         font-weight: 600;
@@ -1869,6 +1909,7 @@
             <summary>Diagnose</summary>
             <div class="note" id="diagnose">Luftbild DOP20: wartet</div>
             <div class="note" id="dienste">Noch keine Datenabfrage.</div>
+            <div class="note" id="dbg-ansicht"></div>
             <div class="row">
               <div>
                 <button class="act ghost" id="dbg-copy" style="margin-top: 0">Bericht kopieren</button>
@@ -2153,7 +2194,11 @@
         // Rückmeldung unten; mit aktion {text, fn} ein Knopf im Toast (z. B. „Rückgängig“ nach dem Löschen)
         function toast(msg, aktion) {
           var t = $("toast");
-          t.textContent = msg;
+          t.textContent = "";
+          var tx = document.createElement("span");
+          tx.className = "toast-text";
+          tx.textContent = msg;
+          t.appendChild(tx);
           if (aktion) {
             var b = document.createElement("button");
             b.className = "toast-knopf";
@@ -2165,7 +2210,7 @@
             };
             t.appendChild(b);
           }
-          t.style.display = "block";
+          t.style.display = "flex";
           clearTimeout(toastT);
           toastT = setTimeout(
             function () {
@@ -2292,7 +2337,7 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-26.27";
+        var VERSION = "2026-09-26.28";
         // Radar nur als Kartenebene; in der Bewertung zu unzuverlässig (gelernte Farbskala, leere Bilder)
         var RADAR_IM_MODELL = false;
         var LOG = [];
@@ -3660,6 +3705,54 @@
         // Schublade: zu → halb → voll
         var STUFEN = ["zu", "halb", "voll"],
           stufe = MOBIL ? 0 : 1;
+        // Diagnose unterer Rand: Viewport-Größen, sicherer Bereich und Unterkante der Schublade (am iPhone ablesbar)
+        function ansichtMessen() {
+          var el = $("dbg-ansicht");
+          if (!el) return;
+          var probe = document.createElement("div");
+          probe.style.cssText =
+            "position:fixed;left:0;top:0;width:1px;visibility:hidden;pointer-events:none;" +
+            "padding-bottom:env(safe-area-inset-bottom,0px)";
+          document.body.appendChild(probe);
+          var sicher = parseFloat(getComputedStyle(probe).paddingBottom) || 0,
+            hoehe = function (einheit) {
+              probe.style.height = einheit;
+              return Math.round(probe.getBoundingClientRect().height);
+            };
+          var vh = hoehe("100vh"),
+            dvh = CSS.supports("height", "100dvh") ? hoehe("100dvh") : null,
+            lvh = CSS.supports("height", "100lvh") ? hoehe("100lvh") : null;
+          probe.remove();
+          var unten = function (id) {
+            return Math.round($(id).getBoundingClientRect().bottom);
+          };
+          el.textContent =
+            "Ansicht: innerHeight " +
+            window.innerHeight +
+            " · visualViewport " +
+            (window.visualViewport ? Math.round(window.visualViewport.height) : "–") +
+            " · screen " +
+            screen.height +
+            " · 100vh " +
+            vh +
+            " · 100dvh " +
+            dvh +
+            " · 100lvh " +
+            lvh +
+            " · sicher unten " +
+            sicher +
+            " · #app unten " +
+            unten("app") +
+            " · Schublade unten " +
+            unten("sheet") +
+            " (" +
+            ["zu", "halb", "voll"][stufe] +
+            ") · Home-Bildschirm " +
+            (window.matchMedia("(display-mode: standalone)").matches || navigator.standalone ? "ja" : "nein");
+        }
+        window.addEventListener("resize", function () {
+          setTimeout(ansichtMessen, 300);
+        });
         function setzeStufe(n) {
           stufe = Math.max(0, Math.min(2, n));
           var sh = $("sheet");
@@ -3669,6 +3762,7 @@
           $("griff").textContent = stufe === 0 ? "▴" : stufe === 1 ? "▴▾" : "▾";
           setTimeout(function () {
             map.invalidateSize();
+            ansichtMessen();
             // Schublade geändert → Karte kleiner/größer: Popup neu begrenzen und einpassen
             if (typeof pin !== "undefined" && pin && pin.isPopupOpen && pin.isPopupOpen()) pinInhalt();
           }, 240);
@@ -6155,34 +6249,35 @@
                 })
                 .join(", ");
         }
-        // „unsicher“ je gewähltem Fund: Umschaltknöpfe über die volle Breite (≥ 40 px)
+        // „unsicher“ je gewähltem Fund: eine Häkchen-Zeile „☐ Steinpilz – Bestimmung unsicher“ (ganze Zeile tippbar,
+        // ≥ 40 px, Standard aus) – ein Chip mit Farbe als Zustand war nicht eindeutig
         function bzUnsicher(fn, fund, unsicher) {
           if (!fund.length) return "";
-          return bzZelle(
-            "Bestimmung unsicher?",
-            '<div class="bz-unsicher">' +
-              fund
-                .map(function (w) {
-                  var an = unsicher.indexOf(w) >= 0;
-                  return (
-                    '<button type="button" class="md-u' +
-                    (an ? " an" : "") +
-                    '" aria-pressed="' +
-                    an +
-                    '" onclick="event.stopPropagation();window.' +
-                    fn +
-                    "('unsicher','" +
-                    w +
-                    "')\">" +
-                    (FUNDKURZ[w] || w) +
-                    (an ? " ?" : "") +
-                    "</button>"
-                  );
-                })
-                .join("") +
-              "</div>",
-            null,
-            true,
+          return (
+            '<div class="bz-z bz-voll bz-unsicher">' +
+            fund
+              .map(function (w) {
+                var an = unsicher.indexOf(w) >= 0;
+                return (
+                  '<button type="button" class="md-u' +
+                  (an ? " an" : "") +
+                  '" role="checkbox" aria-checked="' +
+                  an +
+                  '" data-w="' +
+                  w +
+                  '" onclick="event.stopPropagation();window.' +
+                  fn +
+                  "('unsicher','" +
+                  w +
+                  '\')"><span class="md-haken">' +
+                  (an ? "☑" : "☐") +
+                  "</span>" +
+                  (FUNDKURZ[w] || w) +
+                  " – Bestimmung unsicher</button>"
+                );
+              })
+              .join("") +
+            "</div>"
           );
         }
         function besuchBlockHtml(v) {
@@ -11029,17 +11124,25 @@
         async function gkGebietStand() {
           try {
             var liste = gkGebietKacheln(),
-              g = await gkGroesse(liste);
-            gk.gebiet = {
-              n: g.n,
-              bytes: g.bytes,
-              total: liste.length,
-              stand: localStorage.getItem("schwammerl:gebiet-stand"),
-            };
+              g = await gkGroesse(liste),
+              stand = localStorage.getItem("schwammerl:gebiet-stand");
+            // Ohne gespeichertes Datum (ältere Bestände): Datum der jüngsten Kachel, sonst weglassen – nie raten
+            if (!stand) stand = await gkJuengsteKachel(liste);
+            gk.gebiet = { n: g.n, bytes: g.bytes, total: liste.length, stand: stand };
           } catch (e) {
             gk.gebiet = null;
           }
           gkAnzeigen();
+        }
+        async function gkJuengsteKachel(liste) {
+          var c = await gkCache(),
+            max = null;
+          for (var i = 0; i < liste.length; i++) {
+            var r = await c.match(gkSchluessel(liste[i][0], liste[i][1], liste[i][2])),
+              d = r && r.headers.get("X-Gespeichert");
+            if (d && (!max || d > max)) max = d;
+          }
+          return max;
         }
         // Stufe „Umgebung“: Zoom 13–15 im Kreis (Kachelmitte näher als r + halbe Diagonale);
         // bei 15 km Zoom 15 nur im inneren 5-km-Kreis (sonst ≈ 4 × so groß)
@@ -11120,7 +11223,12 @@
                     var blob = await r.blob();
                     await c.put(
                       key,
-                      new Response(blob, { headers: { "Content-Type": blob.type || "image/png" } }),
+                      new Response(blob, {
+                        headers: {
+                          "Content-Type": blob.type || "image/png",
+                          "X-Gespeichert": datumIso(new Date()),
+                        },
+                      }),
                     );
                     lauf.neu++;
                     lauf.bytes += blob.size;
@@ -11552,10 +11660,11 @@
         $("gk-gebiet").addEventListener("click", function () {
           gebietLaden(false);
         });
-        // Aktualisieren: fehlende Kacheln laden; ist der Stand älter als GK_GEBIET_ALT_TAGE, alle neu
+        // Aktualisieren: fehlende Kacheln laden; ist der Stand älter als GK_GEBIET_ALT_TAGE oder unbekannt (Kacheln
+        // vor v2026-09-26.28 tragen kein Datum), alle neu – danach ist der Stand bekannt
         $("gk-aktual").addEventListener("click", function () {
           var st = gk.gebiet && gk.gebiet.stand;
-          gebietLaden(!!st && tageZurueck(st) > GK_GEBIET_ALT_TAGE);
+          gebietLaden(!st || tageZurueck(st) > GK_GEBIET_ALT_TAGE);
         });
         // Umgebung: erster Tipp nennt Kachelzahl und Größe, zweiter lädt (Bestätigung im Knopf selbst)
         var gkUmgebungListe = null,
@@ -14244,6 +14353,7 @@
 
         update();
         load();
+        setTimeout(ansichtMessen, 500);
         datenLaden();
         gkInit();
         // Neue Version erkennen: sw.js ändert sich bei Auslieferungen nicht (kein Update-Ereignis), und die

@@ -8,7 +8,7 @@ Bewertet Waldstandorte für **Pfifferling (pf)**, **Fichtensteinpilz (st)** und 
 aus Geodaten (Baumart, Boden, Kronendichte, Gelände) und gemessenem Wetter. Nutzer: ein Sammler,
 Bedienung meist am iPhone im Wald, Auswertung am Windows-Rechner.
 
-Stand dieser Datei: v2026-09-26.27. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
+Stand dieser Datei: v2026-09-26.28. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
 
 ---
 
@@ -117,7 +117,12 @@ Tagesregler, Schwellenregler, Besuch speichern, Umkreis-Suche, Offline-Hinweis.
   unten. Zum Testen die Variablen per Stil überschreiben (z. B. 47 px / 34 px). Version im Kopf ohne Umbruch,
   unter 480 px ohne Jahr (`#version .jahr`). `#app` liegt `position: fixed; inset: 0` über dem ganzen Bildschirm
   (kein `-webkit-fill-available` – das zog in der Home-Bildschirm-App die Home-Leiste schon ab, der Streifen unten
-  war doppelt). Zugeklappte Schublade = `--tabs-hoehe` (57 px) + 1 px Rand + `--sicher-unten`.
+  war doppelt). Zugeklappte Schublade = `--tabs-hoehe` (57 px) + 1 px Rand + `--sicher-unten`. Als
+  Home-Bildschirm-App (`display-mode: standalone`) hat `#app` die Höhe `100lvh` statt `bottom: 0` – am iPhone
+  endete der Anfangs-Viewport noch ≈ 26 pt über der Home-Leiste. Diagnose-Zeile `#dbg-ansicht` (`ansichtMessen`):
+  innerHeight, visualViewport, screen, 100vh/dvh/lvh, sicherer Bereich unten, Unterkante von `#app` und Schublade.
+- Toast = Text (`.toast-text`) + optional Knopf im Flex-Umbruch: passt beides, steht der Knopf rechts, sonst darunter
+  (≥ 6 px Abstand, Knopf 40 px) – nie übereinander.
 - Toasts oben über der Karte (`top: --sicher-oben + 100 px`; Handy links 10 / rechts 60 px frei für GPS, Desktop
   mittig über der Karte) – sie verdecken keine Knöpfe der Schublade.
 - Überlappung: Ladeanzeigen (`#start`, `#lade`) lassen rechts 60 px für GPS/Folgen frei; das Pin-Popup hält am
@@ -230,7 +235,9 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
 - **Offline-Grundkarte** (Webkarte Bayern, WMTS Geobasisdaten Bayern, Kachelsatz `smerc`, CC BY 4.0): nur auf
   Knopfdruck. Stand des Gebiets (`gkGebietStand`, `gk.gebiet`): vollständig → „Gebiet offline ✓ · n Kacheln · MB ·
   Stand“ mit „Aktualisieren“ (fehlende Kacheln; älter als `GK_GEBIET_ALT_TAGE` = 180: alle neu), sonst grüner
-  Knopf mit „(x % gespeichert)“; 0 neue Kacheln → „… war schon vollständig gespeichert.“
+  Knopf mit „(x % gespeichert)“; 0 neue Kacheln → „… war schon vollständig gespeichert.“ Jede Kachel trägt ihr
+  Speicherdatum (Header `X-Gespeichert`); ohne gespeichertes Gebiet-Datum gilt die jüngste Kachel, ohne beides
+  entfällt „Stand“, und „Aktualisieren“ lädt dann alles neu.
   „Gebiet grob, Umgebungen fein“ (v2026-09-26.24): Tab „Karten“: „Gebiet offline speichern“
   (`gkGebietKacheln`, Grundstock-Gebiet, Zoom 0–11, 379 Kacheln ≈ 20 MB; ältere Zoom-12-Kacheln bleiben bis zum
   Löschen), Liste der Umgebungen (`gk.umg`, `schwammerl:umgebungen`: Name = Stelle ≤ 100 m oder nächster Ort über
@@ -419,7 +426,8 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
 - Markerfarbe nach letztem Besuch (`besuchFarbe`): gold Zielart, braun nur Zeiger, grau nichts, grün unbesucht.
 - Besuch zusätzlich (v2026-09-26.26): `id` (fest, lazy in `stelleNormal` über `besuchIds`, idempotent),
   `geaendert` (Zeitstempel der letzten Bearbeitung), `unsicher` (Liste der Fund-Schlüssel mit unsicherer
-  Bestimmung). `fundGewicht(fund, a, unsicher)`: unsicherer Zielart-Fund 0,5, unsicherer Begleitfund halbes
+  Bestimmung; Eingabe je Fund als Häkchen-Zeile „☐ Steinpilz – Bestimmung unsicher“, Standard aus).
+  `fundGewicht(fund, a, unsicher)`: unsicherer Zielart-Fund 0,5, unsicherer Begleitfund halbes
   Zeigergewicht (`UNSICHER_FAKTOR`, Annahme, zu kalibrieren); `besuchKurz` zeigt „?“. Import
   (`besucheZusammenfuehren`): zuerst gleiche `id` → jüngeres `geaendert` gewinnt, erst ohne id-Treffer die
   ts-±5-Min.-Regel; neue Besuche ohne id bekommen eine.
@@ -512,7 +520,9 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
 - 13.9. Hofoldinger Forst, Regen am selben Tag: nur Flockenstielige Hexenröhrlinge.
 - 22.9. Schliersee (≈ 47.82 N, 11.74 E), Fichte/sauer/Moos/Nordhang, 13 mm am 9.9. und 31 mm am 16./17.9.,
   Fingerprobe mäßig–feucht: 2 Fichtensteinpilze (zwei jung 5–10 cm, einer 20 cm), Maronen, Hexenröhrling.
-- 25.9. 1 km nördlich davon: Marone mittel, ein alter Steinpilz (als Sommersteinpilz eingetragen – fraglich).
+- 25.9. 1 km nördlich davon (≈ 47.832 N, 11.751 E), Fichte/sauer/Nordhang/innen, Unterwuchs Moos + Heidelbeere:
+  Marone mittel; ein alter Fichtensteinpilz (zuerst als Sommersteinpilz erfasst, am 26.9. in der App korrigiert,
+  Bestimmung sicher).
 - Pilz-Ticker Bayern (passion-pilze-sammeln.com) als unabhängiger Abgleich, gleiche Einordnung.
 - Stellen als GeoJSON im Browser gespeichert, Export/Import im Tab „Stellen“.
 
