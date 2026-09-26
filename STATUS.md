@@ -1,8 +1,18 @@
 # Status Schwammerl-Karte
 
-Stand: v2026-09-26.21 (26.09.2026)
+Stand: v2026-09-26.22 (26.09.2026)
+
+## Offene Aufträge
+Angenommen, aber noch nicht ausgeliefert. Beim Start hier eintragen, bei Auslieferung nach „Zuletzt ausgeliefert“.
+
+| Auftrag | Stand |
+|---|---|
+| B – iPhone-Nachtrag: sicherer Bereich oben/unten, Popup-Größe und Zuschreibung, Quellenangaben, Erklärtext Tab „Punkt“ | begonnen |
+| C – Offline-Karte umgewichten: Gebiet bis Zoom 11, Umgebungen 5/10/15 km mit Liste, Angebot beim Stelle-Speichern | wartet |
 
 ## Zuletzt ausgeliefert
+- **Kältesumme abgesichert (v2026-09-26.22):** Fehlt dem Tageslauf der Vorstand, meldet er das deutlich und holt die
+  Lücke einmalig aus dem Open-Meteo-Archiv; das Region-Feld zeigt „Kältesumme unvollständig“, solange Werte fehlen.
 - **Saisonende (v2026-09-26.21):** Frostschlag (`frostFaktor`) und Kältesumme ab 1.9. (`kaelteFaktor`) in der
   Endformel für Pin, Wetterfeld und Stichproben; Popup-Zeile „Saison klingt ab …“, Rechenweg mit eigenen Zeilen;
   Tageslauf schreibt den Kältesummen-Vorlauf fort. Kalibrierungsfälle unverändert (Tabelle im Commit).

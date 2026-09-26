@@ -2095,7 +2095,7 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-26.21";
+        var VERSION = "2026-09-26.22";
         // Radar nur als Kartenebene; in der Bewertung zu unzuverlässig (gelernte Farbskala, leere Bilder)
         var RADAR_IM_MODELL = false;
         var LOG = [];
@@ -10977,7 +10977,7 @@
             var wetterJ = null;
             try {
               wetterJ = await (await holeDatei(WETTER_URL, "netz-zuerst")).json();
-              daten.wetter = { stand: wetterJ.stand };
+              daten.wetter = { stand: wetterJ.stand, ksLuecke: kaelteLuecke(wetterJ) };
               daten.wetterRoh = wetterJ; // für den Pin ohne Netz
             } catch (e) {
               logZeile("NET", "wetter.json: " + (e.message || e));
@@ -11013,9 +11013,24 @@
                 : d.getDate() + "." + (d.getMonth() + 1) + ". ") + uhr
           );
         }
+        // Kältesumme unvollständig: Die Reihe beginnt nach dem 1.9., aber der Vorlauf fehlt (ganz oder teilweise)
+        function kaelteLuecke(wj) {
+          try {
+            var d0 = tageswetterDatum({}, wj),
+              ab = tagPlus(d0, 35).slice(0, 4) + "-09-01";
+            if (d0 <= ab || tagPlus(d0, 35) < ab) return false;
+            if (!wj.vorAb) return true;
+            return wj.omDaten.some(function (p) {
+              return !p.vor || p.vor.indexOf(null) >= 0;
+            });
+          } catch (e) {
+            return false;
+          }
+        }
         function datenStandText() {
           var t = [];
           if (daten.wetter) t.push("Wetter: " + standKurz(daten.wetter.stand));
+          if (daten.wetter && daten.wetter.ksLuecke) t.push("Kältesumme unvollständig");
           if (daten.meta)
             t.push(
               "Grundlage: " +

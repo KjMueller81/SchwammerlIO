@@ -58,6 +58,43 @@ function vorlaufBauen(om, OM, datum0, vorAb, alt) {
   });
   return fehlt;
 }
+// Fehlende Vorlauf-Tage aus dem Open-Meteo-Archiv (historische Tagesmittel) nachholen. Das Archiv rechnet auf
+// seine eigene Höhe (elevation der Antwort) – umgerechnet auf die Modellhöhe e des Punkts wie die übrigen Reihen.
+// Nur Punkte mit Lücken; Zählregel wie oben (je Ort, Zeitraum/14 Tage). Liefert die Zahl weiterhin fehlender Werte.
+async function vorlaufNachholen(om, punkte, vorAb, datum0) {
+  const bis = tagPlus(datum0, -1),
+    n = tageZwischen(vorAb, datum0),
+    luecken = om.map((p, k) => (p.vor.some((x) => x === null) ? k : -1)).filter((k) => k >= 0);
+  for (let i = 0; i < luecken.length; i += 50) {
+    const ks = luecken.slice(i, i + 50),
+      url =
+        "https://archive-api.open-meteo.com/v1/archive?latitude=" +
+        ks.map((k) => punkte[k][0].toFixed(2)).join(",") +
+        "&longitude=" +
+        ks.map((k) => punkte[k][1].toFixed(2)).join(",") +
+        "&start_date=" +
+        vorAb +
+        "&end_date=" +
+        bis +
+        "&daily=temperature_2m_mean&timezone=Europe%2FBerlin";
+    const r = await fetch(url),
+      j = await r.json().catch(() => null);
+    if (!r.ok || !j) {
+      const grund = (j && j.reason) || "HTTP " + r.status;
+      if (r.status === 429) throw new Limit(grund);
+      throw new Error(grund);
+    }
+    omAbrufe += ks.length * Math.max(1, n / 14);
+    (Array.isArray(j) ? j : [j]).forEach((a, q) => {
+      const p = om[ks[q]],
+        t = (a.daily && a.daily.temperature_2m_mean) || [],
+        dh = typeof a.elevation === "number" && p.e !== null ? 0.0065 * (a.elevation - p.e) : 0;
+      for (let d = 0; d < n; d++) if (p.vor[d] === null && t[d] !== null && t[d] !== undefined) p.vor[d] = r1(t[d] + dh);
+    });
+    if (i + 50 < luecken.length) await pause(1500);
+  }
+  return om.reduce((s, p) => s + p.vor.filter((x) => x === null).length, 0);
+}
 // Raster, das das Gebiet vollständig abdeckt (Punkte auf Vielfachen der Schrittweite)
 function gitter(schritt, rand) {
   const lat0 = Math.floor((R.latS - rand) / schritt) * schritt,
@@ -294,9 +331,26 @@ async function main() {
       const r = await fetch(WETTER_URL, { cache: "no-store" });
       if (r.ok) alt = await r.json();
     } catch (e) {}
-    const fehlt = vorlaufBauen(om, OM, datum0, vorAb, alt);
+    let fehlt = vorlaufBauen(om, OM, datum0, vorAb, alt);
     log(`Kältesumme-Vorlauf ab ${vorAb}: ${tageZwischen(vorAb, datum0)} Tage je Punkt` +
       (fehlt ? `, ${fehlt} Werte fehlen (kein passender Vorstand)` : ""));
+    if (fehlt) {
+      // Kein (vollständiger) Vorstand, obwohl die Reihe nach dem 1.9. beginnt: deutlich melden und die Lücke
+      // einmalig aus dem Open-Meteo-Archiv (historische Tagesmittel) nachholen. Danach trägt sich der Vorlauf
+      // wieder selbst über den Vorstand fort.
+      console.log(
+        `::warning::Kältesumme: kein vollständiger Vorlauf im vorherigen wetter.json (${fehlt} Werte) – ` +
+          "hole den Zeitraum einmalig aus dem Open-Meteo-Archiv",
+      );
+      try {
+        fehlt = await vorlaufNachholen(om, omPunkte, vorAb, datum0);
+        log(`  Archiv: Vorlauf ergänzt, ${fehlt} Werte fehlen weiterhin`);
+      } catch (e) {
+        if (e instanceof Limit) log(`  Archiv: Open-Meteo-Limit (${e.message}) – Kältesumme bleibt unvollständig`);
+        else log(`  Archiv: ${e.message} – Kältesumme bleibt unvollständig`);
+      }
+      if (fehlt) console.log(`::warning::Kältesumme unvollständig: ${fehlt} Tageswerte fehlen`);
+    }
   }
 
   const aus = {
@@ -327,4 +381,4 @@ if (require.main === module)
     console.error("FEHLER:", e.message);
     process.exit(1);
   });
-module.exports = { vorlaufBauen, tagPlus };
+module.exports = { vorlaufBauen, vorlaufNachholen, tagPlus };

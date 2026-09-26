@@ -8,7 +8,7 @@ Bewertet Waldstandorte für **Pfifferling (pf)**, **Fichtensteinpilz (st)** und 
 aus Geodaten (Baumart, Boden, Kronendichte, Gelände) und gemessenem Wetter. Nutzer: ein Sammler,
 Bedienung meist am iPhone im Wald, Auswertung am Windows-Rechner.
 
-Stand dieser Datei: v2026-09-26.21. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
+Stand dieser Datei: v2026-09-26.22. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
 
 ---
 
@@ -36,6 +36,8 @@ Stand dieser Datei: v2026-09-26.21. Die Entwicklung bis v2026-09-26.4 lief in ei
    Exitcode 1 = Syntax-/Ladefehler, 2 = Fall oder Regel weicht ab.
    Tests (h)/(i) rechnen den Grundstock-Weg auf `tests/daten/ebersberg.json` (Ausschnitt um den Ebersberger Pin,
    erzeugt mit `werkzeuge/testausschnitt.js`; nach neuem Grundstock oder geänderter `wetter.json`-Form neu erzeugen).
+10. **Aufträge in `STATUS.md` führen:** Angenommene Aufträge beim Start unter „Offene Aufträge“ eintragen
+    (Stand begonnen / wartet), bei Auslieferung nach „Zuletzt ausgeliefert“ verschieben.
 
 ---
 
@@ -167,7 +169,9 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
   schreibt der Lauf je Punkt `vor` = Tagesmittel (Modellhöhe) von `vorAb` (1.9.) bis zum Tag vor `datum0`,
   fortgeschrieben aus dem vorherigen `wetter.json` (`vorlaufBauen`, keine Zusatzabrufe; fehlt der Vorstand, bleiben
   die Tage `null` und zählen nicht). Die App mischt `vor` in `omMischen` mit Höhenkorrektur; der Pin holt ihn aus
-  dem Tageswetter (`vorlaufAnhaengen`).
+  dem Tageswetter (`vorlaufAnhaengen`). Fehlt der Vorstand, meldet der Lauf das als `::warning::` und holt die
+  Lücke einmalig aus dem Open-Meteo-Archiv (`vorlaufNachholen`, `temperature_2m_mean`, von der Archivhöhe auf die
+  Modellhöhe umgerechnet). Solange Werte fehlen, zeigt das Region-Feld „Kältesumme unvollständig“ (`kaelteLuecke`).
 - Verbrauch je Lauf: Open-Meteo ≈ 630 Abrufe (≈ 1 250/Tag), Bright Sky ≈ 800 Anfragen, Laufzeit ≈ 30 s + Einrichtung.
 - Open-Meteo-Limit (GitHub-Adressen sind geteilt): eine Wiederholung nach 5 min, sonst Exitcode 3 → Warnung im Log,
   der alte Stand auf `wetterdaten` bleibt. Geplante Läufe schaltet GitHub nach 60 Tagen ohne Repo-Aktivität ab.

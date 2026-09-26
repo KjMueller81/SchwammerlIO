@@ -91,6 +91,7 @@ const EXPORT = [
   "UNTER_FERN",
   "daten",
   "rasterCache",
+  "kaelteLuecke",
 ];
 // als Getter, damit auch später gesetzte Variablen (rasterCache) aktuell gelesen werden
 const kern = js.replace(
@@ -601,6 +602,18 @@ pruefe("(l) Tageslauf schreibt den Kältesummen-Vorlauf ab 1.9. fort", () => {
     v[29] === 4 &&
     tagPlus("2026-09-01", 29) === "2026-09-30" &&
     vorlaufBauen([reihe(1)], OM, "2026-10-01", "2026-09-01", null) === 30 // ohne Vorstand: 30 Lücken
+  );
+});
+
+// (m) Region-Feld: „Kältesumme unvollständig“, solange der Vorlauf fehlt
+pruefe("(m) Kältesumme unvollständig erkannt", () => {
+  const K = T.kaelteLuecke,
+    pt = (v) => ({ vor: v });
+  return (
+    K({ datum0: "2026-08-22", omDaten: [pt()] }) === false && // Reihe reicht bis 1.9. zurück
+    K({ datum0: "2026-09-10", omDaten: [pt()] }) === true && // kein Vorlauf
+    K({ datum0: "2026-09-10", vorAb: "2026-09-01", omDaten: [pt([1, 2, null])] }) === true && // Lücke
+    K({ datum0: "2026-09-10", vorAb: "2026-09-01", omDaten: [pt([1, 2, 3])] }) === false
   );
 });
 
