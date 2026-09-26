@@ -1,16 +1,20 @@
 # Status Schwammerl-Karte
 
-Stand: v2026-09-26.24 (26.09.2026)
+Stand: v2026-09-26.25 (26.09.2026)
 
 ## Offene Aufträge
 Angenommen, aber noch nicht ausgeliefert. Beim Start hier eintragen, bei Auslieferung nach „Zuletzt ausgeliefert“.
 
 | Auftrag | Stand |
 |---|---|
-| E – Offline-Befunde vom iPhone: Umkreis-Suche offline aus dem Grundstock statt aus den Formularwerten, Unbekanntes grau, keine Scheinrangliste bei Gleichstand; Prognosesatz „Gleich los“ nicht bei schwachen Stellen; Gitter im Umkreis weg; Kopfzeile „Wetter von heute …“; neue Version meldet sich („Neue Version — neu laden“). Zuerst, weil die Umkreis-Suche offline sonst falsche Ziele zeigt. | wartet (Auftragstext folgt) |
 | D – Stellen und Besuche bearbeiten: Stelle und Besuche ändern/löschen mit Rückgängig; Fund „unsicher“ (zählt 0,5, Annahme); Merkmale der Stelle von Hand korrigieren; Datumsänderung bildet den Wetter-Schnappschuss neu; feste Besuchs-ID gegen Dubletten beim Import; drei offene Modellbeobachtungen nach STATUS.md. Nach E. | wartet (Auftragstext folgt) |
 
 ## Zuletzt ausgeliefert
+- **E – Offline-Befunde vom iPhone (v2026-09-26.25):** Umkreis offline bzw. ohne Baumartenkarte aus dem Grundstock
+  (150 m) statt aus dem Formular, Unbekanntes grau, keine Scheinrangliste (Gleichstand → näher am Pin, kaum
+  Unterschiede → Hinweis); „Gleich los“ erst ab Urteilsstufe „mittel“, sonst „Diese Woche kaum Aussicht hier.“;
+  Umkreis als ein Bild ohne Gitterlinien; „Wetter von heute …“; neue Version meldet sich („Neue Version — neu
+  laden“); übrig gebliebene Zoom-12-Kacheln werden einmalig freigegeben.
 - **Offline-Karte umgewichtet (v2026-09-26.24):** Gebiet nur noch bis Zoom 11 (379 Kacheln, ≈ 20 MB); Umgebungen
   5/10/15 km (Standard 10) mit Zoom 13–15 (15 km: Zoom 15 nur im inneren 5-km-Kreis), Größe vorab; Liste im Tab
   „Karten“ mit Name, Radius, Größe, Datum, „Auf Karte zeigen“, „Löschen“ (gemeinsame Kacheln bleiben); alte
@@ -93,6 +97,7 @@ Angenommen, aber noch nicht ausgeliefert. Beim Start hier eintragen, bei Auslief
   100 → 0,1, Sommersteinpilz doppelt). Besuche mit „nichts“ nach Frost und Funde nach Frost sind besonders wertvoll.
 
 ## Hinweise
+- Offline-Test iPhone 26.9.: Grundkarte und Pin ok.
 - Wetterlauf: nach dem Umstellen einmal von Hand starten (Actions → Wetterlauf → Run workflow) und prüfen,
   ob er grün durchläuft; im Region-Feld steht danach die neue Uhrzeit.
 - Offline-Start am iPhone einmal im Flugmodus prüfen (App vorher einmal online geöffnet).

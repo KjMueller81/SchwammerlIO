@@ -106,6 +106,16 @@
         padding: 2px 9px;
         white-space: nowrap;
       }
+      .chip.neu {
+        color: var(--humus);
+        background: var(--moos-hell);
+        border-color: var(--moos-hell);
+        font: inherit;
+        font-size: 11.5px;
+        font-weight: 600;
+        cursor: pointer;
+        min-height: 28px;
+      }
       .chip.offline {
         color: var(--pfiff);
         border-color: var(--pfiff);
@@ -1199,6 +1209,9 @@
         border-radius: 7px;
         cursor: pointer;
       }
+      .leaflet-image-layer.scharf {
+        image-rendering: pixelated;
+      }
       .leaflet-image-layer.weich {
         image-rendering: auto;
       }
@@ -1606,6 +1619,9 @@
         </h1>
         <span class="chip" id="saison-chip">Saison</span>
         <span class="chip offline" id="netz-chip" style="display: none">offline</span>
+        <button class="chip neu" id="neu-chip" style="display: none" title="Neue Version laden">
+          Neu laden
+        </button>
       </header>
       <div id="fehler"></div>
       <div id="toast"></div>
@@ -2135,18 +2151,20 @@
         function istOffline() {
           return !navigator.onLine || netzWeg || (typeof daten !== "undefined" && daten.offline);
         }
-        // Kleiner Hinweis im Kopf statt Saison, solange offline: „offline — Wetter vom …“
+        // Kleiner Hinweis im Kopf statt Saison, solange offline: „offline — Wetter von heute …“
         function netzHinweisZeigen() {
           var el = $("netz-chip");
           if (!el) return;
           var off = istOffline();
           el.style.display = off ? "" : "none";
-          $("saison-chip").style.display = off ? "none" : "";
+          // Saison weicht dem Offline-Hinweis und „Neu laden“ (sonst wird die Versionsnummer abgeschnitten)
+          $("saison-chip").style.display =
+            off || (typeof neueVersion !== "undefined" && neueVersion) ? "none" : "";
           if (off)
             el.textContent =
               "offline" +
               (typeof daten !== "undefined" && daten.wetter
-                ? " — Wetter vom " + standKurz(daten.wetter.stand)
+                ? " — Wetter " + standKurz(daten.wetter.stand)
                 : "");
           if (off) $("fehler").style.display = "none"; // kein rotes Band ohne Netz
           if (typeof grundkarteWahl === "function" && typeof gk !== "undefined") grundkarteWahl();
@@ -2169,7 +2187,7 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-26.24";
+        var VERSION = "2026-09-26.25";
         // Radar nur als Kartenebene; in der Bewertung zu unzuverlässig (gelernte Farbskala, leere Bilder)
         var RADAR_IM_MODELL = false;
         var LOG = [];
@@ -2977,6 +2995,16 @@
                 "Mehr Regen nicht schlechter (20 → 30 mm)",
                 function () {
                   return bewerte(V(), W1, 600, undefined, 85).st >= bewerte(V(), W2, 600, undefined, 85).st;
+                },
+              ],
+              [
+                "Prognosesatz: schwache Woche 31/28/26/25/24 → kein „Gleich los“",
+                function () {
+                  var reihe = [31, 28, 26, 25, 24].map(function (x, t) {
+                    return { t: t, tag: "T" + t, r: { pf: x, st: x - 1, som: 2 }, regen: 0 };
+                  });
+                  var satz = empfehlung(reihe, "best");
+                  return satz.indexOf("Gleich los") < 0 && satz.indexOf("kaum Aussicht") >= 0;
                 },
               ],
               [
@@ -4915,6 +4943,8 @@
           }
           return reihe;
         }
+        // Urteilsstufen (Popup, Tab „Punkt“ und Prognosesatz): ab 60 gut, ab 40 brauchbar/mittel, ab 20 schwach
+        var URTEIL = { gut: 60, mittel: 40, schwach: 20 };
         function empfehlung(reihe, art) {
           if (!reihe) return "";
           var sc = function (x) {
@@ -4928,13 +4958,13 @@
           var nah = reihe.slice(0, 4).reduce(function (a, x) {
             return sc(x) > sc(a) ? x : a;
           }, reihe[0]); // bis +3 Tage: Vorhersage belastbar
-          if (heute < 20 && sc(best) < 25) return "Lohnt sich in den nächsten Tagen nicht.";
+          // „Gleich los“ erst ab der Urteilsstufe „mittel“; darunter ohne Besserung in den belastbaren Tagen:
+          // „Diese Woche kaum Aussicht hier.“; wird es besser, der „Warten bis …“-Satz
+          var spaeter = sc(best) > heute + 8 ? " (ab " + best.tag + " evtl. besser, unsicher)" : "";
           if (heute >= sc(nah) - 3)
-            return (
-              "Gleich los — heute ist so gut wie es diese Woche wird" +
-              (sc(best) > heute + 8 ? " (ab " + best.tag + " evtl. besser, unsicher)" : "") +
-              "."
-            );
+            return heute >= URTEIL.mittel
+              ? "Gleich los — heute ist so gut wie es diese Woche wird" + spaeter + "."
+              : "Diese Woche kaum Aussicht hier" + spaeter + ".";
           var regen = reihe.slice(1, nah.t + 1).filter(function (x) {
             return x.regen >= 3;
           });
@@ -4978,11 +5008,11 @@
           });
           var s = r[best];
           var lage =
-            s >= 60
+            s >= URTEIL.gut
               ? "Guter Standort"
-              : s >= 40
+              : s >= URTEIL.mittel
                 ? "Brauchbarer Standort"
-                : s >= 20
+                : s >= URTEIL.schwach
                   ? "Schwacher Standort"
                   : "Kaum Aussicht";
           var annahme = erkannt.baum === false || erkannt.boden === false;
@@ -5670,7 +5700,13 @@
             }),
             sc = r[best];
           var lage =
-            sc >= 60 ? "Guter Standort" : sc >= 40 ? "Brauchbar" : sc >= 20 ? "Schwach" : "Kaum Aussicht";
+            sc >= URTEIL.gut
+              ? "Guter Standort"
+              : sc >= URTEIL.mittel
+                ? "Brauchbar"
+                : sc >= URTEIL.schwach
+                  ? "Schwach"
+                  : "Kaum Aussicht";
           if (!wetter && !reglerHand)
             lage = "Nur Standort" + (sc >= 55 ? ", gut" : sc >= 35 ? ", brauchbar" : ", schwach");
           var annahme = erkannt.baum === false || erkannt.boden === false;
@@ -7558,7 +7594,7 @@
           if (!daten.wetterRoh) return null;
           var w = wetterAusTageswetter(daten.wetterRoh, ll.lat, ll.lng, hoehe);
           if (!w) return null;
-          w.quelle = grund + " — Wetter vom " + standKurz(daten.wetterRoh.stand);
+          w.quelle = grund + " — Wetter " + standKurz(daten.wetterRoh.stand);
           w.offline = grund === "offline";
           wetterQuelle = w.quelle;
           return w;
@@ -9387,6 +9423,32 @@
           rasterGruppe.addLayer(bildOverlay);
           return { gezeigt: gezeigt, summe: summe, top: top, n: n };
         }
+        // Umkreis als ein Bild: je Zelle ein Block (4 px), Waldzellen in ihrer Farbe, Unbekanntes grau. Ein Bild
+        // statt vieler halbtransparenter Rechtecke → keine Nähte/Gitterlinien. Bei ≤ 3 km ist die Web-Mercator-
+        // Verzerrung innerhalb des Bildes vernachlässigbar (Zentimeter), daher ohne inMercator.
+        function umkreisBild(C, bildZellen, deck) {
+          var K = 4,
+            cv = document.createElement("canvas");
+          cv.width = C.N * K;
+          cv.height = C.N * K;
+          var cx = cv.getContext("2d");
+          bildZellen.forEach(function (p) {
+            cx.globalAlpha = p[3];
+            cx.fillStyle = p[2];
+            cx.fillRect(p[1] * K, p[0] * K, K, K);
+          });
+          cx.globalAlpha = 0.55;
+          cx.fillStyle = "rgb(" + GRAU_UNBEKANNT.join(",") + ")";
+          (C.grau || []).forEach(function (p) {
+            cx.fillRect(p[1] * K, p[0] * K, K, K);
+          });
+          bildOverlay = L.imageOverlay(
+            cv.toDataURL("image/png"),
+            L.latLngBounds([C.latN - C.N * C.dLat, C.lngW], [C.latN, C.lngW + C.N * C.dLng]),
+            { opacity: deck, interactive: false, className: "scharf" },
+          );
+          rasterGruppe.addLayer(bildOverlay);
+        }
         function zeichneRaster() {
           if (!rasterCache) return;
           var C = rasterCache,
@@ -9428,7 +9490,8 @@
           }
           var gezeigt = 0,
             summe = 0,
-            top = 0;
+            top = 0,
+            bildZellen = []; // Umkreis: Farben fürs Bild (keine Rechteck-Konturen → keine Gitterlinien)
           var wetterKarte = art === "mm7" || art === "feu";
           var sc = function (rr) {
             return art === "best" ? Math.max(rr.pf, rr.st, rr.som) : wetterKarte ? 0 : rr[art];
@@ -9460,6 +9523,7 @@
                 : grob
                   ? farbeGrob(score)
                   : farbeStetig(score);
+            if (!grob) bildZellen.push([z.i, z.j, farbe, basis]);
             var rect = L.rectangle(
               [
                 [sw - C.dLat, we],
@@ -9468,12 +9532,11 @@
               {
                 renderer: canvas,
                 color: grob ? cssFarbe("--humus") : farbe,
-                weight: grob ? 0.6 : z.geschaetzt ? 1 : 0,
-                opacity: grob ? 0.35 : 0.5,
-                dashArray: !grob && z.geschaetzt ? "3 3" : null,
+                weight: grob ? 0.6 : 0,
+                opacity: grob ? 0.35 : 0,
                 fillColor: farbe,
-                fillOpacity: deck * basis,
-                basis: basis,
+                fillOpacity: grob ? deck * basis : 0, // Umkreis: sichtbar ist das Bild, das Rechteck nur zum Tippen
+                basis: grob ? basis : 0,
                 score: score,
                 interactive: true,
               },
@@ -9539,12 +9602,13 @@
             });
             rasterGruppe.addLayer(rect);
           });
+          if (!grob) umkreisBild(C, bildZellen, deck);
           $("r-note").textContent =
             C.zellen.length +
             " Waldzellen à " +
             C.zellM +
             " m · Schnitt " +
-            Math.round(summe / C.zellen.length) +
+            Math.round(summe / Math.max(1, C.zellen.length)) +
             " · Bestwert " +
             top +
             " · " +
@@ -9640,9 +9704,139 @@
           $("rg-schwelle").classList.toggle("aus", aus);
         }
         // Kern: bewertet ein Rechteck (bounds) mit N×N Zellen, optional nur innerhalb eines Kreises
+        // Innere Kante (1–2 offene Nachbarn: Weg, Lücke) bekommt den Bonus; Außenrand (3+ offene Nachbarn)
+        // nur wenig, und ein Außenrand nach Süden (offene Nachbarn liegen südlich) gar keinen.
+        function randAusNachbarn(BR, N, i, j, formRand) {
+          var offen = 0,
+            sued = 0;
+          for (var di = -1; di <= 1; di++)
+            for (var dj = -1; dj <= 1; dj++) {
+              if (!di && !dj) continue;
+              var y = i + di,
+                x = j + dj;
+              if (y < 0 || x < 0 || y >= N || x >= N) continue;
+              if (!BR[y][x].wald) {
+                offen++;
+                if (di > 0) sued++;
+              }
+            }
+          if (offen === 0) return formRand === "rand" || formRand === "aussen" ? "innen" : formRand;
+          if (offen <= 2) return "weg";
+          return sued >= 2 ? "innen" : "aussen";
+        }
+        // Umkreis/Bereich aus dem Grundstock (150 m), wenn der Live-Weg fehlt (offline oder Dienste blockiert):
+        // Baumart, Boden, Kronendichte, Hangrichtung und Höhe je Zelle wie Pin und Überblick, Wetter aus dem Pin bzw.
+        // Tageswetter. Hat der Grundstock nichts (keine Daten, Boden unbekannt): Zelle grau, nie Formularwerte.
+        // Unterwuchs und Bestand kommen wie im Live-Weg aus „Merkmale & Wetter anpassen“ (in keiner Karte).
+        async function bereichAusGrundstock(b, N, kreis, grund, wtVorgabe) {
+          var form = readForm(),
+            latS = b.getSouth(),
+            latN = b.getNorth(),
+            lngW = b.getWest(),
+            lngE = b.getEast(),
+            dLat = (latN - latS) / N,
+            dLng = (lngE - lngW) / N,
+            zellM = Math.round((kmSchnell(latN, lngW, latN, lngE) * 1000) / N),
+            G = [],
+            BR = [];
+          for (var i = 0; i < N; i++) {
+            G.push([]);
+            BR.push([]);
+            for (var j = 0; j < N; j++) {
+              var g = grundstockAmPunkt(L.latLng(latN - (i + 0.5) * dLat, lngW + (j + 0.5) * dLng));
+              G[i].push(g);
+              BR[i].push({ wald: !!(g && g.baum) });
+            }
+          }
+          var imKreis = function (i, j) {
+            return (
+              !kreis ||
+              kmSchnell(kreis.mitte.lat, kreis.mitte.lng, latN - (i + 0.5) * dLat, lngW + (j + 0.5) * dLng) *
+                1000 <=
+                kreis.r
+            );
+          };
+          // Wetter: vorgegeben (Test), sonst am Pin dasselbe wie im Popup, sonst Abruf (offline: Tageswetter)
+          var amPin =
+              kreis && wetter && pos && kmSchnell(kreis.mitte.lat, kreis.mitte.lng, pos.lat, pos.lng) < 0.005,
+            wt = wtVorgabe || (amPin ? wetter : null);
+          if (!wt)
+            try {
+              wt = await holeWetterCached(kreis ? kreis.mitte : b.getCenter(), null);
+            } catch (e) {}
+          var zellen = [],
+            grau = [];
+          for (var i2 = 0; i2 < N; i2++)
+            for (var j2 = 0; j2 < N; j2++) {
+              if (!imKreis(i2, j2)) continue;
+              var g2 = G[i2][j2];
+              if (!g2 || !g2.daten) {
+                grau.push([i2, j2]); // keine Daten
+                continue;
+              }
+              if (!g2.baum) continue; // kein Wald
+              if (!g2.boden) {
+                grau.push([i2, j2]); // Wald, Boden unbekannt
+                continue;
+              }
+              var baum =
+                g2.baum.wert === "fichte" && g2.dichte !== null && g2.dichte < 80
+                  ? "fichte_licht"
+                  : g2.baum.wert;
+              var v = {
+                baum: baum,
+                alter: form.alter,
+                boden: g2.boden,
+                unter: form.unter,
+                lage: g2.lage,
+                rand: randAusNachbarn(BR, N, i2, j2, form.rand),
+                saison: form.saison,
+                regen: form.regen,
+                mm: form.mm,
+              };
+              zellen.push({
+                i: i2,
+                j: j2,
+                v: v,
+                rr: bewerte(v, wt, g2.hoehe, undefined, g2.dichte),
+                hoehe: g2.hoehe,
+                artText: g2.baum.art + (baum === "fichte_licht" ? ", licht" : ""),
+                geschaetzt: false,
+                ll: L.latLng(latN - (i2 + 0.5) * dLat, lngW + (j2 + 0.5) * dLng),
+              });
+            }
+          if (!zellen.length && !grau.length) return null;
+          var pinZelle = null;
+          if (kreis && pos) {
+            var pi = Math.floor((latN - pos.lat) / dLat),
+              pj = Math.floor((pos.lng - lngW) / dLng);
+            pinZelle =
+              zellen.find(function (z) {
+                return z.i === pi && z.j === pj;
+              }) || null;
+          }
+          return {
+            zellen: zellen,
+            grau: grau,
+            N: N,
+            latN: latN,
+            lngW: lngW,
+            dLat: dLat,
+            dLng: dLng,
+            zellM: zellM,
+            hinweise: [grund + " — Grundstock 150 m"].concat(wt ? [] : ["Wetter aus Reglern"]),
+            kreis: kreis,
+            pinZelle: pinZelle,
+            quelle: "grundstock",
+            wetterQuelle: wt === wetter ? "Pin" : wt ? wt.quelle || "Tageswetter" : "Regler",
+          };
+        }
         async function bewerteBereich(b, N, kreis) {
           var note = $("r-note"),
             form = readForm();
+          // Ohne Netz gleich aus dem Grundstock – die Live-Dienste würden nur scheitern
+          if (istOffline() && daten.grund && imGrundstock(b))
+            return bereichAusGrundstock(b, N, kreis, "offline");
           var latS = b.getSouth(),
             latN = b.getNorth(),
             lngW = b.getWest(),
@@ -9681,6 +9875,9 @@
               BR = null;
             }
           }
+          // Baumartenkarte nicht erreichbar (Dienste blockiert): Grundstock statt Formularwerte
+          if (!BR && daten.grund && imGrundstock(b))
+            return bereichAusGrundstock(b, N, kreis, istOffline() ? "offline" : "Dienste nicht erreichbar");
           fort(0.1);
 
           var zentren = [],
@@ -9880,26 +10077,8 @@
             } catch (e) {
               LICHT = null;
             }
-          // Innere Kante (1–2 offene Nachbarn: Weg, Lücke) bekommt den Bonus; Außenrand (3+ offene Nachbarn) nur wenig,
-          // und ein Außenrand nach Süden (offene Nachbarn liegen südlich) gar keinen.
-          function randZelle(i, j, lage) {
-            if (!BR) return form.rand;
-            var offen = 0,
-              sued = 0;
-            for (var di = -1; di <= 1; di++)
-              for (var dj = -1; dj <= 1; dj++) {
-                if (!di && !dj) continue;
-                var y = i + di,
-                  x = j + dj;
-                if (y < 0 || x < 0 || y >= N || x >= N) continue;
-                if (!BR[y][x].wald) {
-                  offen++;
-                  if (di > 0) sued++;
-                }
-              }
-            if (offen === 0) return form.rand === "rand" || form.rand === "aussen" ? "innen" : form.rand;
-            if (offen <= 2) return "weg";
-            return sued >= 2 ? "innen" : "aussen";
+          function randZelle(i, j) {
+            return BR ? randAusNachbarn(BR, N, i, j, form.rand) : form.rand;
           }
           var zellen = [];
           idx.forEach(function (ij) {
@@ -10030,6 +10209,15 @@
         function zeichneTopListe() {
           var box = $("u-list");
           box.innerHTML = "";
+          if (rasterCache && rasterCache.keineUnterschiede) {
+            var kh = document.createElement("div");
+            kh.className = "note";
+            kh.textContent =
+              "Keine Unterschiede im Umkreis erkennbar." +
+              (rasterCache.hinweise.length ? " (" + rasterCache.hinweise.join(", ") + ")" : "");
+            box.appendChild(kh);
+            return;
+          }
           if (!letzteTop.length) return;
           if (rasterCache) {
             var k = document.createElement("div");
@@ -10170,6 +10358,24 @@
           );
           zeichneTopListe();
         });
+        // Rangfolge im Umkreis: höherer Wert zuerst, bei Gleichstand die Zelle näher am Pin (nicht Zählreihenfolge)
+        function umkreisRangfolge(zellen, sc, mitte) {
+          return zellen.slice().sort(function (x, y) {
+            return (
+              sc(y) - sc(x) ||
+              kmSchnell(x.ll.lat, x.ll.lng, mitte.lat, mitte.lng) -
+                kmSchnell(y.ll.lat, y.ll.lng, mitte.lat, mitte.lng)
+            );
+          });
+        }
+        // Gibt es erkennbare Unterschiede? Bestwert mindestens 3 Punkte über dem Median der Zellen
+        function umkreisUnterschiede(zellen, sc) {
+          if (!zellen.length) return false;
+          var w = zellen.map(sc).sort(function (a, b) {
+            return a - b;
+          });
+          return w[w.length - 1] - w[Math.floor(w.length / 2)] >= 3;
+        }
         async function bewerteUmkreis(rKm) {
           if (rasterLaeuft || !pos) return;
           var btn = $("u-los"),
@@ -10214,11 +10420,11 @@
             sc = function (z) {
               return art === "best" ? Math.max(z.rr.pf, z.rr.st, z.rr.som) : z.rr[art];
             };
-          var sortiert = rasterCache.zellen.slice().sort(function (x, y) {
-              return sc(y) - sc(x);
-            }),
+          var sortiert = umkreisRangfolge(rasterCache.zellen, sc, pos),
             top = [],
             mind = Math.max(200, rasterCache.zellM * 2.5);
+          if (!umkreisUnterschiede(rasterCache.zellen, sc)) sortiert = []; // keine Scheinrangliste
+          rasterCache.keineUnterschiede = !sortiert.length && rasterCache.zellen.length > 0;
           sortiert.forEach(function (z) {
             if (top.length >= 5) return;
             if (
@@ -10962,6 +11168,43 @@
           }
           umgSchreiben();
         }
+        // Einmalig nach dem Umbau (Gebiet nur noch bis Zoom 11): Kacheln, die weder zum Gebiet noch zu einer
+        // gespeicherten Umgebung gehören (v. a. die früheren Zoom-12-Kacheln des Gebiets), freigeben
+        async function gkAufraeumen(keys) {
+          try {
+            if (localStorage.getItem("schwammerl:gk-aufgeraeumt") === "v1") return;
+          } catch (e) {}
+          var behalten = {},
+            c = await gkCache(),
+            weg = 0,
+            bytes = 0;
+          var merke = function (k) {
+            behalten[gkSchluessel(k[0], k[1], k[2])] = true;
+          };
+          gkGebietKacheln().forEach(merke);
+          (gk.umg || []).forEach(function (u) {
+            umgKacheln(u).forEach(merke);
+          });
+          for (var i = 0; i < keys.length; i++) {
+            if (behalten[keys[i]]) continue;
+            var r = await c.match(keys[i]);
+            if (r) bytes += (await r.blob()).size;
+            await c.delete(keys[i]);
+            weg++;
+          }
+          if (weg) {
+            gk.stand.n = Math.max(0, gk.stand.n - weg);
+            gk.stand.bytes = Math.max(0, gk.stand.bytes - bytes);
+            gkStandSchreiben();
+            logZeile(
+              "INFO",
+              "Offline-Karte aufgeräumt: " + weg + " Kacheln (" + mbText(bytes) + ") ohne Gebiet/Umgebung",
+            );
+          }
+          try {
+            localStorage.setItem("schwammerl:gk-aufgeraeumt", "v1");
+          } catch (e) {}
+        }
         // Start: gespeicherten Stand mit dem Cache abgleichen (Browser kann ihn geräumt haben)
         async function gkInit() {
           try {
@@ -10976,6 +11219,7 @@
               gkStandSchreiben();
             }
             if (gk.umg === null) await umgUebernehmen(keys);
+            await gkAufraeumen(keys);
           } catch (e) {}
           gkPersistenz(false);
           gkAnzeigen();
@@ -11363,6 +11607,7 @@
         function wetterAlterH() {
           return daten.wetter ? (Date.now() - Date.parse(daten.wetter.stand)) / 3600e3 : Infinity;
         }
+        // Stand mit Präposition: „von heute 16:41“, „von gestern 16:41“, „vom 25.9. 16:41“ (alle Aufrufer)
         function standKurz(iso) {
           var d = new Date(iso),
             h = new Date(),
@@ -11371,10 +11616,10 @@
           var tage = Math.round((h - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 864e5);
           return (
             (tage === 0
-              ? "heute "
+              ? "von heute "
               : tage === 1
-                ? "gestern "
-                : d.getDate() + "." + (d.getMonth() + 1) + ". ") + uhr
+                ? "von gestern "
+                : "vom " + d.getDate() + "." + (d.getMonth() + 1) + ". ") + uhr
           );
         }
         // Kältesumme unvollständig: Die Reihe beginnt nach dem 1.9., aber der Vorlauf fehlt (ganz oder teilweise)
@@ -11393,7 +11638,7 @@
         }
         function datenStandText() {
           var t = [];
-          if (daten.wetter) t.push("Wetter: " + standKurz(daten.wetter.stand));
+          if (daten.wetter) t.push("Wetter " + standKurz(daten.wetter.stand));
           if (daten.wetter && daten.wetter.ksLuecke) t.push("Kältesumme unvollständig");
           if (daten.meta)
             t.push(
@@ -11411,7 +11656,7 @@
           var offline = istOffline();
           el.textContent =
             (offline && daten.wetter
-              ? datenStandText().replace(/^Wetter: /, "offline — Wetter vom ")
+              ? "offline — " + datenStandText()
               : datenStandText() || (daten.fehler ? "Grundstock nicht verfügbar" : "Daten laden …")) +
             (hinweis ? " — " + hinweis : "");
           el.classList.toggle("warn", !!hinweis);
@@ -11431,6 +11676,7 @@
               return null;
             };
           return {
+            daten: !g.abdeckung || !!g.abdeckung[q], // false = keine Daten (außerhalb Deutschlands)
             hoehe: g.hoehe[q] * 12,
             dichte: g.dichte[q] <= 100 ? g.dichte[q] : null,
             lage: name(codes.lage, g.lage[q]) || "eben",
@@ -11635,7 +11881,7 @@
                   : "Grundstock lädt noch – live gerechnet"
                 : !daten.WF
                   ? "kein Tageswetter – live nachgeladen"
-                  : "Wetter vom " + standKurz(daten.wetter.stand) + " — live nachgeladen",
+                  : "Wetter " + standKurz(daten.wetter.stand) + " — live nachgeladen",
           );
           rasterStart(btn, "Überblick: Baumartenkarte …");
           umkreisGruppe.clearLayers();
@@ -13218,6 +13464,39 @@
         load();
         datenLaden();
         gkInit();
+        // Neue Version erkennen: sw.js ändert sich bei Auslieferungen nicht (kein Update-Ereignis), und die
+        // Home-Bildschirm-App lädt beim Zurückholen nicht neu – daher VERSION der Seite im Netz vergleichen.
+        // Nur melden, nie automatisch neu laden (ein offener Besuchsentwurf ginge verloren).
+        var neueVersion = null;
+        function versionPruefen() {
+          if (istOffline() || neueVersion) return;
+          fetch("./?versionspruefung=" + Date.now(), { cache: "no-store" })
+            .then(function (r) {
+              return r.ok ? r.text() : "";
+            })
+            .then(function (t) {
+              var m = t.match(/var VERSION = "([0-9.-]+)"/);
+              if (!m || m[1] === VERSION || m[1] < VERSION) return;
+              neueVersion = m[1];
+              $("neu-chip").style.display = "";
+              netzHinweisZeigen();
+              toast("Neue Version — neu laden", { text: "Neu laden", fn: neuLaden });
+            })
+            .catch(function () {});
+        }
+        function neuLaden() {
+          if (entwurf && (entwurf.fund.length || entwurf.nichts)) {
+            toast("Erst den Besuch speichern – dann neu laden.");
+            return;
+          }
+          location.reload();
+        }
+        $("neu-chip").addEventListener("click", neuLaden);
+        setTimeout(versionPruefen, 15000);
+        setInterval(versionPruefen, 30 * 60 * 1000);
+        document.addEventListener("visibilitychange", function () {
+          if (document.visibilityState === "visible") versionPruefen();
+        });
         // Offline-Betrieb: App, Leaflet und angesehene Kartenkacheln über den Service Worker (sw.js)
         if ("serviceWorker" in navigator && window.isSecureContext)
           navigator.serviceWorker.register("sw.js").catch(function (e) {

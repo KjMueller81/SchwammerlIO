@@ -39,11 +39,39 @@ function stub(name) {
   });
 }
 const store = {};
+const FORM_TEST = {
+  "f-saison": "herbst",
+  "f-alter": "mittel",
+  "f-rand": "innen",
+  "f-baum": "kiefer",
+  "f-boden": "kalk",
+  "f-lage": "nord",
+};
 let netzAbfragen = 0;
 const env = {
   window: stub("window"),
-  document: stub("document"),
-  L: stub("L"),
+  // Dokument-Platzhalter; die Formularfelder liefern gültige Werte (readForm). Baumart/Boden absichtlich
+  // „kiefer“/„kalk“: Der Umkreis-Test (n) prüft, dass der Grundstock-Weg sie NICHT übernimmt.
+  document: new Proxy(stub("document"), {
+    get(t, k) {
+      if (k === "getElementById")
+        return (id) =>
+          new Proxy(stub("#" + id), {
+            get(t2, k2) {
+              if (k2 === "value") return FORM_TEST[id] !== undefined ? FORM_TEST[id] : "";
+              return t2[k2];
+            },
+          });
+      return t[k];
+    },
+  }),
+  // Leaflet-Platzhalter, aber mit echtem latLng (Umkreis-Test rechnet mit Koordinaten)
+  L: new Proxy(stub("L"), {
+    get(t, k) {
+      if (k === "latLng") return (a, b) => (Array.isArray(a) ? { lat: a[0], lng: a[1] } : { lat: a, lng: b });
+      return t[k];
+    },
+  }),
   navigator: stub("navigator"),
   location: stub("location"),
   localStorage: {
@@ -92,6 +120,9 @@ const EXPORT = [
   "daten",
   "rasterCache",
   "kaelteLuecke",
+  "bereichAusGrundstock",
+  "umkreisRangfolge",
+  "umkreisUnterschiede",
 ];
 // als Getter, damit auch später gesetzte Variablen (rasterCache) aktuell gelesen werden
 const kern = js.replace(
@@ -617,6 +648,76 @@ pruefe("(m) Kältesumme unvollständig erkannt", () => {
   );
 });
 
-t.zeilen.forEach((z) => console.log(z));
-console.log("Ergebnis:", t.ok + "/" + t.n + (t.ok === t.n ? " – grün" : " – ABWEICHUNG"));
-process.exit(t.ok === t.n ? 0 : 2);
+// (n) Umkreis offline aus dem Grundstock: Ebersberger Pin, 1 km, ohne Live-Dienste (Wetter aus dem Tageswetter).
+// Die Zellen müssen sich unterscheiden, Baumart/Boden kommen aus dem Grundstock (nie aus dem Formular), und die
+// Top 5 liegen nicht alle am Kreisrand.
+const asynchron = [
+  (async () => {
+    let g = false,
+      info = "";
+    try {
+      ausschnitt(); // setzt daten.grund/meta auf den Ebersberger Ausschnitt
+      const pin = { lat: A.pin[0], lng: A.pin[1] },
+        r = 1000,
+        dLat = r / 111320,
+        dLng = r / (111320 * Math.cos((pin.lat * Math.PI) / 180)),
+        b = {
+          getSouth: () => pin.lat - dLat,
+          getNorth: () => pin.lat + dLat,
+          getWest: () => pin.lng - dLng,
+          getEast: () => pin.lng + dLng,
+          getCenter: () => pin,
+        },
+        wt = T.wetterAusTageswetter(A.wetter, pin.lat, pin.lng, 560, A.wetter.stand),
+        C = await T.bereichAusGrundstock(b, 25, { mitte: pin, r }, "offline", wt),
+        best = (z) => Math.max(z.rr.pf, z.rr.st, z.rr.som),
+        werte = new Set(C.zellen.map(best)),
+        codes = A.meta.codes,
+        baumOk = C.zellen.every(
+          (z) => z.v.baum === "fichte_licht" || codes.baum.some((c) => c.wert === z.v.baum),
+        ),
+        bodenOk = C.zellen.every((z) => z.v.boden in codes.boden),
+        // kein Formularwert: nicht alle Zellen mit der Formular-Baumart bzw. dem Formular-Boden
+        ohneFormular =
+          !C.zellen.every((z) => z.v.baum === "kiefer") && !C.zellen.every((z) => z.v.boden === "kalk");
+      // Top 5 wie in bewerteUmkreis: Rangfolge, Mindestabstand 2,5 Zellen
+      const km = (a, c) =>
+          Math.hypot(
+            (a.lat - c.lat) * 111.32,
+            (a.lng - c.lng) * 111.32 * Math.cos((pin.lat * Math.PI) / 180),
+          ),
+        sortiert = T.umkreisUnterschiede(C.zellen, best) ? T.umkreisRangfolge(C.zellen, best, pin) : [],
+        top = [];
+      sortiert.forEach((z) => {
+        if (top.length < 5 && !top.some((t2) => km(t2.ll, z.ll) * 1000 < Math.max(200, C.zellM * 2.5)))
+          top.push(z);
+      });
+      const amRand = top.filter((z) => km(z.ll, pin) * 1000 > 0.9 * r).length;
+      info =
+        `  (${C.zellen.length} Zellen, ${werte.size} Werte, ${C.grau.length} grau, Top ${top.length}, ` +
+        `am Rand ${amRand}; ${C.hinweise.join("; ")})`;
+      g =
+        C.zellen.length > 20 &&
+        werte.size > 3 &&
+        baumOk &&
+        bodenOk &&
+        ohneFormular &&
+        top.length === 5 &&
+        amRand < 5 &&
+        /Grundstock 150 m/.test(C.hinweise[0]);
+    } catch (e) {
+      info = "  (" + (e && e.stack ? e.stack.split("\n").slice(0, 3).join(" | ") : e) + ")";
+    }
+    t.n++;
+    if (g) t.ok++;
+    t.zeilen.push(
+      (g ? "OK   " : "FEHL ") + "Test: (n) Umkreis offline aus dem Grundstock (Ebersberg)" + info,
+    );
+  })(),
+];
+
+Promise.all(asynchron).then(() => {
+  t.zeilen.forEach((z) => console.log(z));
+  console.log("Ergebnis:", t.ok + "/" + t.n + (t.ok === t.n ? " – grün" : " – ABWEICHUNG"));
+  process.exit(t.ok === t.n ? 0 : 2);
+});

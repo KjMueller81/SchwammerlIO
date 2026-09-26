@@ -8,7 +8,7 @@ Bewertet Waldstandorte für **Pfifferling (pf)**, **Fichtensteinpilz (st)** und 
 aus Geodaten (Baumart, Boden, Kronendichte, Gelände) und gemessenem Wetter. Nutzer: ein Sammler,
 Bedienung meist am iPhone im Wald, Auswertung am Windows-Rechner.
 
-Stand dieser Datei: v2026-09-26.24. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
+Stand dieser Datei: v2026-09-26.25. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
 
 ---
 
@@ -329,6 +329,22 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
   `bewerteBereich`, 500 m–3 km, Top 5, `#u-list`) → zugeklappt „Merkmale & Wetter anpassen“, „Rechenweg“
   (`#rw-box`), „Anzeige“ (Deckkraft `#r-deck`, Schwelle `#r-min`, Fläche zeigen/löschen).
   Schwelle je Ansicht gemerkt (`SCHWELLE.region` 40, `SCHWELLE.umkreis` 20, `setzeSchwelle`).
+- Umkreis-Grundlage: live Baumartenkarte, Boden-Stützstellen, Kronendichte, Höhen. **Offline oder wenn die
+  Baumartenkarte nicht erreichbar ist** rechnet `bereichAusGrundstock` je Zelle mit Baumart, Boden, Kronendichte,
+  Hangrichtung und Höhe aus dem Grundstock (150 m), Wetter wie am Pin bzw. aus dem Tageswetter; Hinweis „offline —
+  Grundstock 150 m“. Ohne Grundstockdaten (keine Daten, Boden unbekannt) wird die Zelle grau (`C.grau`), nie
+  Formularwerte. Unterwuchs und Bestand kommen in beiden Wegen aus dem Formular (in keiner Karte).
+  Rangfolge `umkreisRangfolge` (Gleichstand → näher am Pin); liegt der Bestwert < 3 Punkte über dem Median
+  (`umkreisUnterschiede`), keine Top 5, sondern „Keine Unterschiede im Umkreis erkennbar“. Gezeichnet als ein Bild
+  (`umkreisBild`, 4 px je Zelle, Rechtecke nur unsichtbar zum Antippen) – keine Gitterlinien.
+- Urteilsstufen `URTEIL` (gut 60, mittel 40, schwach 20) für Popup, Tab „Punkt“ und Prognosesatz: „Gleich los“ erst
+  ab „mittel“, darunter „Diese Woche kaum Aussicht hier.“, wird es besser „Warten bis …“.
+- Datenstand mit Präposition (`standKurz`): „Wetter von heute 16:41“, „von gestern …“, „vom 25.9. …“.
+- Neue Version: `versionPruefen` vergleicht `VERSION` mit der Seite im Netz (Start + 15 s, alle 30 min, beim
+  Zurückholen der App) – `sw.js` ändert sich bei Auslieferungen nicht. Toast „Neue Version — neu laden“ mit Knopf,
+  danach „Neu laden“ im Kopf; nie automatisch, bei offenem Besuchsentwurf erst speichern.
+- Offline-Karte: einmaliges Aufräumen `gkAufraeumen` (Merker `schwammerl:gk-aufgeraeumt`) löscht Kacheln, die
+  weder zum Gebiet (Zoom ≤ 11) noch zu einer Umgebung gehören – v. a. die früheren Zoom-12-Kacheln.
 - Schwelle im Region-Feld: Regler „Zeigen ab“ (`#g-min`, 0–80, Schritt 5) über dem Tagesregler. Für den
   Überblick sind `#g-min` und `#r-min` (Anzeige) derselbe Wert (`setzeRegionSchwelle`), die Umkreis-Suche
   behält ihren eigenen. Beim Ziehen Zahl sofort, Fläche nach 150 ms neu (`schwelleNeuZeichnen`, ohne
@@ -401,6 +417,9 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
 
 - **Mercator:** Rasterbilder sind in gleichen Breitengrad-Schritten gerechnet, die Karte ist Web-Mercator.
   Vor `L.imageOverlay` immer `inMercator(...)` anwenden, sonst Nordversatz bis ~900 m.
+- **Umkreis rechnet offline mit dem Formular:** `bewerteBereich` fiel ohne Baumartenkarte/Boden/Kronendichte auf
+  `readForm()` zurück – offline war der Kreis einfarbig, die Top 5 identisch und am Nordrand (Zählreihenfolge).
+  Seit v2026-09-26.25 Grundstock statt Formular (`bereichAusGrundstock`), Test (n).
 - **Nahtlinien:** `inMercator` kopiert Zeile für Zeile per `drawImage` – das ergab im Überblick feine waagrechte
   Linien über die ganze Breite (Desktop und iPhone). Der Grundstock-Überblick rechnet Mercator deshalb direkt in
   den Pixeln (`ueberblickBild`); `inMercator` nur noch für den alten Live-Weg.
