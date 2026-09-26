@@ -631,6 +631,7 @@
       }
       .progt {
         width: 100%;
+        table-layout: fixed; /* Köpfe und Zahlen in denselben festen Spalten */
         border-collapse: collapse;
         font-variant-numeric: tabular-nums;
         margin: 4px 0;
@@ -653,14 +654,24 @@
         color: var(--papier-2);
         font-weight: 500;
       }
+      .progt th,
+      .progt td {
+        text-align: center;
+        white-space: nowrap;
+      }
       .progt td.a,
       .progt th:first-child {
         text-align: left;
         font-size: 10.5px;
         color: var(--papier-2);
         font-weight: 500;
+        overflow: hidden;
+      }
+      .progt col.c-a {
         width: 60px;
-        white-space: nowrap;
+      }
+      .progt col.c-heute {
+        width: 28%;
       }
       .progt tr.rg td {
         font-size: 9.5px;
@@ -920,6 +931,12 @@
       .pinpop .saisonende {
         color: var(--papier-2);
       }
+      .pinpop .regen-unsicher {
+        font-size: 11px;
+        font-weight: 400;
+        color: var(--papier-2);
+        cursor: help;
+      }
       .pinpop .unsicher a {
         display: inline-block;
         min-height: 40px;
@@ -1013,9 +1030,8 @@
         font-size: 11px;
         padding: 1px 0;
       }
-      .pinpop.m .progt td.a,
-      .pinpop.m .progt th:first-child {
-        width: 52px;
+      .pinpop.m .progt col.c-a {
+        width: 64px;
       }
       .pinpop .btn.an {
         background: var(--moos);
@@ -2337,7 +2353,7 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-26.28";
+        var VERSION = "2026-09-26.29";
         // Radar nur als Kartenebene; in der Bewertung zu unzuverlässig (gelernte Farbskala, leere Bilder)
         var RADAR_IM_MODELL = false;
         var LOG = [];
@@ -3592,10 +3608,12 @@
           standortKreis = null,
           standortWatch = null,
           standortLL = null,
+          standortZeit = 0, // Zeitpunkt der letzten GPS-Position (für „vor Ort“)
           folgen = false,
           folgeBtn = null;
         function zeigeStandort(p) {
           standortLL = L.latLng(p.coords.latitude, p.coords.longitude);
+          standortZeit = Date.now();
           var acc = p.coords.accuracy || 0;
           if (!standortPunkt) {
             standortKreis = L.circle(standortLL, {
@@ -5144,6 +5162,66 @@
         }
         // Urteilsstufen (Popup, Tab „Punkt“ und Prognosesatz): ab 60 gut, ab 40 brauchbar/mittel, ab 20 schwach
         var URTEIL = { gut: 60, mittel: 40, schwach: 20 };
+        // Arten im Pin-Popup: nur mit Aussicht – heute (auch obere Spanne) oder an einem Prognosetag ab der untersten
+        // Urteilsstufe; die im Region-Feld gewählte Art immer. Ohne Aussicht bleibt die beste Art stehen (nie leer).
+        function artenImPopup(r, reihe, gewaehlt) {
+          var aus = ARTEN.filter(function (a) {
+            if (a === gewaehlt) return true;
+            if (Math.max(r[a], r[a + "_max"] || 0) >= URTEIL.schwach) return true;
+            return (reihe || []).some(function (x) {
+              return x.r[a] >= URTEIL.schwach;
+            });
+          });
+          return aus.length
+            ? aus
+            : [
+                ARTEN.reduce(function (a, b) {
+                  return r[a] >= r[b] ? a : b;
+                }),
+              ];
+        }
+        // Vor Ort = GPS-Position höchstens 10 Minuten alt und höchstens 300 m vom Pin
+        var VOR_ORT = { m: 300, min: 10 };
+        function vorOrt(pinLL, gpsLL, gpsZeit, jetzt) {
+          if (!pinLL || !gpsLL || !gpsZeit) return false;
+          if ((jetzt || Date.now()) - gpsZeit > VOR_ORT.min * 60000) return false;
+          return kmSchnell(pinLL.lat, pinLL.lng, gpsLL.lat, gpsLL.lng) * 1000 <= VOR_ORT.m;
+        }
+        // Entscheidungsrelevant: Die Spanne einer gezeigten Art überdeckt eine Urteilsschwelle (min < S ≤ max)
+        function spanneEntscheidet(r, arten) {
+          var S = [URTEIL.schwach, URTEIL.mittel, URTEIL.gut];
+          return arten.some(function (a) {
+            var lo = r[a + "_min"],
+              hi = r[a + "_max"];
+            if (lo === undefined || hi === undefined) return false;
+            return S.some(function (x) {
+              return lo < x && x <= hi;
+            });
+          });
+        }
+        // Unsicher-Hinweis im Popup: „link“ = „Unsicher — Fingerprobe klärt das“ (nur vor Ort), „grau“ = kleines
+        // „Regen unsicher“ (auch bei widersprüchlichen Regenquellen, wetter.unsicher), null = nichts
+        function unsicherHinweis(r, arten, istVorOrt, fp, wUnsicher) {
+          if (fp) return null;
+          var ent = spanneEntscheidet(r, arten);
+          if (ent && istVorOrt) return "link";
+          return ent || (wUnsicher || 0) >= 0.25 ? "grau" : null;
+        }
+        function artenKopfHtml(r, arten) {
+          return arten
+            .map(function (a) {
+              return (
+                '<span style="color:' +
+                farbeStetig(r[a]) +
+                '">' +
+                ARTKURZ[a].slice(0, 5) +
+                " " +
+                r[a] +
+                "</span>"
+              );
+            })
+            .join(" ");
+        }
         function empfehlung(reihe, art) {
           if (!reihe) return "";
           var sc = function (x) {
@@ -5642,14 +5720,17 @@
           return { stellen: neu, besuche: nb };
         }
         // Tabelle: Zeile je Art, Spalte je Tag; darunter Regen je Tag
-        function prognoseHtml(reihe, kompakt) {
+        function prognoseHtml(reihe, kompakt, arten) {
           if (!reihe) return "";
-          var h = '<table class="progt"><tr><th></th>';
+          // feste Spalten: Beschriftung, „Heute“ breiter (Wert + Spanne), übrige Tage gleich breit
+          var h = '<table class="progt"><colgroup><col class="c-a"><col class="c-heute">';
+          for (var ci = 1; ci < reihe.length; ci++) h += "<col>";
+          h += "</colgroup><tr><th></th>";
           reihe.forEach(function (x) {
             h += "<th" + (x.t > 3 ? ' class="u"' : "") + ">" + x.tag + "</th>";
           });
           h += "</tr>";
-          ARTEN.forEach(function (a) {
+          (arten || ARTEN).forEach(function (a) {
             h += '<tr><td class="a">' + ARTKURZ[a] + "</td>";
             reihe.forEach(function (x) {
               var v = x.r[a],
@@ -5963,23 +6044,29 @@
           if (!wetter && !reglerHand)
             lage = "Nur Standort" + (sc >= 55 ? ", gut" : sc >= 35 ? ", brauchbar" : ", schwach");
           var annahme = erkannt.baum === false || erkannt.boden === false;
+          // Arten ohne Chance ausblenden (Region-Feld: gezielt gewählte Art bleibt); Unsicher-Hinweis nur, wenn die
+          // Spanne eine Urteilsschwelle überdeckt – mit Link zur Fingerprobe nur vor Ort
+          var gArt = $("g-art") ? $("g-art").value : "",
+            arten = artenImPopup(r, letztePrognose, gArt),
+            hinweis = letztePrognose
+              ? unsicherHinweis(
+                  r,
+                  arten,
+                  vorOrt(pos, standortLL, standortZeit),
+                  fingerprobe,
+                  wetter && wetter.unsicher,
+                )
+              : null;
           var h =
             '<div class="pinpop m"><div class="u"><b>' +
             lage +
             (annahme ? " (Annahme)" : "") +
-            (wetter && wetter.unsicher >= 0.25 && !fingerprobe ? " · Regen unsicher" : "") +
             "</b> · " +
-            ARTEN.map(function (a) {
-              return (
-                '<span style="color:' +
-                farbeStetig(r[a]) +
-                '">' +
-                ARTKURZ[a].slice(0, 5) +
-                " " +
-                r[a] +
-                "</span>"
-              );
-            }).join(" ") +
+            artenKopfHtml(r, arten) +
+            (hinweis === "grau"
+              ? ' <span class="regen-unsicher" title="Die Streu ist an der Kippe; vor Ort klärt eine Fingerprobe">' +
+                "Regen unsicher</span>"
+              : "") +
             "</div>";
           if (letztePrognose) {
             var kurz = letztePrognose.slice(0, 5);
@@ -5987,14 +6074,11 @@
               '<div class="u" style="color:var(--moos-hell)">' +
               empfehlung(letztePrognose, "best") +
               "</div>" +
-              prognoseHtml(kurz, true);
+              prognoseHtml(kurz, true, arten);
             var sende = saisonEndeText(v);
             if (sende) h += '<div class="u saisonende">' + sende + "</div>";
-            // Spanne breiter als 20 Punkte: Die Streufeuchte entscheidet – die Fingerprobe klärt das
-            var breit = ARTEN.some(function (a) {
-              return r[a + "_max"] - r[a + "_min"] > 20;
-            });
-            if (breit && !fingerprobe)
+            // Spanne überdeckt eine Urteilsschwelle und man steht vor Ort: die Fingerprobe klärt das
+            if (hinweis === "link")
               h +=
                 '<div class="u unsicher"><a href="#" onclick="event.stopPropagation();' +
                 'window.__bzFinger();return false;">Unsicher — Fingerprobe klärt das</a></div>';

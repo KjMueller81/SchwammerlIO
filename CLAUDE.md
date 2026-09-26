@@ -8,7 +8,7 @@ Bewertet Waldstandorte für **Pfifferling (pf)**, **Fichtensteinpilz (st)** und 
 aus Geodaten (Baumart, Boden, Kronendichte, Gelände) und gemessenem Wetter. Nutzer: ein Sammler,
 Bedienung meist am iPhone im Wald, Auswertung am Windows-Rechner.
 
-Stand dieser Datei: v2026-09-26.28. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
+Stand dieser Datei: v2026-09-26.29. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
 
 ---
 
@@ -81,7 +81,8 @@ ausgewertet. Jedes Bedienelement muss sich seinen Platz verdienen; im Zweifel ei
 ### Ehrlichkeit der Anzeige
 - Ortsfest: gleiche Stelle = gleicher Wert, egal welcher Ausschnitt oder Pin.
 - Pin und Überblick rechnen über dieselbe Endformel; Abweichungen werden sichtbar gemacht, nicht versteckt.
-- Unsicherheit zeigen: Spanne zu jedem Wert („34 (24–50)"); breite Spanne mit Hinweis auf die Fingerprobe.
+- Unsicherheit zeigen: Spanne zu jedem Wert („34 (24–50)"); Hinweis auf die Fingerprobe nur, wenn die Spanne
+  eine Urteilsschwelle überdeckt (sie entscheidet dann über das Urteil).
 - Datenstand immer erkennbar: „Wetter: heute 5:30", „offline — Wetter vom …", „live nachgeladen".
 - Unbekanntes grau darstellen, nie mit Annahmen schönrechnen. Fehlt das Wetter, keine Wetterfarben.
 
@@ -109,8 +110,18 @@ Tagesregler, Schwellenregler, Besuch speichern, Umkreis-Suche, Offline-Hinweis.
 - `toast(text, { text: "Rückgängig", fn })` zeigt einen Knopf im Toast (8 s). Löschen einer Stelle oder des
   letzten Besuchs geschieht sofort, rückgängig über den Toast. Notizen werden im Element bearbeitet
   (Stellenliste: Textfeld, Enter/Wegtippen speichert, Escape verwirft; Popup: „Notiz“ klappt `#pn-notiz` auf).
-- Breite Spanne (> 20 Punkte bei einer Art, ohne Fingerprobe): Popup zeigt „Unsicher — Fingerprobe klärt
-  das“ (`.unsicher`), der Link springt zum Boden-Feld `#bz-boden` im Besuchsblock (`__bzFinger`).
+- Unsicher-Hinweis im Pin-Popup (`unsicherHinweis`, v2026-09-26.29): nur „entscheidungsrelevant“, d. h. die Spanne
+  einer gezeigten Art überdeckt eine Urteilsschwelle aus `URTEIL` (min < 20/40/60 ≤ max, `spanneEntscheidet`).
+  Dann vor Ort (`vorOrt`: GPS ≤ 10 min alt und ≤ 300 m vom Pin, `standortZeit`) und ohne Fingerprobe der Link
+  „Unsicher — Fingerprobe klärt das“ (`.unsicher`, springt zum Boden-Feld `#bz-boden`, `__bzFinger`); nicht vor Ort
+  nur ein kleines graues „Regen unsicher“ (`.regen-unsicher`, Tooltip) in der Kopfzeile – zusammen mit dem alten
+  „Regen unsicher“ aus `wetter.unsicher` ≥ 0,25, nie doppelt. Sonst nichts; die Spanne bleibt in der Tabelle.
+- Pin-Popup ohne Arten ohne Chance (`artenImPopup`): eine Art erscheint nur, wenn heute (auch `_max`) oder an einem
+  Prognosetag ≥ `URTEIL.schwach`; die im Region-Feld gewählte Art (`#g-art`) immer; ohne jede Aussicht bleibt die
+  beste Art stehen. Gilt für Kopfzeile (`artenKopfHtml`) und Tabelle (`prognoseHtml(reihe, kompakt, arten)`), nicht
+  für „Besuch erfassen“, Rechenweg, Diagnose und Tab „Punkt“.
+- Prognosetabelle `.progt`: `table-layout: fixed` mit `<colgroup>` (Beschriftung 60/64 px, „Heute“ 28 %, übrige
+  Tage gleich breit), Köpfe und Zahlen zentriert, kein Umbruch – die Spanne verschiebt die Nachbarspalten nicht.
 - Tippflächen: Selects, Regler, Aufklapper, Ebenen-Zeilen, GPS-Knöpfe und Region-Bedienung ≥ 40 px.
 - Sicherer Bereich (iPhone als Home-Bildschirm-App, `viewport-fit=cover`, Statusleiste durchscheinend): Variablen
   `--sicher-oben/-unten/-links/-rechts` aus `env(safe-area-inset-*)`; Kopfzeile oben, Schublade (auch zugeklappt)

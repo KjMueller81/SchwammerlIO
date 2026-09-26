@@ -1,17 +1,22 @@
 # Status Schwammerl-Karte
 
-Stand: v2026-09-26.28 (26.09.2026)
+Stand: v2026-09-26.29 (26.09.2026)
 
 ## Offene Aufträge
 Angenommen, aber noch nicht ausgeliefert. Beim Start hier eintragen, bei Auslieferung nach „Zuletzt ausgeliefert“.
 
 | Auftrag | Stand |
 |---|---|
-| – keine – | |
+| M – Nachschau Stufe 2: niedrige Endwerte bei Steinpilzfunden, Saisonende (nur Werkzeug und Bericht) | begonnen |
 
 ## Zuletzt ausgeliefert
 Nur die letzten fünf; ältere Auslieferungen stehen im Git-Verlauf.
 
+- **L – Pin-Popup: Unsicher-Hinweis, Tabellenkopf, Arten ohne Chance (v2026-09-26.29):** Fingerprobe-Link nur, wenn
+  die Spanne eine Urteilsschwelle (20/40/60) überdeckt und man vor Ort ist (GPS ≤ 10 min, ≤ 300 m), sonst kleines
+  graues „Regen unsicher“, sonst nichts; Prognosetabelle mit festen Spalten (Köpfe genau über den Zahlen); Arten,
+  die heute und an allen Prognosetagen unter 20 liegen, fehlen in Kopfzeile und Tabelle (gewählte Art im
+  Region-Feld bleibt, sonst mindestens die beste). Tests (s)–(w).
 - **K – GBIF Stufe 2, Probe Steinpilz (26.09.2026, ohne App-Version):** `werkzeuge/gbif-stufe2.js` (HYRAS 1 km,
   Endformel aus index.html, AUC/Bootstrap/Blöcke) und Bericht
   [werkzeuge/berichte/gbif-stufe2.md](werkzeuge/berichte/gbif-stufe2.md); Kurzfassung unter „Wartet auf Entscheidung“.
@@ -25,8 +30,6 @@ Nur die letzten fünf; ältere Auslieferungen stehen im Git-Verlauf.
   visualViewport, safe-area, Unterkanten) zum Ablesen am iPhone; Gebiet-Zeile mit Datum (Kacheln tragen ihr
   Speicherdatum, ohne Datum lädt „Aktualisieren“ neu); „Bestimmung unsicher“ als Häkchen-Zeile je Fund;
   Datumsfeld ohne iOS-Mindestbreite; Felddaten 25.9. korrigiert.
-- **H – Doku aufgeräumt (26.09.2026, ohne App-Version):** offene Punkte aus CLAUDE.md hierher („Backlog“),
-  STATUS.md gekürzt.
 
 ## Offline-Grundkarte (entschieden: Webkarte Bayern)
 
@@ -112,6 +115,7 @@ Offene Punkte ohne Termin (aus CLAUDE.md hierher verschoben, 26.9.).
 - Offline-Test iPhone 26.9.: Grundkarte und Pin ok.
 
 ## Nächste Schritte
-- Am iPhone: Toast, unteren Rand, Unsicher-Schalter und Datumsfeld prüfen (v2026-09-26.28); bei Streifen unten
-  die Diagnose-Zeile (Tab „Karten“ → Diagnose, „Ansicht: …“) in allen drei Schubladen-Stufen ablesen und schicken.
+- Am iPhone: Toast, unteren Rand, Unsicher-Schalter und Datumsfeld (v…28) sowie Pin-Popup (v…29: Tabellenkopf,
+  Fingerprobe-Link vor Ort) prüfen; bei Streifen unten die Diagnose-Zeile (Tab „Karten“ → Diagnose, „Ansicht: …“)
+  in allen drei Schubladen-Stufen ablesen und schicken.
 - Oktober: Besuche nach Frost erfassen, auch Leerfunde; gezielt Gras-/Kraut-Stellen und einen Kalkstandort.

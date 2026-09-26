@@ -129,6 +129,12 @@ const EXPORT = [
   "lerne",
   "LERN",
   "stellenImport",
+  "artenImPopup",
+  "vorOrt",
+  "unsicherHinweis",
+  "prognoseHtml",
+  "artenKopfHtml",
+  "empfehlung",
 ];
 // als Getter, damit auch später gesetzte Variablen (rasterCache) aktuell gelesen werden
 const kern = js.replace(
@@ -762,6 +768,102 @@ pruefe("(r) Import: gleiche Besuchs-id ersetzt, alter Export ohne id wie bisher"
   );
   const l3 = lokal[0].besuche;
   return ok1 && ok2 && l3.length === 2 && !!l3[1].id;
+});
+
+// ---- Pin-Popup: Unsicher-Hinweis und Arten ohne Chance (Auftrag L) ----
+// Pin bei Holzkirchen; GPS 100 m entfernt, 2 Minuten alt
+const PIN_L = { lat: 47.885, lng: 11.7 },
+  GPS_NAH = { lat: 47.8859, lng: 11.7 },
+  JETZT = 1790000000000;
+const vorOrtNah = () => T.vorOrt(PIN_L, GPS_NAH, JETZT - 2 * 60000, JETZT);
+// r wie aus bewerte: Werte je Art mit Spanne
+const rL = (st, stMin, stMax) => ({
+  pf: 41,
+  pf_min: 36,
+  pf_max: 45,
+  st,
+  st_min: stMin,
+  st_max: stMax,
+  som: 2,
+  som_min: 2,
+  som_max: 3,
+});
+pruefe("(s) Spanne 32–61: mit GPS 100 m → Link, ohne GPS → nur „Regen unsicher“", () => {
+  const r = rL(45, 32, 61),
+    ar = ["pf", "st"];
+  return (
+    vorOrtNah() === true &&
+    T.unsicherHinweis(r, ar, vorOrtNah(), null, 0) === "link" &&
+    T.unsicherHinweis(r, ar, T.vorOrt(PIN_L, null, 0, JETZT), null, 0) === "grau" &&
+    // GPS zu alt (11 min) oder zu weit (400 m) gilt nicht als vor Ort; nach der Fingerprobe nichts mehr
+    T.vorOrt(PIN_L, GPS_NAH, JETZT - 11 * 60000, JETZT) === false &&
+    T.vorOrt(PIN_L, { lat: 47.8886, lng: 11.7 }, JETZT, JETZT) === false &&
+    T.unsicherHinweis(r, ar, true, "maessig", 0) === null
+  );
+});
+pruefe("(t) Spanne 5–27 überdeckt 20: ohne GPS „Regen unsicher“, mit GPS Link", () => {
+  const r = Object.assign(rL(15, 5, 27), { pf: 10, pf_min: 8, pf_max: 12 }),
+    ar = ["st"];
+  return (
+    T.unsicherHinweis(r, ar, false, null, 0) === "grau" &&
+    T.unsicherHinweis(r, ar, vorOrtNah(), null, 0) === "link"
+  );
+});
+pruefe("(u) Spanne 42–58 überdeckt keine Schwelle → kein Hinweis", () => {
+  const r = Object.assign(rL(50, 42, 58), { pf: 50, pf_min: 45, pf_max: 55 });
+  return (
+    T.unsicherHinweis(r, ["pf", "st"], vorOrtNah(), null, 0) === null &&
+    T.unsicherHinweis(r, ["pf", "st"], false, null, 0) === null &&
+    // widersprüchliche Regenquellen allein: kleines „Regen unsicher“, nie zweimal
+    T.unsicherHinweis(r, ["pf", "st"], false, null, 0.3) === "grau"
+  );
+});
+// Prognosereihe wie prognose(): heute + 4 Tage
+const reiheL = (f) =>
+  [0, 1, 2, 3, 4].map((t) => ({
+    t,
+    tag: t ? ["So", "Mo", "Di", "Mi"][t - 1] : "Heute",
+    r: f(t),
+    regen: 0,
+    pp: 0,
+  }));
+pruefe("(v) Sommersteinpilz 2 (2–3), Prognose 2/2/2/2 → nicht in Tabelle und Kopf; gewählt → doch", () => {
+  const r = rL(45, 32, 61),
+    reihe = reiheL(() => r),
+    ar = T.artenImPopup(r, reihe, "best"),
+    tab = T.prognoseHtml(reihe, true, ar),
+    kopf = T.artenKopfHtml(r, ar),
+    arSom = T.artenImPopup(r, reihe, "som");
+  return (
+    ar.join() === "pf,st" &&
+    !/Sommerst/.test(tab) &&
+    !/Somme/.test(kopf) &&
+    /Steinpilz/.test(tab) &&
+    arSom.indexOf("som") >= 0 &&
+    /Sommerst/.test(T.prognoseHtml(reihe, true, arSom))
+  );
+});
+pruefe("(w) Alle Arten < 20 → Tabelle nur mit der besten Art, Satz „kaum Aussicht“", () => {
+  const r = {
+      pf: 12,
+      pf_min: 10,
+      pf_max: 14,
+      st: 16,
+      st_min: 13,
+      st_max: 18,
+      som: 3,
+      som_min: 2,
+      som_max: 4,
+    },
+    reihe = reiheL(() => r),
+    ar = T.artenImPopup(r, reihe, "best"),
+    tab = T.prognoseHtml(reihe, true, ar);
+  return (
+    ar.join() === "st" &&
+    /Steinpilz/.test(tab) &&
+    !/Pfifferling/.test(tab) &&
+    /kaum Aussicht/.test(T.empfehlung(reihe, "best"))
+  );
 });
 
 // (n) Umkreis offline aus dem Grundstock: Ebersberger Pin, 1 km, ohne Live-Dienste (Wetter aus dem Tageswetter).
