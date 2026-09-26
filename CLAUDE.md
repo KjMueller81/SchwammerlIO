@@ -8,7 +8,7 @@ Bewertet Waldstandorte für **Pfifferling (pf)**, **Fichtensteinpilz (st)** und 
 aus Geodaten (Baumart, Boden, Kronendichte, Gelände) und gemessenem Wetter. Nutzer: ein Sammler,
 Bedienung meist am iPhone im Wald, Auswertung am Windows-Rechner.
 
-Stand dieser Datei: v2026-09-26.17. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
+Stand dieser Datei: v2026-09-26.18. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
 
 ---
 
@@ -195,6 +195,11 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
   (`grundstockAmPunkt`, 150 m), Wetter aus dem Tageswetter (`wetterAusTageswetter` über `wetterAusDaten`,
   Quelle „offline — Wetter vom …“). Mit Netz, aber ohne Open-Meteo und Bright Sky, greift das Tageswetter vor
   Gerätearchiv und Reanalyse. Region-Feld: „offline — Wetter vom … · Grundlage: …“. Besuche speichern geht offline.
+- Offline-Erkennung (`istOffline`): `navigator.onLine` false, oder die Probe `netzPruefen` (eigene Seite
+  `daten/grundstock/meta.json`, gleiche Adresse, kann kein Dienst blockieren) scheitert, oder `wetter.json` kam
+  aus dem Gerätespeicher. Offline zeigt der Kopf statt der Saison den Hinweis `#netz-chip` „offline — Wetter vom …“,
+  das rote Band (`zeigeFehler` aus `merkeBlockade`) kommt nur, wenn Netz da ist und die Dienste abweisen.
+- Kartenhintergrund hell (`--karte-leer`): wo offline keine Kachel liegt, bleiben die Bewertungsfarben lesbar.
 
 ## Architektur (Funktionen in index.html)
 

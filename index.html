@@ -34,6 +34,7 @@
         --kontrolle-text: #333;
         --kontrolle-hover: #f4f4f4;
         --glas: rgba(29, 33, 25, 0.93);
+        --karte-leer: #e6e4da;
         --standort: #2b7de9;
         --folgen-an: #cfe6ff;
         --grau-leer: #9a9a90;
@@ -87,6 +88,13 @@
         padding: 2px 9px;
         white-space: nowrap;
       }
+      .chip.offline {
+        color: var(--pfiff);
+        border-color: var(--pfiff);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        min-width: 0;
+      }
       #fehler {
         display: none;
         padding: 8px 14px;
@@ -98,7 +106,7 @@
       #map {
         flex: 1 1 auto;
         min-height: 180px;
-        background: var(--tief);
+        background: var(--karte-leer); /* hell: offline ohne Kachel bleiben die Bewertungsfarben lesbar */
       }
 
       .sheet {
@@ -1466,6 +1474,7 @@
           <span id="version" style="font-size: 10px; color: var(--papier-2); font-weight: 500"></span>
         </h1>
         <span class="chip" id="saison-chip">Saison</span>
+        <span class="chip offline" id="netz-chip" style="display: none">offline</span>
       </header>
       <div id="fehler"></div>
       <div id="toast"></div>
@@ -1917,13 +1926,54 @@
             fails = Object.keys(dienstFehler).length;
           if (!abrufBlockiert && oks === 0 && fails >= 2) {
             abrufBlockiert = true;
-            zeigeFehler(
-              "Keine Datenabfrage kommt durch (" +
-                Object.keys(dienstFehler).join(", ") +
-                "). Kartenbilder laden trotzdem. Für volle Funktion die Datei hosten oder lokal öffnen.",
-            );
+            // Flugmodus sieht aus wie blockierte Dienste: erst prüfen, ob überhaupt Netz da ist.
+            // Ohne Netz nur der kleine Hinweis im Kopf, das rote Band nur, wenn Netz da ist und Dienste abweisen.
+            netzPruefen().then(function (online) {
+              if (!online) {
+                netzWeg = true;
+                netzHinweisZeigen();
+                return;
+              }
+              zeigeFehler(
+                "Keine Datenabfrage kommt durch (" +
+                  Object.keys(dienstFehler).join(", ") +
+                  "). Kartenbilder laden trotzdem. Für volle Funktion die Datei hosten oder lokal öffnen.",
+              );
+            });
           }
           zeigeDienste();
+        }
+        // Netz da? Probe gegen die eigene Seite (gleiche Adresse, kein Dienst kann sie blockieren, der Service
+        // Worker lässt daten/ durch). false = offline.
+        var netzWeg = false;
+        function netzPruefen() {
+          if (!navigator.onLine) return Promise.resolve(false);
+          return fetch("daten/grundstock/meta.json?probe=" + Date.now(), { cache: "no-store" })
+            .then(function (r) {
+              return r.ok;
+            })
+            .catch(function () {
+              return false;
+            });
+        }
+        function istOffline() {
+          return !navigator.onLine || netzWeg || (typeof daten !== "undefined" && daten.offline);
+        }
+        // Kleiner Hinweis im Kopf statt Saison, solange offline: „offline — Wetter vom …“
+        function netzHinweisZeigen() {
+          var el = $("netz-chip");
+          if (!el) return;
+          var off = istOffline();
+          el.style.display = off ? "" : "none";
+          $("saison-chip").style.display = off ? "none" : "";
+          if (off)
+            el.textContent =
+              "offline" +
+              (typeof daten !== "undefined" && daten.wetter
+                ? " — Wetter vom " + standKurz(daten.wetter.stand)
+                : "");
+          if (off) $("fehler").style.display = "none"; // kein rotes Band ohne Netz
+          if (typeof regionStandZeigen === "function") regionStandZeigen();
         }
         function zeigeDienste() {
           var el = $("dienste");
@@ -1942,7 +1992,7 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-26.17";
+        var VERSION = "2026-09-26.18";
         // Radar nur als Kartenebene; in der Bewertung zu unzuverlässig (gelernte Farbskala, leere Bilder)
         var RADAR_IM_MODELL = false;
         var LOG = [];
@@ -7023,7 +7073,7 @@
         }
         async function holeWetter(ll, hoehe) {
           var fehler = [];
-          if (!navigator.onLine) {
+          if (!navigator.onLine || netzWeg) {
             var wo = wetterAusDaten(ll, hoehe, "offline");
             if (wo) return wo;
           }
@@ -7099,11 +7149,7 @@
             fehler.push("DWD/Bright Sky: " + e2.message);
           }
           // Tageswetter (ganzes Gebiet, gemessen) vor dem Punkt-Archiv und der groben Reanalyse
-          var wd = wetterAusDaten(
-            ll,
-            hoehe,
-            !navigator.onLine || daten.offline ? "offline" : "Dienste nicht erreichbar",
-          );
+          var wd = wetterAusDaten(ll, hoehe, istOffline() ? "offline" : "Dienste nicht erreichbar");
           if (wd) return wd;
           var wa = await archivLesen(ll);
           if (wa && wa.archivAlter <= 3) {
@@ -7605,7 +7651,7 @@
           var m = [],
             fehler = [],
             // ohne Netz: Baumart, Boden, Lage, Höhe und Kronendichte aus dem Grundstock (150 m)
-            gp = navigator.onLine ? null : grundstockAmPunkt(pos);
+            gp = navigator.onLine && !netzWeg ? null : grundstockAmPunkt(pos);
           if (gp) {
             m.push("offline: Standort aus dem Grundstock (150 m)");
             hoehePunkt = gp.hoehe;
@@ -10148,6 +10194,7 @@
             startZeigen("Grundstock nicht verfügbar – Überblick lädt live", 1);
           }
           regionStandZeigen();
+          netzHinweisZeigen();
         }
         function wetterAlterH() {
           return daten.wetter ? (Date.now() - Date.parse(daten.wetter.stand)) / 3600e3 : Infinity;
@@ -10182,7 +10229,7 @@
         function regionStandZeigen(hinweis) {
           var el = $("rg-stand");
           if (!el) return;
-          var offline = !navigator.onLine || daten.offline;
+          var offline = istOffline();
           el.textContent =
             (offline && daten.wetter
               ? datenStandText().replace(/^Wetter: /, "offline — Wetter vom ")
@@ -10380,7 +10427,7 @@
             return;
           }
           // Grundstock + Tageswetter vorhanden und frisch (bzw. offline): Schicht 4 ohne jede Netzabfrage
-          var offline = !navigator.onLine || daten.offline,
+          var offline = istOffline(),
             gLage = grundstockLage(b);
           if (daten.bereit && daten.WF && gLage !== "aussen" && (wetterAlterH() <= WETTER_MAX_H || offline)) {
             rasterStart(btn, "Überblick aus Grundstock …");
@@ -11991,10 +12038,13 @@
           });
         window.addEventListener("online", function () {
           daten.offline = false;
-          regionStandZeigen();
+          netzWeg = false;
+          abrufBlockiert = false; // Dienste neu bewerten
+          dienstFehler = {};
+          netzHinweisZeigen();
         });
         window.addEventListener("offline", function () {
-          regionStandZeigen();
+          netzHinweisZeigen();
         });
         setTimeout(function () {
           map.invalidateSize();
