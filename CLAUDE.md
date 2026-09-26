@@ -8,7 +8,7 @@ Bewertet Waldstandorte für **Pfifferling (pf)**, **Fichtensteinpilz (st)** und 
 aus Geodaten (Baumart, Boden, Kronendichte, Gelände) und gemessenem Wetter. Nutzer: ein Sammler,
 Bedienung meist am iPhone im Wald, Auswertung am Windows-Rechner.
 
-Stand dieser Datei: v2026-09-26.18. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
+Stand dieser Datei: v2026-09-26.19. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
 
 ---
 
@@ -27,7 +27,8 @@ Stand dieser Datei: v2026-09-26.18. Die Entwicklung bis v2026-09-26.4 lief in ei
    (`bewerte` → `wetterFaktorenArt` → `endwert`). Nie wieder eine eigene Kurzformel für eine Ansicht bauen –
    genau das hat früher Pin und Überblick auseinanderlaufen lassen.
 6. **Keine Zugangsdaten** (Tokens, Passwörter) in Code, Commits oder Chat.
-7. Deutsche Oberfläche und Kommentare. Keine `alert()`-Dialoge (Ausnahme GPS-Fehler), stattdessen `toast()`.
+7. Deutsche Oberfläche und Kommentare. Keine `alert()`/`confirm()`/`prompt()`, stattdessen `toast()`
+   (auch GPS-Fehler).
    Oberfläche nach den **UI/UX-Leitlinien** (eigener Abschnitt); offene Punkte und Stand in `STATUS.md`.
 8. Kleine, begründete Änderungen; bei Modellwerten die Quelle im Kommentar nennen.
 9. **Vor jedem Commit `node tests/selbsttest.js` ausführen – muss grün sein** (Exitcode 0).
@@ -112,6 +113,14 @@ Tagesregler, Schwellenregler, Besuch speichern, Umkreis-Suche, Offline-Hinweis.
 - Überlappung: Ladeanzeigen (`#start`, `#lade`) lassen rechts 60 px für GPS/Folgen frei; das Pin-Popup hält am
   Handy oben 104 px Abstand (`autoPanPaddingTopLeft`). Umkreis-Kreise sind dunkel (`--humus`), sonst auf der
   hellen OSM-Karte unsichtbar.
+- Region-Feld: Handy nach dem Lauf kompakte Leiste (`regionKompakt`, `#rg-kompakt` „Steinpilz · 25 km · Heute ·
+  ab 40“ + Tagesregler, Tipp klappt auf); die Leiste wird **vor** dem Einpassen gesetzt, damit der Kreis mit
+  ihrer Höhe rechnet. Desktop ≥ 900 px: `regionPlatz` hängt `#region` oberhalb der Tabs in die Seitenleiste
+  (`.in-leiste`, immer offen), die Karte bleibt frei; bei Größenwechsel zurück auf die Karte.
+- Tabs „Punkt · Stellen · Karten“, Punkt ist Standard. „Wetter“-Darstellung nur im Wald (Waldmaske).
+- Restzeit nur im Live-Rückfall (`ladeOhneRest` im Grundstock-Lauf). Zoomknöpfe (Desktop, Maus) bleiben 30 px –
+  die 40-px-Regel gilt für Touch.
+- „teilweise außerhalb“ nur, wenn der Umkreis-Kreis das Gebiet um mehr als 1 km überragt (`grundstockLage`).
 - Offene Abweichungen stehen in `STATUS.md`.
 
 ## Schichten der Rechnung (Architektur-Umbau ab v2026-09-26.13)
@@ -283,7 +292,8 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
   erwartete Bewertung, „Standort“ → echte Standortgüte (nicht die Perzentil-Farbskala), „Wetter“ → Regler
   ausgegraut (`schwelleAktiv`). Regler im Feld 40 px hoch; das Feld ist höchstens Kartenhöhe − 130 px
   (GPS-Knöpfe bleiben frei) und scrollt sonst innen.
-- Region-Überblick als Feld auf der Karte (`#region`, zugeklappt Knopf `#region-knopf`, `regionOffen`):
+- Region-Überblick als Feld auf der Karte (Handy) bzw. in der Seitenleiste (Desktop) (`#region`, zugeklappt
+  Knopf `#region-knopf`, `regionOffen`, `regionPlatz`, `regionKompakt`):
   Dropdowns Umkreis `#g-r` (25/50/100 km, passt sofort ein) und Pilzart `#g-art`, Darstellung `#g-modus` („Bewertung“ = Wert `zwei`, „Wetter“, „Standort“),
   „Region bewerten“ (`bewerteRegion`), Tagesregler `#tagregler` (Tage ohne Neuberechnung,
   `setzeTag`), Stichproben (`stichproben`, bis 60 Punkte mit echter Pin-Rechnung). Am Handy klappt das

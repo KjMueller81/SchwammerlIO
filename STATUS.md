@@ -1,8 +1,9 @@
 # Status Schwammerl-Karte
 
-Stand: v2026-09-26.18 (26.09.2026)
+Stand: v2026-09-26.19 (26.09.2026)
 
 ## Zuletzt ausgeliefert
+- **Teil C (v2026-09-26.19):** Entscheidungen zu den Leitlinien-Punkten umgesetzt (siehe unten, alle erledigt).
 - **Teil B (v2026-09-26.18):** Im Flugmodus kein rotes Band mehr, sondern im Kopf „offline — Wetter vom …“
   (Probe gegen die eigene Seite unterscheidet „offline“ von „Dienste blockiert“); heller Kartenhintergrund,
   wo offline keine Kachel liegt.
@@ -31,22 +32,16 @@ Stand: v2026-09-26.18 (26.09.2026)
 | Nichts verdeckt sich | Ladeanzeigen lagen am Handy über GPS/Folgen; Pin-Popup unter den GPS-Knöpfen | Ladeanzeigen lassen 60 px frei, Popup hält oben Abstand |
 | Umkreis sichtbar | Kreis fast weiß auf der hellen OSM-Karte (praktisch unsichtbar) | dunkel gestrichelt |
 
-### Offen (größere Abweichungen, nur gelistet)
-1. **Region-Feld verdeckt nach dem Lauf den Kreis.** Das Einpassen passiert vor dem Lauf; danach kommen
-   Tagesregler und Legende dazu, das Feld wird am Handy ≈ 55 % der Kartenhöhe hoch und deckt die untere
-   Kreishälfte ab (auch am Desktop unten links). Vorschlag: Feld nach dem Lauf kompakter
-   (Schwelle und Tag in einer Zeile, Legende einzeilig, Bedienzeilen einklappbar) oder nach dem Lauf neu
-   einpassen.
-2. **Tab-Reihenfolge** „Karten · Punkt · Stellen“ entspricht nicht der Hierarchie (Punkt vor Stellen vor
-   Karten). Start-Tab ist „Karten“. Umstellen berührt Start-Tab, Schublade und Gewohnheit – Entscheidung offen.
-3. **Restzeit bei langen Vorgängen:** Ladeanzeige und Live-Lauf zeigen Schritt und Prozent bzw. Sekunden,
-   aber keine geschätzte Restzeit.
-4. **„Wetter“-Darstellung** färbt auch Nicht-Wald halbtransparent ein (Wetterpotenzial ist flächig gemeint);
-   widerspricht wörtlich „nie über Felder verlaufen“. Entscheidung offen: nur Wald färben?
-5. **GPS-Fehler per `alert()`** (bewusste Ausnahme laut Arbeitsregel 7, Leitlinie sagt „keine“).
-6. **Leaflet-Zoomknöpfe** (Desktop) sind 30 px; am Handy gibt es sie nicht (Zwei-Finger-Zoom).
-7. **Bei 100 km am breiten Bildschirm** reicht der Ausschnitt fast immer über das Grundstock-Gebiet hinaus
-   → Meldung „teilweise außerhalb“ ist korrekt, aber häufig. Evtl. nur melden, wenn der *Kreis* hinausragt.
+### Größere Abweichungen – entschieden und umgesetzt (v2026-09-26.19)
+| Punkt | Entscheidung | Umsetzung |
+|---|---|---|
+| Region-Feld verdeckt den Kreis | Handy: kompakte Leiste; Desktop: in die Seitenleiste | Leiste „Art · km · Tag · ab 40“ + Tagesregler, vor dem Einpassen gesetzt; Desktop oberhalb der Tabs |
+| Tab-Reihenfolge | „Punkt · Stellen · Karten“, Punkt Standard | umgestellt |
+| Restzeit | nur im Live-Rückfall | Live-Weg zeigt „x % · noch ~y s“ ab 12 %, Grundstock-Lauf ohne |
+| „Wetter“-Darstellung | mit der Waldmaske beschneiden | Nicht-Wald bleibt leer |
+| GPS-Fehler | `toast()` | umgestellt, Arbeitsregel 7 angeglichen |
+| Zoomknöpfe Desktop | so lassen | 40-px-Regel gilt für Touch (CLAUDE.md) |
+| „teilweise außerhalb“ | nur wenn der Kreis hinausragt | Prüfung am Kreis mit 1 km Toleranz (100 km um München ragte sonst um 25 m hinaus) |
 
 ## Wartet auf Entscheidung
 
@@ -102,5 +97,5 @@ WMTS-Capabilities Geobasisdaten Bayern.
 - Offline-Start am iPhone einmal im Flugmodus prüfen (App vorher einmal online geöffnet).
 
 ## Nächste Schritte
-- Offene Punkte 1 und 2 entscheiden.
+- Entscheidung zur Offline-Grundkarte (oben).
 - Validierung der Zeitkurven mit weiteren Funden (inkl. Fruchtkörperalter).
