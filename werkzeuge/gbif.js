@@ -359,6 +359,7 @@ function grundstockAm(la, ln) {
     boden: g[q * bg + 1],
     lage: g[q * bg + 2],
     hoehe: h[q * bh] * 12,
+    dichte: h[q * bh + 1] <= 100 ? h[q * bh + 1] : null, // Kronendichte %, 255 = unbekannt
     daten: h[q * bh + 2] !== 0,
   };
 }
@@ -1086,7 +1087,25 @@ function zellenBild(nx, ny, karten) {
   pngSchreiben(path.join(BERICHTE, "gbif-stufe1-zellen.png"), B, H, px);
 }
 
-hauptprogramm().catch((e) => {
-  console.error(e.message);
-  process.exit(1);
-});
+// Stufe 2 (gbif-stufe2.js) nutzt Zwischenspeicher, Grundstock-Lesen und Datumshilfen von hier
+module.exports = {
+  CACHE,
+  BERICHTE,
+  META,
+  lesen,
+  schreiben,
+  pngSchreiben,
+  grundstockLaden,
+  grundstockAm,
+  tagesDatum,
+  isoWoche,
+  kmAbstand,
+  tabelle,
+  zahl,
+  pct,
+};
+if (require.main === module)
+  hauptprogramm().catch((e) => {
+    console.error(e.message);
+    process.exit(1);
+  });

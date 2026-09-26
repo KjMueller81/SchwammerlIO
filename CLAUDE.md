@@ -202,6 +202,12 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
   Ins Repo nur der Bericht `werkzeuge/berichte/gbif-stufe1.md` + `gbif-stufe1-zellen.png` (Zählungen, 10-km-Zellen).
 - iNaturalist verschleiert viele Steinpilz-Fundorte auf ≈ 27 km (`coordinateUncertaintyInMeters` 20–30 km) – für
   Ort-genaue Auswertungen herausfiltern.
+- **Stufe 2** `werkzeuge/gbif-stufe2.js` (`npm install`, dann `node gbif-stufe2.js [--offline]`, braucht den Cache
+  von Stufe 1): Steinpilz (+ Sommersteinpilz) gegen alle übrigen Pilzmeldungen, Endformel über `werkzeuge/app.js`
+  (Lernen aus), Wetter aus DWD HYRAS 1 km (`cache/hyras/`, 44 Dateien v6-1, ≈ 2,9 GB, einmaliger Download, in
+  `.gitignore`; gelesen mit dem npm-Paket `h5wasm`). HYRAS-Temperaturen sind gepackt (`scale_factor` 0,1) – h5wasm
+  wendet das nicht selbst an. Keine Höhenkorrektur der Temperatur (HYRAS in Geländehöhe), `bodenF` fehlt, ET0 nach
+  Hargreaves. Bericht `werkzeuge/berichte/gbif-stufe2.md`; Reihen und Werte je Meldung nur im Cache.
 
 ### App: Start, Schicht 2/3 und Überblick aus Grundstock
 - Start (`datenLaden`, Ladeanzeige `#start`, Karte sofort bedienbar): `meta.json` (Netz zuerst) → `grundlage.png`/
@@ -527,6 +533,10 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
   `werkzeuge/berichte/gbif-stufe1.md`, nur beschreibend). Für Stufe 2 einen GBIF-Download mit DOI zitieren.
   Vorbild: Kinoko (github.com/frederikbeimgraben/Kinoko, modell/README.md: 746 827 Pilzmeldungen DE,
   4 659 *B. edulis*, 2 174 *C. cibarius*).
+- DWD HYRAS-DE v6-1 (Tagesraster 1 km: Niederschlag, Tmin, Tmax, Tmittel; opendata.dwd.de,
+  `climate_environment/CDC/grids_germany/daily/hyras_de`), abgerufen 26.09.2026; frei nutzbar mit Quellenvermerk
+  „Deutscher Wetterdienst“ nach den Nutzungsbedingungen von DWD Open Data. ET0 dazu nach Hargreaves (FAO-56 Gl. 52),
+  Stichprobe gegen Open-Meteo-ET0: mittlere Abweichung ≈ 0,5 mm/Tag.
 - Erfahrungswissen (schwächer gewichtet): Osthang für Pfifferling, Zeigerpilze Marone, Hexenröhrlinge,
   Fliegenpilz, Pfefferröhrling, Semmelstoppelpilz; stickstoffreiche Krautschicht ungünstig.
 

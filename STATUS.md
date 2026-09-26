@@ -12,6 +12,9 @@ Angenommen, aber noch nicht ausgeliefert. Beim Start hier eintragen, bei Auslief
 ## Zuletzt ausgeliefert
 Nur die letzten fünf; ältere Auslieferungen stehen im Git-Verlauf.
 
+- **K – GBIF Stufe 2, Probe Steinpilz (26.09.2026, ohne App-Version):** `werkzeuge/gbif-stufe2.js` (HYRAS 1 km,
+  Endformel aus index.html, AUC/Bootstrap/Blöcke) und Bericht
+  [werkzeuge/berichte/gbif-stufe2.md](werkzeuge/berichte/gbif-stufe2.md); Kurzfassung unter „Wartet auf Entscheidung“.
 - **J – Backlog: Schutzgebiete und Wildruhezonen (26.09.2026, nur Doku):** Backlog-Punkt mit Quellen (LfU
   Schutzgebiete, Wildschutzgebiete der Landratsämter, DAV-Schongebiete), Umsetzungsvorschlag und Rechtshinweis.
 - **G – GBIF Stufe 1 (26.09.2026, ohne App-Version):** Werkzeug `werkzeuge/gbif.js` (öffentliche GBIF-API, Zählung
@@ -24,10 +27,6 @@ Nur die letzten fünf; ältere Auslieferungen stehen im Git-Verlauf.
   Datumsfeld ohne iOS-Mindestbreite; Felddaten 25.9. korrigiert.
 - **H – Doku aufgeräumt (26.09.2026, ohne App-Version):** offene Punkte aus CLAUDE.md hierher („Backlog“),
   STATUS.md gekürzt.
-- **F – Offline-Speicher und unterer Rand (v2026-09-26.27):** Gebiet vollständig → Zeile „Gebiet offline ✓ · 379
-  Kacheln · 21 MB · Stand 26.9.“ mit „Aktualisieren“ (fehlende Kacheln; älter als 180 Tage: alle neu), sonst der
-  grüne Knopf mit „(x % gespeichert)“; Toast bei 0 neuen Kacheln „… war schon vollständig gespeichert.“; Toasts
-  oben über der Karte statt über der Schublade; unterer Rand am iPhone: sicherer Bereich genau einmal.
 
 ## Offline-Grundkarte (entschieden: Webkarte Bayern)
 
@@ -40,16 +39,17 @@ Nur die letzten fünf; ältere Auslieferungen stehen im Git-Verlauf.
   (`navigator.storage.persist()`); Offline-Umschaltung auf die Webkarte funktioniert.
 
 ## Wartet auf Entscheidung
-- **GBIF Stufe 2 – ja/nein und in welchem Gebiet?** Bericht: [gbif-stufe1.md](werkzeuge/berichte/gbif-stufe1.md)
-  (Stand 26.9.2026). Im Gebiet 2015–2026: 22 848 Pilzmeldungen ohne Flechten (Suchaufwand 2023–25 ≈ 8,7× 2015–17),
-  Fichtensteinpilz 271, Pfifferling 56, Sommersteinpilz 14. 60 % der Steinpilze sind von iNaturalist auf ≈ 27 km
-  verschleiert, 145 davon von einem einzigen Beobachter → nur 101 ortsgenaue Steinpilz-Meldungen.
-  Zelle-Wochen (Juni–Nov., 5 km, ortsgenau): Steinpilz 95, Pfifferling 37, Sommersteinpilz 8 gegenüber 6 653 im
-  Hintergrund. Standort (≤ 500 m, im Wald): Steinpilz n = 55, Pfifferling n = 14 – nur Tendenzen (Fichte ×1,2–1,3).
-  **Empfehlung:** Stufe 2 nur für Steinpilz (Sommersteinpilz zusammengefasst), 5-km-Zelle × Woche gegen den
-  Hintergrund; Pfifferling nur beschreibend. Für belastbare Zahlen das Prüfgebiet auf Bayern/Deutschland erweitern
-  (Kinoko: 4 659 Steinpilze bundesweit). Wetter aus DWD HYRAS 1 km (≈ 44 Dateien, ≈ 2,8 GB, keine Abrufgrenze)
-  statt Open-Meteo-Archiv (≈ 86 000 Abrufe ≈ 9 Tage Tageslimit); Meldungen als GBIF-Download mit DOI.
+- **GBIF Stufe 2 (Probe Steinpilz) – Ergebnis und Vorschläge, keine Modelländerung.** Bericht:
+  [gbif-stufe2.md](werkzeuge/berichte/gbif-stufe2.md) (26.9.2026; Stufe 1:
+  [gbif-stufe1.md](werkzeuge/berichte/gbif-stufe1.md)).
+  68 Steinpilz- gegen 4 498 Hintergrundmeldungen (Juni–Nov. 2015–2025, ortsgenau, im Wald, Wetter DWD HYRAS 1 km).
+  Endwert AUC 0,55 (0,49–0,61) = „nur Saison“ 0,56; in Aug.–Okt. Endwert 0,50, Saison 0,60. Kein Teil trägt deutlich
+  (Regensumme 26 T und Baumart je 0,57; Wetterfaktor in Aug.–Okt. 0,51). Kalibrierung nicht steigend (40–60: 2,5 %,
+  60–80: 1,3 %). Trockenheits-Deckel nicht zu streng (rf < 0,2: 1,5 % der Steinpilze, 4,6 % des Hintergrunds).
+  **Vorschläge mit Beleg (nur Hinweise, n klein):** Oktober-Anteil 0,9 % gegen September 2,6 % bei gleichem
+  Saisonfaktor 1 → Saisonende früher/stärker prüfen; Lage: Westhang 1,48× (21 Fälle), Osthang 0,76×, Nordhang
+  0,84× gegen W 5/6/8 → Nord-Vorzug nicht belegt; Buche 0,76× gegen Fichte 1,29× bei W 8 zu 9.
+  **Empfehlung:** Stufe 3 nur deutschlandweit (≈ 2 800 Fälle, Spanne ±0,01; Bayern allein ≈ 270, ±0,03).
 - **Offene Modellbeobachtungen** (mit Felddaten prüfen):
   - Pfifferling fällt nach Frost stärker als Steinpilz (Pin-Werte 38 → 12 gegenüber 48 → 15) – mit Oktober-Funden
     prüfen.
@@ -80,9 +80,10 @@ Offene Punkte ohne Termin (aus CLAUDE.md hierher verschoben, 26.9.).
   Kreises eingefärbt). Soll: in beiden Wegen auf den Kreis beschneiden oder außerhalb deutlich abdunkeln; Statistik
   und Stichproben nur innerhalb des Kreises. Im Live-Weg zusätzlich Flächen ohne Daten (z. B. Tschechien)
   schraffieren wie im Grundstock-Weg.
-- **GBIF-Rückrechnung (Stufe 1 erledigt, Stufe 2 offen):** Pilzmeldungen (GBIF, ab 2015) im Gebiet gegen die
-  Endformel prüfen, Hintergrund = alle Pilzmeldungen derselben Zelle und Woche (Vorbild Kinoko,
-  github.com/frederikbeimgraben/Kinoko). Prüft Trennschärfe, Regenverzögerung, Frost, Kältesumme.
+- **GBIF-Rückrechnung (Stufe 1 erledigt, Stufe 2 (Probe) erledigt, Stufe 3 offen):** Pilzmeldungen (GBIF, ab
+  2015) gegen die Endformel prüfen, Hintergrund = alle Pilzmeldungen derselben Zelle und Woche (Vorbild Kinoko,
+  github.com/frederikbeimgraben/Kinoko). Prüft Trennschärfe, Regenverzögerung, Frost, Kältesumme. Stufe 3 nur
+  deutschlandweit sinnvoll (siehe „Wartet auf Entscheidung“).
 - **Schutzgebiete und Wildruhezonen anzeigen:** Stellen, an denen nicht oder nur eingeschränkt gesammelt bzw.
   betreten werden darf, erkennbar machen – als Hinweis, nicht als Verbot aus der App heraus (Regeln stehen in der
   jeweiligen Verordnung).

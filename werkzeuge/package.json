@@ -4,6 +4,7 @@
   "description": "Grundstock- und Wetterlauf für die Schwammerl-Karte (Node)",
   "type": "commonjs",
   "dependencies": {
+    "h5wasm": "^0.10.3",
     "pngjs": "^7.0.0"
   }
 }
