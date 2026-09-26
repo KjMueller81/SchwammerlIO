@@ -7,7 +7,8 @@ Angenommen, aber noch nicht ausgeliefert. Beim Start hier eintragen, bei Auslief
 
 | Auftrag | Stand |
 |---|---|
-| – keine – | |
+| E – Offline-Befunde vom iPhone: Umkreis-Suche offline aus dem Grundstock statt aus den Formularwerten, Unbekanntes grau, keine Scheinrangliste bei Gleichstand; Prognosesatz „Gleich los“ nicht bei schwachen Stellen; Gitter im Umkreis weg; Kopfzeile „Wetter von heute …“; neue Version meldet sich („Neue Version — neu laden“). Zuerst, weil die Umkreis-Suche offline sonst falsche Ziele zeigt. | wartet (Auftragstext folgt) |
+| D – Stellen und Besuche bearbeiten: Stelle und Besuche ändern/löschen mit Rückgängig; Fund „unsicher“ (zählt 0,5, Annahme); Merkmale der Stelle von Hand korrigieren; Datumsänderung bildet den Wetter-Schnappschuss neu; feste Besuchs-ID gegen Dubletten beim Import; drei offene Modellbeobachtungen nach STATUS.md. Nach E. | wartet (Auftragstext folgt) |
 
 ## Zuletzt ausgeliefert
 - **Offline-Karte umgewichtet (v2026-09-26.24):** Gebiet nur noch bis Zoom 11 (379 Kacheln, ≈ 20 MB); Umgebungen
