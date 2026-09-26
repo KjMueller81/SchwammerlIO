@@ -578,6 +578,32 @@ pruefe("(k) Keine Daten: Code 252, schraffiert, ohne Statistik", () => {
   return C2.FS.luecke === 10 * C2.FY && k4 === C2.FS.luecke && R2.n === R0.n - waldWeg;
 });
 
+// (l) Tageslauf: Vorlauf der Kältesumme wird aus dem vorherigen wetter.json fortgeschrieben
+pruefe("(l) Tageslauf schreibt den Kältesummen-Vorlauf ab 1.9. fort", () => {
+  const { vorlaufBauen, tagPlus } = require("../werkzeuge/wetter.js");
+  const OM = { NX: 1, NY: 1, latN: 48, lngW: 11 },
+    reihe = (tm) => ({ tmin: new Array(36).fill(tm - 3), tmax: new Array(36).fill(tm + 3) });
+  // Vorstand 1: Reihe ab 31.8. (noch ohne Vorlauf); Lauf 2 ab 5.9.; Lauf 3 ab 1.10. aus Vorlauf + Reihe von Lauf 2
+  const alt1 = { om: OM, datum0: "2026-08-31", vorAb: null, omDaten: [reihe(8)] };
+  const om2 = [reihe(4)],
+    fehlt2 = vorlaufBauen(om2, OM, "2026-09-05", "2026-09-01", alt1); // 1.–4.9. aus der alten Reihe (8 °C)
+  const alt2 = { om: OM, datum0: "2026-09-05", vorAb: "2026-09-01", omDaten: om2 };
+  const om3 = [reihe(2)],
+    fehlt3 = vorlaufBauen(om3, OM, "2026-10-01", "2026-09-01", alt2); // 1.–4.9. aus vor, 5.–30.9. aus Reihe 2
+  const v = om3[0].vor;
+  return (
+    fehlt2 === 0 &&
+    fehlt3 === 0 &&
+    v.length === 30 &&
+    v[0] === 8 &&
+    v[3] === 8 &&
+    v[4] === 4 &&
+    v[29] === 4 &&
+    tagPlus("2026-09-01", 29) === "2026-09-30" &&
+    vorlaufBauen([reihe(1)], OM, "2026-10-01", "2026-09-01", null) === 30 // ohne Vorstand: 30 Lücken
+  );
+});
+
 t.zeilen.forEach((z) => console.log(z));
 console.log("Ergebnis:", t.ok + "/" + t.n + (t.ok === t.n ? " – grün" : " – ABWEICHUNG"));
 process.exit(t.ok === t.n ? 0 : 2);

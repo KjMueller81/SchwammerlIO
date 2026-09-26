@@ -751,6 +751,9 @@
         font-size: 12.5px;
         margin-bottom: 5px;
       }
+      .pinpop .saisonende {
+        color: var(--papier-2);
+      }
       .pinpop .unsicher a {
         display: inline-block;
         min-height: 40px;
@@ -2092,7 +2095,7 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-26.20";
+        var VERSION = "2026-09-26.21";
         // Radar nur als Kartenebene; in der Bewertung zu unzuverlässig (gelernte Farbskala, leere Bilder)
         var RADAR_IM_MODELL = false;
         var LOG = [];
@@ -2745,7 +2748,60 @@
             { pf: 19, st: 2, som: 50 },
           ],
           ["4 Wochen trocken", [], 3, 11, 22, 600, {}, { pf: 4, st: 4, som: 1 }],
+          // Saisonende (v2026-09-26.21): Frost- und Kältewerte sind Annahmen, Sollwerte nur als Regressionsschutz
+          [
+            "Nasser Herbst, eine Frostnacht −3 °C vor 2 Tagen",
+            [
+              [15, 10],
+              [12, 10],
+              [9, 10],
+              [6, 10],
+              [3, 10],
+            ],
+            1.2,
+            8,
+            15,
+            600,
+            {},
+            { pf: 12, st: 15, som: 1 },
+            { datum: "2026-10-15", frost: [[2, -3]] },
+          ],
+          [
+            "Nasser Herbst, Frost −3 °C vor 12 Tagen",
+            [
+              [15, 10],
+              [12, 10],
+              [9, 10],
+              [6, 10],
+              [3, 10],
+            ],
+            1.2,
+            8,
+            15,
+            600,
+            {},
+            { pf: 37, st: 46, som: 3 },
+            { datum: "2026-10-15", frost: [[12, -3]] },
+          ],
+          [
+            "Milder Oktober ohne Frost",
+            [
+              [15, 10],
+              [12, 10],
+              [9, 10],
+              [6, 10],
+              [3, 10],
+            ],
+            1.2,
+            6,
+            14,
+            600,
+            {},
+            { pf: 35, st: 35, som: 2 },
+            { datum: "2026-10-20" },
+          ],
         ]; // Sollwerte ab v2026-09-26.12 (Regen-Ensemble ×0,85/1/1,15; vorher v2026-09-26.1)
+        // Datum der Testreihen fest (sonst hinge die Kältesumme vom Testtag ab); Frost: [Tage vor heute, Tmin]
         function selbsttest() {
           var alt = { fp: fingerprobe, rh: reglerHand, la: lernAktiv },
             z = [],
@@ -2754,7 +2810,7 @@
           fingerprobe = null;
           reglerHand = false;
           lernAktiv = false;
-          var mk = function (rains, et, tmin, tmax) {
+          var mk = function (rains, et, tmin, tmax, extra) {
             var tw = [];
             for (var i = 0; i < 36; i++) tw.push(0);
             rains.forEach(function (r) {
@@ -2772,7 +2828,15 @@
                 return tmax;
               }),
               f: { tw: [], et0: [], tmin: [], tmax: [], pp: [] },
+              datum0: tagPlus((extra && extra.datum) || "2026-09-22", -35),
             };
+          };
+          var mkX = function (t) {
+            var w = mk(t[1], t[2], t[3], t[4], t[8]);
+            ((t[8] && t[8].frost) || []).forEach(function (fr) {
+              w.tmin[35 - fr[0]] = fr[1];
+            });
+            return w;
           };
           var V = function (o) {
             var v = {
@@ -2791,7 +2855,7 @@
           };
           try {
             SELBSTTEST.forEach(function (t) {
-              var b = bewerte(V(t[6]), mk(t[1], t[2], t[3], t[4]), t[5], undefined, 85),
+              var b = bewerte(V(t[6]), mkX(t), t[5], undefined, 85),
                 e = t[7];
               var gut = b.pf === e.pf && b.st === e.st && b.som === e.som;
               n++;
@@ -2830,6 +2894,61 @@
                 "Mehr Regen nicht schlechter (20 → 30 mm)",
                 function () {
                   return bewerte(V(), W1, 600, undefined, 85).st >= bewerte(V(), W2, 600, undefined, 85).st;
+                },
+              ],
+              [
+                "Frostnacht: auf 1 200 m nicht höher als auf 600 m (gleiches Wetter, auf die Höhe umgerechnet)",
+                function () {
+                  var w6 = mk(
+                    [
+                      [9, 10],
+                      [6, 10],
+                      [3, 10],
+                    ],
+                    1.2,
+                    8,
+                    15,
+                    { datum: "2026-10-15" },
+                  );
+                  w6.tmin[35 - 3] = -1;
+                  var w12 = JSON.parse(JSON.stringify(w6));
+                  tempAufHoehe(w12, 600, 1200);
+                  var a = bewerte(V(), w6, 600, undefined, 85),
+                    b = bewerte(V(), w12, 1200, undefined, 85);
+                  return b.st <= a.st && b.pf <= a.pf && b.som <= a.som;
+                },
+              ],
+              [
+                "Kältesumme: Sommersteinpilz endet früher, Faktor fällt stetig",
+                function () {
+                  return (
+                    kaelteFaktor("som", 30).f < kaelteFaktor("st", 30).f &&
+                    kaelteFaktor("st", 0).f === 1 &&
+                    kaelteFaktor("st", 25).f > kaelteFaktor("st", 60).f &&
+                    kaelteFaktor("st", 60).f > kaelteFaktor("st", 100).f
+                  );
+                },
+              ],
+              [
+                "Kältesumme zählt den Vorlauf ab 1. September (Tage vor der 36-Tage-Reihe)",
+                function () {
+                  var w = mk([], 1, 8, 15, { datum: "2026-10-15" }); // Reihe ab 10.9., Tagesmittel 11,5 °C
+                  w.vorAb = "2026-09-01";
+                  // Vorlauf 1.–11.9. je 0 °C; 10./11.9. liegen schon in der Reihe → 9 Tage × 5 = 45
+                  w.vor = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+                  return (
+                    kaelteSumme(w) === 45 && kaelteSumme(mk([], 1, 8, 15, { datum: "2026-08-20" })) === 0
+                  );
+                },
+              ],
+              [
+                "Frost: mehrere Nächte – der niedrigste Wert zählt, keine Multiplikation",
+                function () {
+                  var t = [];
+                  for (var i = 0; i < 36; i++) t.push(8);
+                  t[35 - 1] = -1;
+                  t[35 - 2] = -1;
+                  return Math.abs(frostFaktor("st", t).f - (0.3 + (0.7 * 1) / 7)) < 1e-9;
                 },
               ],
               [
@@ -3636,8 +3755,8 @@
               return (v + last(tmax, 7)[i]) / 2;
             }),
           );
-          var frost4 = Math.min.apply(null, last(tmin, 4)),
-            hitze3 = Math.max.apply(null, last(tmax, 3));
+          // Frost wirkt über frostFaktor (eigener Faktor mit Erholung), nicht mehr hier
+          var hitze3 = Math.max.apply(null, last(tmax, 3));
           var f = 1,
             t = [];
           if (art === "st") {
@@ -3672,12 +3791,6 @@
               [34, 0.4],
             ]);
             if (hitze3 > 27) t.push("Hitze " + Math.round(hitze3) + " °C bremst");
-            f *= interp(frost4, [
-              [-4, 0.2],
-              [-1, 0.3],
-              [1, 1],
-            ]);
-            if (frost4 < 0) t.push("Frost " + Math.round(frost4) + " °C — Saison endet");
           } else if (art === "pf") {
             // 14-Tage-Mittel (Lufttemperatur der 2 Wochen vor der Fruchtung korreliert, Studie Ostkanada)
             var mittel14 = mean(
@@ -3700,12 +3813,6 @@
               [33, 0.6],
             ]);
             if (hitze3 > 29) t.push("Hitze " + Math.round(hitze3) + " °C bremst");
-            f *= interp(frost4, [
-              [-6, 0.4],
-              [-3, 0.5],
-              [-1, 1],
-            ]);
-            if (frost4 < -2) t.push("Frost " + Math.round(frost4) + " °C");
           } else {
             f = interp(mittel7, [
               [8, 0.15],
@@ -3715,12 +3822,6 @@
               [26, 1],
             ]);
             t.push("Mittel " + Math.round(mittel7) + " °C" + (f >= 0.95 ? ", warm" : ", zu kühl"));
-            f *= interp(frost4, [
-              [-2, 0.15],
-              [0, 0.3],
-              [2, 1],
-            ]);
-            if (frost4 < 1) t.push("Frost");
           }
           return { f: f, text: t.join(", ") };
         }
@@ -3981,6 +4082,14 @@
               }),
               spanne: spanne,
               temp: Math.round(tf.f * 100) / 100,
+              tempOhne: Math.round((fkR.tfTemp === undefined ? fkR.tf : fkR.tfTemp) * 100) / 100,
+              frost: fkR.frost ? Math.round(fkR.frost.f * 100) / 100 : 1,
+              frostText:
+                fkR.frost && fkR.frost.naechte
+                  ? fkR.frost.naechte + " N., letzte vor " + fkR.frost.letzte + " T"
+                  : "",
+              kaelte: fkR.kaelte ? Math.round(fkR.kaelte.f * 100) / 100 : 1,
+              ks: fkR.kaelte ? Math.round(fkR.kaelte.ks) : 0,
               tempText: tf.text,
               saison: s[a],
               roh: Math.round(roh),
@@ -4046,7 +4155,16 @@
           h += zeile("Regenfaktor (Mittel)", function (x) {
             return x.regen;
           });
-          h += zeile("Temperatur", function (x) {
+          h += zeile("Temperatur (Mittel, Hitze)", function (x) {
+            return x.tempOhne;
+          });
+          h += zeile("Frost" + (rw.st.frostText ? " (" + rw.st.frostText + ")" : ""), function (x) {
+            return x.frost;
+          });
+          h += zeile("Kältesumme (KS " + rw.st.ks + ")", function (x) {
+            return x.kaelte;
+          });
+          h += zeile("Temperatur gesamt", function (x) {
             return x.temp;
           });
           h += zeile("Saison", function (x) {
@@ -4100,6 +4218,100 @@
           });
           return { rf: (e[0] + e[1] + e[2]) / 3, einzel: e };
         }
+        // ---- Saisonende über Frost und Kältesumme ----
+        // Belegt ist nur qualitativ: Frost und plötzliche Abkühlung unterbrechen die Fruchtbildung beim Steinpilz
+        // (Angelini et al.), die Saison endet allgemein mit Frost (Kauserud et al. 2012, PNAS), die Versorgung durch
+        // die Wirtsbäume lässt im Herbst nach. Feste Schwellen gibt es nicht: ALLE Zahlen hier sind ANNAHMEN,
+        // zu kalibrieren, sobald Oktober-Besuche vorliegen (CLAUDE.md „Modellbelege“).
+        var FROST = {
+          grenze: 0, // Frostnacht: Tmin ≤ 0 °C auf Zielhöhe (Annahme)
+          hart: -3, // harter Frost: Tmin ≤ −3 °C (Annahme)
+          start: 0.3, // Faktor nach einer Frostnacht … (Annahme)
+          tage: 7, // … steigt über 7 Tage stetig auf 1 (Annahme)
+          startHart: 0.15, // nach hartem Frost … (Annahme)
+          tageHart: 10, // … Erholung über 10 Tage (Annahme)
+        };
+        var KAELTE_BASIS = 5; // Kältesumme: Σ max(0, 5 °C − Tagesmittel) ab 1. September (Annahme)
+        var KAELTE_KURVE = [
+          [0, 1],
+          [25, 0.7],
+          [60, 0.3],
+          [100, 0.1],
+        ]; // Annahme; Sommersteinpilz mit halb so großen KS-Werten (endet früher)
+        // Datum (JJJJ-MM-TT) des ersten Werts der Reihe; ohne Angabe gilt: letzter Wert der Grundreihe = heute
+        function tagPlus(iso, n) {
+          var d = new Date(iso + "T12:00:00");
+          d.setDate(d.getDate() + n);
+          return (
+            d.getFullYear() +
+            "-" +
+            String(d.getMonth() + 1).padStart(2, "0") +
+            "-" +
+            String(d.getDate()).padStart(2, "0")
+          );
+        }
+        function heuteIso() {
+          var d = new Date();
+          return (
+            d.getFullYear() +
+            "-" +
+            String(d.getMonth() + 1).padStart(2, "0") +
+            "-" +
+            String(d.getDate()).padStart(2, "0")
+          );
+        }
+        function datum0Von(w) {
+          return (
+            w.datum0 || tagPlus(heuteIso(), -((w.vergangen !== undefined ? w.vergangen : w.tw.length) - 1))
+          );
+        }
+        // Frostschlag: jede Frostnacht setzt den Faktor herab, er erholt sich linear; mehrere Nächte → der
+        // niedrigste Wert zählt (keine Multiplikation). Gilt auch für Vorhersagetage (Reihe endet am bewerteten Tag).
+        function frostFaktor(art, tmin) {
+          var f = 1,
+            naechte = 0,
+            letzte = null;
+          if (!tmin || !tmin.length) return { f: 1, naechte: 0, letzte: null };
+          var n = tmin.length;
+          for (var i = 0; i < n; i++) {
+            if (tmin[i] > FROST.grenze) continue;
+            var tage = n - 1 - i,
+              hart = tmin[i] <= FROST.hart,
+              st = hart ? FROST.startHart : FROST.start,
+              dauer = hart ? FROST.tageHart : FROST.tage,
+              fi = tage >= dauer ? 1 : st + ((1 - st) * tage) / dauer;
+            naechte++;
+            letzte = tage;
+            f = Math.min(f, fi);
+          }
+          return { f: f, naechte: naechte, letzte: letzte };
+        }
+        // Kältesumme ab 1. September bis zum bewerteten Tag (letzter Wert der Reihe). Tage vor der 36-Tage-Reihe
+        // kommen aus w.vor (Tagesmittel ab w.vorAb, vom Tageslauf fortgeschrieben, auf Zielhöhe umgerechnet).
+        function tageDiff(a, b) {
+          return Math.round((Date.parse(b + "T12:00:00Z") - Date.parse(a + "T12:00:00Z")) / 864e5);
+        }
+        function kaelteSumme(w) {
+          if (!w || !w.tmin || !w.tmin.length) return 0;
+          var d0 = datum0Von(w),
+            n = w.tmin.length,
+            bis = tagPlus(d0, n - 1),
+            ab = bis.slice(0, 4) + "-09-01";
+          if (bis < ab) return 0;
+          // Datumsrechnung nur einmal je Reihe (das Wetterfeld ruft das hunderttausendfach auf)
+          var ks = 0,
+            i0 = Math.max(0, tageDiff(d0, ab));
+          for (var i = i0; i < n; i++) ks += Math.max(0, KAELTE_BASIS - (w.tmin[i] + w.tmax[i]) / 2);
+          if (w.vor && w.vorAb) {
+            var k0 = Math.max(0, tageDiff(w.vorAb, ab)),
+              k1 = Math.min(w.vor.length, tageDiff(w.vorAb, d0));
+            for (var k = k0; k < k1; k++) if (w.vor[k] !== null) ks += Math.max(0, KAELTE_BASIS - w.vor[k]);
+          }
+          return ks;
+        }
+        function kaelteFaktor(art, ks) {
+          return { f: interp(art === "som" ? ks * 2 : ks, KAELTE_KURVE), ks: ks };
+        }
         function wetterFaktorenArt(a, v, w, hoehe, dichte) {
           var tf = w ? tempFaktor(a, w.tmin, w.tmax) : { f: 1, text: null };
           // Ohne Wetterdaten und ohne bewusste Handeingabe: Standortgüte allein, Wetterfaktor neutral (0,7)
@@ -4129,7 +4341,22 @@
                 " mm) — dabei in 10 Jahren Beobachtung kein Fund";
             }
           }
-          return { rf: rf, tf: tff, text: txt, rfEinzel: ens ? ens.einzel : [rf, rf, rf] };
+          // Saisonende: Frostschlag × Kältesumme, multiplikativ auf den Temperaturfaktor (eine Endformel)
+          var frost = w ? frostFaktor(a, w.tmin) : { f: 1, naechte: 0, letzte: null },
+            kaelte = w ? kaelteFaktor(a, kaelteSumme(w)) : { f: 1, ks: 0 },
+            tfTemp = tff;
+          tff *= frost.f * kaelte.f;
+          if (frost.f < 0.99) txt = (txt ? txt + ", " : "") + "Frost vor " + frost.letzte + " T";
+          if (kaelte.f < 0.99) txt = (txt ? txt + ", " : "") + "Kältesumme " + Math.round(kaelte.ks);
+          return {
+            rf: rf,
+            tf: tff,
+            tfTemp: tfTemp,
+            frost: frost,
+            kaelte: kaelte,
+            text: txt,
+            rfEinzel: ens ? ens.einzel : [rf, rf, rf],
+          };
         }
         // Wetterpotenzial eines Orts für Art a: Regen- und Temperaturfaktor wie am Pin (wetterFaktorenArt), für einen
         // mittelalten Bestand mit fester Kronendichte 85 % (Ortsfestigkeit). pot = was ein idealer Standort hier hätte.
@@ -4270,6 +4497,7 @@
             for (var l = 0; l < nl[k4]; l++) {
               var hl = h0[k4] + l * WF_STUFE,
                 w = omMischen(OM, wj.omDaten, lat, lng, hl);
+              tageswetterDatum(w, wj);
               // Regen der Vergangenheit aus dem Stationsnetz (Tage 1–35 zurück), heute bleibt Modell – wie am Pin
               for (var t = 1; t <= 35; t++) if (stat[t - 1] >= 0) w.tw[35 - t] = stat[t - 1] / 10;
               tageswetterVorruecken(w, wj.stand, jetzt);
@@ -4339,7 +4567,24 @@
               bw += e[1];
             }
           });
+          // Vorlauf der Kältesumme (Tagesmittel ab 1.9., vor der 36-Tage-Reihe); fehlende Tage bleiben null
+          var vor = null;
+          if (ecken[0][0].vor) {
+            vor = [];
+            for (var iv = 0; iv < ecken[0][0].vor.length; iv++) {
+              var sv = 0,
+                leer = false;
+              for (var ev = 0; ev < 4; ev++) {
+                var dv = ecken[ev][0],
+                  xv = dv.vor ? dv.vor[iv] : null;
+                if (xv === null || xv === undefined) leer = true;
+                else sv += ecken[ev][1] * (xv + (dv.e !== null ? 0.0065 * (dv.e - h) : 0));
+              }
+              vor.push(leer ? null : Math.round(sv * 10) / 10);
+            }
+          }
           return {
+            vor: vor,
             tw: mische(function (d) {
               return d.tw;
             }),
@@ -4375,6 +4620,23 @@
         }
         // Tageswetter von einem früheren Tag (offline): Reihen um die fehlenden Tage auf heute vorrücken, die Lücke
         // füllt die damalige Vorhersage (höchstens so weit, wie sie reicht). Pin und Wetterfeld rücken gleich vor.
+        // Datum des ersten Werts (Open-Meteo-Tag, Europe/Berlin) und Vorlauf der Kältesumme aus wetter.json
+        function tageswetterDatum(w, wj) {
+          if (wj.datum0) w.datum0 = wj.datum0;
+          else {
+            var s = new Date(wj.stand);
+            w.datum0 = tagPlus(
+              s.getFullYear() +
+                "-" +
+                String(s.getMonth() + 1).padStart(2, "0") +
+                "-" +
+                String(s.getDate()).padStart(2, "0"),
+              -35,
+            );
+          }
+          if (wj.vorAb) w.vorAb = wj.vorAb;
+          return w.datum0;
+        }
         function tageswetterVorruecken(w, stand, jetzt) {
           var d = new Date(stand),
             h = jetzt ? new Date(jetzt) : new Date();
@@ -4387,6 +4649,7 @@
             ),
           );
           if (alter) {
+            w.datum0 = tagPlus(datum0Von(w), alter);
             ["tw", "et0", "tmin", "tmax"].forEach(function (k) {
               w[k] = w[k].slice(alter).concat(w.f[k].slice(0, alter));
               w.f[k] = w.f[k].slice(alter);
@@ -4417,6 +4680,7 @@
           }
           var w = omMischen(OM, wj.omDaten, lat, lng, hoehe),
             gy = (RG.latN - lat) / RG.schritt,
+            dz = tageswetterDatum(w, wj),
             gx = (lng - RG.lngW) / RG.schritt,
             y0 = Math.min(RG.NY - 2, Math.floor(gy)),
             x0 = Math.min(RG.NX - 2, Math.floor(gx)),
@@ -4533,6 +4797,9 @@
           if (!w || !w.f || t <= 0) return w;
           var k = Math.min(t, w.f.tw.length);
           return {
+            datum0: datum0Von(w),
+            vor: w.vor,
+            vorAb: w.vorAb,
             tw: w.tw.concat(w.f.tw.slice(0, k)),
             et0: w.et0.concat(w.f.et0.slice(0, k)),
             tmin: w.tmin.concat(w.f.tmin.slice(0, k)),
@@ -5273,6 +5540,32 @@
             (hoehePunkt !== null ? " · " + Math.round(hoehePunkt) + " m" : "")
           );
         }
+        // „Saison klingt ab — n Frostnächte (letzte vor x Tagen), Kältesumme KS“, sobald Frost- oder
+        // Kältefaktor einer Art unter 0,9 liegt (heute am Pin)
+        function saisonEndeText(v) {
+          if (!wetter) return "";
+          var fr = null,
+            kf = 1,
+            ks = 0;
+          ARTEN.forEach(function (a) {
+            var fk = wetterFaktorenArt(a, v, wetter, hoehePunkt, dichtePunkt);
+            if (!fr || fk.frost.f < fr.f) fr = fk.frost;
+            kf = Math.min(kf, fk.kaelte.f);
+            ks = fk.kaelte.ks;
+          });
+          if (fr.f >= 0.9 && kf >= 0.9) return "";
+          var t = [];
+          if (fr.naechte)
+            t.push(
+              fr.naechte +
+                (fr.naechte > 1 ? " Frostnächte" : " Frostnacht") +
+                " (letzte " +
+                (fr.letzte === 0 ? "heute" : "vor " + fr.letzte + " Tag" + (fr.letzte > 1 ? "en" : "")) +
+                ")",
+            );
+          t.push("Kältesumme " + Math.round(ks));
+          return "Saison klingt ab — " + t.join(", ");
+        }
         function pinPopupHtml(status) {
           entwurfFuerPin(); // vor readForm: belegt den Unterwuchs vom letzten Besuch der Stelle vor
           var v = readForm(),
@@ -5321,6 +5614,8 @@
               empfehlung(letztePrognose, "best") +
               "</div>" +
               prognoseHtml(kurz, true);
+            var sende = saisonEndeText(v);
+            if (sende) h += '<div class="u saisonende">' + sende + "</div>";
             // Spanne breiter als 20 Punkte: Die Streufeuchte entscheidet – die Fingerprobe klärt das
             var breit = ARTEN.some(function (a) {
               return r[a + "_max"] - r[a + "_min"] > 20;
@@ -7172,6 +7467,22 @@
           wetterQuelle = w.quelle;
           return w;
         }
+        // Kältesumme am Pin: Tage vor der 36-Tage-Reihe aus dem Tageswetter (wetter.json), auf Pinhöhe umgerechnet
+        function vorlaufAnhaengen(w, ll, hoehe) {
+          try {
+            var wj = daten.wetterRoh;
+            if (!wj || !wj.vorAb || w.vor) return;
+            var m = omMischen(
+              wj.om,
+              wj.omDaten,
+              ll.lat,
+              ll.lng,
+              hoehe === null || hoehe === undefined ? 600 : hoehe,
+            );
+            w.vor = m.vor;
+            w.vorAb = wj.vorAb;
+          } catch (e) {}
+        }
         async function holeWetter(ll, hoehe) {
           var fehler = [];
           if (!navigator.onLine || netzWeg) {
@@ -7236,6 +7547,7 @@
                 w.stationGrund = e.message;
               }
             }
+            vorlaufAnhaengen(w, ll, hoehe);
             archivSchreiben(ll, w);
             return w;
           } catch (e) {
@@ -7450,6 +7762,7 @@
           if (hZiel !== null && hZiel !== undefined && typeof j.elevation === "number")
             tempAufHoehe(w, j.elevation, hZiel);
           w.omHoehe = typeof j.elevation === "number" ? j.elevation : null;
+          if (j.daily.time && j.daily.time[0]) w.datum0 = j.daily.time[0];
           return w;
         }
         function tempAufHoehe(w, hVon, hNach) {

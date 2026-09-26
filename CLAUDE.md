@@ -8,7 +8,7 @@ Bewertet Waldstandorte für **Pfifferling (pf)**, **Fichtensteinpilz (st)** und 
 aus Geodaten (Baumart, Boden, Kronendichte, Gelände) und gemessenem Wetter. Nutzer: ein Sammler,
 Bedienung meist am iPhone im Wald, Auswertung am Windows-Rechner.
 
-Stand dieser Datei: v2026-09-26.20. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
+Stand dieser Datei: v2026-09-26.21. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
 
 ---
 
@@ -163,6 +163,11 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
 - Inhalt: Open-Meteo auf 0,2° (≈ 200 Punkte: Modellhöhe `e`, 36 Tage `tw/et0/tmin/tmax`, Vorhersage `f`, Bodenfeuchte
   `bf`), Stationsregen auf 0,05° (Tage 1–35 zurück, Zehntel mm, −1 = keine Station in 30 km), interpoliert wie in der App
   (Suchfelder 30 km, je 14 Stationen mit Daten, 1/(d²+2), ≥ 12 Stundenwerte). Nur Rohreihen, keine Faktoren.
+- `datum0` = Open-Meteo-Datum des ersten Werts (Europe/Berlin). Kältesumme: sobald die Reihe nach dem 1.9. beginnt,
+  schreibt der Lauf je Punkt `vor` = Tagesmittel (Modellhöhe) von `vorAb` (1.9.) bis zum Tag vor `datum0`,
+  fortgeschrieben aus dem vorherigen `wetter.json` (`vorlaufBauen`, keine Zusatzabrufe; fehlt der Vorstand, bleiben
+  die Tage `null` und zählen nicht). Die App mischt `vor` in `omMischen` mit Höhenkorrektur; der Pin holt ihn aus
+  dem Tageswetter (`vorlaufAnhaengen`).
 - Verbrauch je Lauf: Open-Meteo ≈ 630 Abrufe (≈ 1 250/Tag), Bright Sky ≈ 800 Anfragen, Laufzeit ≈ 30 s + Einrichtung.
 - Open-Meteo-Limit (GitHub-Adressen sind geteilt): eine Wiederholung nach 5 min, sonst Exitcode 3 → Warnung im Log,
   der alte Stand auf `wetterdaten` bleibt. Geplante Läufe schaltet GitHub nach 60 Tagen ohne Repo-Aktivität ab.
@@ -243,7 +248,18 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
   (Pin, Rechenweg, Wetterfeld, Stichproben, Lernen). `bewerte` liefert zusätzlich `<art>_min`/`_max` aus den
   drei Einzelrechnungen; Prognose/Popup zeigen heute „34 (24–50)“, der Rechenweg die Einzelwerte, der
   Überblick die Mitte und die Spanne im Tipp (`GW[tag].rfMin/rfMax`). Rechenzeit Überblick etwa ×3.
-- `tempFaktor(art, tmin, tmax)` – st: 20-Tage-Mittel, Optimum 13,7 °C; pf: 14-Tage-Mittel; plus Hitze/Frost.
+- `tempFaktor(art, tmin, tmax)` – st: 20-Tage-Mittel, Optimum 13,7 °C; pf: 14-Tage-Mittel; plus Hitze
+  (der frühere 4-Tage-Frostabschlag ist durch `frostFaktor` ersetzt).
+- **Saisonende** (v2026-09-26.21, alle Zahlen Annahmen, `FROST`, `KAELTE_*`): `frostFaktor(art, tmin)` – Frostnacht
+  Tmin ≤ 0 °C auf Zielhöhe → 0,3, über 7 Tage linear auf 1; harter Frost ≤ −3 °C → 0,15, über 10 Tage; mehrere
+  Nächte: niedrigster Wert, keine Multiplikation; gilt auch für Vorhersagetage. `kaelteFaktor(art, kaelteSumme(w))` –
+  KS = Σ max(0, 5 °C − Tagesmittel) ab 1.9. (Reihe + Vorlauf `vor`), 0 → 1, 25 → 0,7, 60 → 0,3, 100 → 0,1;
+  Sommersteinpilz mit doppelter KS (endet früher). Beide multiplikativ auf `tf` in `wetterFaktorenArt` (also auch
+  unter den Temperaturdeckel), dieselbe Endformel für Pin, Wetterfeld und Stichproben. Wetterreihen tragen
+  `datum0` (Datum des ersten Werts; `datum0Von`, `wetterAmTag` und `tageswetterVorruecken` reichen es weiter).
+  Anzeige: Popup „Saison klingt ab — n Frostnächte (letzte vor x Tagen), Kältesumme KS“ ab Faktor < 0,9
+  (`saisonEndeText`), Rechenweg mit eigenen Zeilen Frost und Kältesumme. Sommer/Herbst-Schalter bleibt nur
+  für die Gewichtung der Arten.
 - `wetterFaktorenArt` – bündelt Regen- und Temperaturfaktor; enthält die **Ausschlussregel Steinpilz**
   (5-Tage-Mittel > 17,5 °C und < 5 mm in 5 Tagen → Temperaturfaktor ≤ 0,15).
 - `deckel(v, art, rf, tf)` – harte Grenzen: Moor ≤ 10, Brombeere ≤ 20, Kultur ≤ 25, Trockenheits-/Temperaturdeckel.
@@ -421,6 +437,10 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
 - Messunsicherheit des Stationsregens: Die Interpolation aus DWD-Stationen (1/(d²+2), 30 km) weicht am Ort
   typisch ±15–20 % ab (konvektive Schauer, Stationsabstand 7–15 km); daher das Regen-Ensemble ×0,85/1/1,15.
   Belegt im eigenen Datensatz: Ebersberger Forst, Nachbarstationen 16.9. zwischen 2,9 und 19,2 mm.
+- Saisonende (**zu kalibrieren**): Frost und plötzliche Abkühlung unterbrechen die Fruchtbildung beim Steinpilz
+  (Angelini et al.); die Pilzsaison endet allgemein mit Frost (Kauserud et al. 2012, PNAS); die Versorgung durch die
+  Wirtsbäume lässt im Herbst nach. Feste Schwellen gibt es in der Literatur nicht – Frostgrenzen (0 / −3 °C),
+  Startwerte (0,3 / 0,15), Erholungszeiten (7 / 10 Tage), Kältesumme (Basis 5 °C, Kurve 25/60/100) sind Annahmen.
 - Erfahrungswissen (schwächer gewichtet): Osthang für Pfifferling, Zeigerpilze Marone, Hexenröhrlinge,
   Fliegenpilz, Pfefferröhrling, Semmelstoppelpilz; stickstoffreiche Krautschicht ungünstig.
 
@@ -444,7 +464,7 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
   im Rechenweg, später evtl. als Faktor.
 - Validierung der Zeitkurven mit mehr Funden inkl. Fruchtkörperalter.
 - Baumartenkarte ist von 2018 (Käferflächen fehlen) – Plausibilisierung per Luftbild.
-- Unsicherheitsangabe je Bewertung; Saisonende über Kältesumme statt Datum.
+- Frost- und Kältewerte kalibrieren, sobald Oktober-Besuche vorliegen.
 - Aufteilung in `modell.js` / `daten.js` / `index.html` mit Tests (Node) – erst wenn die Datei stabil ist.
 
 ---

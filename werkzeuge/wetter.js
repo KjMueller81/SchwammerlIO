@@ -6,6 +6,9 @@
 //  - DWD-Stationen über Bright Sky (Suchfelder alle 30 km, je die 14 nächsten mit Daten – wie die App) und
 //    interpoliert den Tagesregen auf ein 0,05°-Raster (Gewicht 1/(d²+2), Reichweite 30 km, ≥ 12 Stundenwerte).
 // Schreibt nur Rohreihen, keine Faktoren: Modelländerungen wirken damit sofort in der App.
+// Kältesumme ab 1. September: Ab Oktober reicht die 36-Tage-Reihe nicht mehr zurück. Dafür schreibt der Lauf je
+// Wetterpunkt „vor“ = Tagesmittel (Modellhöhe) vom 1.9. bis zum Tag vor der Reihe, fortgeschrieben aus dem
+// vorherigen wetter.json (Zweig wetterdaten) – ohne zusätzliche Open-Meteo-Abrufe.
 // Exitcode 0 = geschrieben, 3 = Open-Meteo-Limit erschöpft (alte Datei bleibt), 1 = sonstiger Fehler.
 "use strict";
 const fs = require("fs");
@@ -16,13 +19,45 @@ const R = META.raster,
   ZIEL = process.argv[2] || path.join(__dirname, "..", "daten", "wetter.json"),
   OM_SCHRITT = 0.2,
   REGEN_SCHRITT = 0.05,
-  REICHWEITE_KM = 30;
+  REICHWEITE_KM = 30,
+  WETTER_URL = "https://raw.githubusercontent.com/KjMueller81/SchwammerlIO/wetterdaten/wetter.json";
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));
 const r1 = (x) => (x === null || x === undefined ? null : Math.round(x * 10) / 10);
 let omAbrufe = 0,
   bsAbrufe = 0;
 
+function tagPlus(iso, n) {
+  const d = new Date(iso + "T12:00:00Z");
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+function tageZwischen(a, b) {
+  return Math.round((Date.parse(b + "T12:00:00Z") - Date.parse(a + "T12:00:00Z")) / 864e5);
+}
+// Vorlauf der Kältesumme je Punkt: Tagesmittel vom 1.9. (vorAb) bis zum Tag vor datum0, aus dem vorherigen
+// wetter.json (dessen „vor“ und 36-Tage-Reihe). Liefert die Zahl fehlender Werte (null).
+function vorlaufBauen(om, OM, datum0, vorAb, alt) {
+  const n = tageZwischen(vorAb, datum0),
+    passt =
+      alt && alt.om && alt.datum0 && alt.om.NX === OM.NX && alt.om.NY === OM.NY && alt.om.latN === OM.latN && alt.om.lngW === OM.lngW;
+  let fehlt = 0;
+  om.forEach((p, k) => {
+    const tm = {};
+    if (passt) {
+      const a = alt.omDaten[k];
+      if (alt.vorAb && a.vor) a.vor.forEach((x, i) => (tm[tagPlus(alt.vorAb, i)] = x));
+      a.tmin.forEach((x, i) => (tm[tagPlus(alt.datum0, i)] = r1((x + a.tmax[i]) / 2)));
+    }
+    p.vor = [];
+    for (let i = 0; i < n; i++) {
+      const x = tm[tagPlus(vorAb, i)];
+      p.vor.push(x === undefined ? null : x);
+      if (x === undefined || x === null) fehlt++;
+    }
+  });
+  return fehlt;
+}
 // Raster, das das Gebiet vollständig abdeckt (Punkte auf Vielfachen der Schrittweite)
 function gitter(schritt, rand) {
   const lat0 = Math.floor((R.latS - rand) / schritt) * schritt,
@@ -103,6 +138,7 @@ function omAuswerten(j, jetztStunde) {
     if (v.length) bf = Math.round((v.reduce((a, b) => a + b, 0) / v.length) * 1000) / 1000;
   }
   return {
+    t0: d.time && d.time[0], // Datum des ersten Werts (Europe/Berlin)
     e: typeof j.elevation === "number" ? Math.round(j.elevation) : null,
     tw: alle.tw.slice(0, P),
     et0: alle.et0.slice(0, P),
@@ -160,7 +196,7 @@ async function stationsNetz(lat, lng, radiusKm) {
   return erg.filter(Boolean).slice(0, maxSt);
 }
 
-(async () => {
+async function main() {
   const jetzt = new Date(),
     berlinStunde = +new Intl.DateTimeFormat("de-DE", { hour: "numeric", hour12: false, timeZone: "Europe/Berlin" }).format(jetzt);
 
@@ -246,11 +282,35 @@ async function stationsNetz(lat, lng, radiusKm) {
     }
   log(`Stationsregen: ${RG.NY}×${RG.NX} Punkte à 0,05°, ${((100 * mitWert) / (regen.length * tage.length)).toFixed(1)} % mit Messwert`);
 
+  // 4. Datum der Reihe und Vorlauf der Kältesumme ab 1. September
+  const datum0 = om[0].t0,
+    heute = tagPlus(datum0, 35),
+    sept = heute.slice(0, 4) + "-09-01",
+    vorAb = heute >= sept && datum0 > sept ? sept : null;
+  om.forEach((p) => delete p.t0);
+  if (vorAb) {
+    let alt = null;
+    try {
+      const r = await fetch(WETTER_URL, { cache: "no-store" });
+      if (r.ok) alt = await r.json();
+    } catch (e) {}
+    const fehlt = vorlaufBauen(om, OM, datum0, vorAb, alt);
+    log(`Kältesumme-Vorlauf ab ${vorAb}: ${tageZwischen(vorAb, datum0)} Tage je Punkt` +
+      (fehlt ? `, ${fehlt} Werte fehlen (kein passender Vorstand)` : ""));
+  }
+
   const aus = {
-    version: 1,
+    version: 2,
     stand: jetzt.toISOString(),
+    datum0, // Datum des ersten Werts der 36-Tage-Reihen (Europe/Berlin)
+    vorAb, // Beginn des Vorlaufs „vor“ je Punkt (1.9.) oder null
     gebiet: { latN: R.latN, latS: R.latS, lngW: R.lngW, lngE: R.lngE },
-    om: { ...OM, hinweis: "je Punkt: e Modellhöhe, tw/et0/tmin/tmax 36 Tage (letzter = heute), f Vorhersage, bf Bodenfeuchte" },
+    om: {
+      ...OM,
+      hinweis:
+        "je Punkt: e Modellhöhe, tw/et0/tmin/tmax 36 Tage ab datum0 (letzter = heute), f Vorhersage, bf Bodenfeuchte, " +
+        "vor Tagesmittel ab vorAb bis zum Tag vor datum0 (Kältesumme)",
+    },
     regen: { ...RG, tage, einheit: "0,1 mm, -1 = keine Station in 30 km", reichweite_km: REICHWEITE_KM },
     omDaten: om,
     regenDaten: regen,
@@ -261,7 +321,10 @@ async function stationsNetz(lat, lng, radiusKm) {
   fs.mkdirSync(path.dirname(ZIEL), { recursive: true });
   fs.writeFileSync(ZIEL, JSON.stringify(aus));
   log(`geschrieben: ${ZIEL} (${(fs.statSync(ZIEL).size / 1024).toFixed(0)} kB) · Open-Meteo ≈ ${Math.round(omAbrufe)}, Bright Sky ${bsAbrufe}`);
-})().catch((e) => {
-  console.error("FEHLER:", e.message);
-  process.exit(1);
-});
+}
+if (require.main === module)
+  main().catch((e) => {
+    console.error("FEHLER:", e.message);
+    process.exit(1);
+  });
+module.exports = { vorlaufBauen, tagPlus };

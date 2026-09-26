@@ -1,8 +1,11 @@
 # Status Schwammerl-Karte
 
-Stand: v2026-09-26.20 (26.09.2026)
+Stand: v2026-09-26.21 (26.09.2026)
 
 ## Zuletzt ausgeliefert
+- **Saisonende (v2026-09-26.21):** Frostschlag (`frostFaktor`) und Kältesumme ab 1.9. (`kaelteFaktor`) in der
+  Endformel für Pin, Wetterfeld und Stichproben; Popup-Zeile „Saison klingt ab …“, Rechenweg mit eigenen Zeilen;
+  Tageslauf schreibt den Kältesummen-Vorlauf fort. Kalibrierungsfälle unverändert (Tabelle im Commit).
 - **Offline-Grundkarte (v2026-09-26.20):** Webkarte Bayern in zwei Stufen – „Gebiet offline speichern“
   (München ±100 km bis Zoom 12, ≈ 100 MB) im Tab „Karten“, „Umgebung speichern“ (15 km, Zoom 13–14, Größe vorab)
   im Tab „Punkt“; schonend (4 parallel, Pausen, Gespeichertes übersprungen), Fortschritt und Abbrechen,
@@ -63,6 +66,11 @@ Stand: v2026-09-26.20 (26.09.2026)
   Am Rechner (Chrome, lokal) ergab die Anfrage „nein“. **Am iPhone noch zu prüfen:** App vom Home-Bildschirm
   starten, einmal „Umgebung speichern“, dann im Tab „Karten“ ablesen: „Speicher dauerhaft: ja/nein“ – bitte
   das Ergebnis hier nachtragen.
+
+## Wartet auf Entscheidung
+- **Frost- und Kältewerte kalibrieren, sobald Oktober-Besuche vorliegen.** Alle Zahlen sind Annahmen
+  (Frost 0 / −3 °C, Start 0,3 / 0,15, Erholung 7 / 10 Tage, Kältesumme Basis 5 °C mit 25 → 0,7, 60 → 0,3,
+  100 → 0,1, Sommersteinpilz doppelt). Besuche mit „nichts“ nach Frost und Funde nach Frost sind besonders wertvoll.
 
 ## Hinweise
 - Wetterlauf: nach dem Umstellen einmal von Hand starten (Actions → Wetterlauf → Run workflow) und prüfen,
