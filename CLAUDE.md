@@ -8,7 +8,7 @@ Bewertet Waldstandorte für **Pfifferling (pf)**, **Fichtensteinpilz (st)** und 
 aus Geodaten (Baumart, Boden, Kronendichte, Gelände) und gemessenem Wetter. Nutzer: ein Sammler,
 Bedienung meist am iPhone im Wald, Auswertung am Windows-Rechner.
 
-Stand dieser Datei: v2026-09-26.30. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
+Stand dieser Datei: v2026-09-26.31. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
 
 ---
 
@@ -223,7 +223,11 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
   Modul): Bodenfeuchte 0–7 cm je Meldung aus dem Open-Meteo-Archiv (`archive-api.open-meteo.com`, 24 h bis 12 Uhr
   am Meldetag, 1 Abruf je Meldung, Cache `cache/gbif/nachschau-bodenfeuchte.json`), begrenzender Teil je Meldung
   (Faktor auf 1 → größter Anstieg, mit `deckel`), Saisonende je halbem Monat. Bericht
-  `werkzeuge/berichte/gbif-nachschau.md`.
+  `werkzeuge/berichte/gbif-nachschau.md`. Abschnitte 1–3 rechnen mit dem Modellstand vor Auftrag O (aus Git,
+  `REV_VORHER`), 4–6 mit dem aktuellen: Moor-Zuordnung der ÜBK25-Einheiten (aus `werkzeuge/.cache/`),
+  Temperaturkurve Steinpilz (20-Tage-Mittel), Vorher/Nachher inkl. Anteil ≥ 40 im heutigen Überblick (ganzes Gebiet,
+  300 m, `daten/wetter.json`). `werkzeuge/app.js`: `ladeApp(namen, { html, form })` liefert Getter, auf Wunsch aus
+  einem anderen Stand (`git show <rev>:index.html`) und mit Formularwerten für `readForm()`.
 
 ### App: Start, Schicht 2/3 und Überblick aus Grundstock
 - Start (`datenLaden`, Ladeanzeige `#start`, Karte sofort bedienbar): `meta.json` (Netz zuerst) → `grundlage.png`/
@@ -319,7 +323,8 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
 - **Saisonende** (v2026-09-26.21, alle Zahlen Annahmen, `FROST`, `KAELTE_*`): `frostFaktor(art, tmin)` – Frostnacht
   Tmin ≤ 0 °C auf Zielhöhe → 0,3, über 7 Tage linear auf 1; harter Frost ≤ −3 °C → 0,15, über 10 Tage; mehrere
   Nächte: niedrigster Wert, keine Multiplikation; gilt auch für Vorhersagetage. `kaelteFaktor(art, kaelteSumme(w))` –
-  KS = Σ max(0, 5 °C − Tagesmittel) ab 1.9. (Reihe + Vorlauf `vor`), 0 → 1, 25 → 0,7, 60 → 0,3, 100 → 0,1;
+  KS = Σ max(0, 10 °C − Tagesmittel) ab 1.9. (Reihe + Vorlauf `vor`), 0 → 1, 15 → 0,7, 30 → 0,45, 60 → 0,15,
+  100 → 0,05 (v2026-09-26.31, GBIF-Nachschau; vorher Basis 5 °C mit 25/60/100 → 0,7/0,3/0,1);
   Sommersteinpilz mit doppelter KS (endet früher). Beide multiplikativ auf `tf` in `wetterFaktorenArt` (also auch
   unter den Temperaturdeckel), dieselbe Endformel für Pin, Wetterfeld und Stichproben. Wetterreihen tragen
   `datum0` (Datum des ersten Werts; `datum0Von`, `wetterAmTag` und `tageswetterVorruecken` reichen es weiter).
@@ -327,8 +332,11 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
   (`saisonEndeText`), Rechenweg mit eigenen Zeilen Frost und Kältesumme. Sommer/Herbst-Schalter bleibt nur
   für die Gewichtung der Arten.
 - `wetterFaktorenArt` – bündelt Regen- und Temperaturfaktor; enthält die **Ausschlussregel Steinpilz**
-  (5-Tage-Mittel > 17,5 °C und < 5 mm in 5 Tagen → Temperaturfaktor ≤ 0,15).
-- `deckel(v, art, rf, tf)` – harte Grenzen: Moor ≤ 10, Brombeere ≤ 20, Kultur ≤ 25, Trockenheits-/Temperaturdeckel.
+  (5-Tage-Mittel > 17,5 °C und < 5 mm in 5 Tagen → Temperaturfaktor ≤ 0,4; bis v2026-09-26.30 ≤ 0,15).
+- `deckel(v, art, rf, tf)` – harte Grenzen: Moor ≤ 10 (nur Pfifferling und Sommersteinpilz, seit v2026-09-26.31
+  nicht mehr für den Steinpilz; Popup „Moorboden laut Karte – oft nur Randlage, vor Ort prüfen.“), Brombeere ≤ 20,
+  Kultur ≤ 25, Trockenheits-/Temperaturdeckel. „moor“ laut ÜBK25-Deutung umfasst auch Anmoor- und Gley-Einheiten
+  (Nachschau Abschnitt 4).
 - `endwert` – 100 × Standort × Regen × Temperatur × Saison, begrenzt durch `deckel`.
 - `SAISON` – Sommer/Herbst-Faktoren je Art.
 
@@ -571,6 +579,11 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
   `climate_environment/CDC/grids_germany/daily/hyras_de`), abgerufen 26.09.2026; frei nutzbar mit Quellenvermerk
   „Deutscher Wetterdienst“ nach den Nutzungsbedingungen von DWD Open Data. ET0 dazu nach Hargreaves (FAO-56 Gl. 52),
   Stichprobe gegen Open-Meteo-ET0: mittlere Abweichung ≈ 0,5 mm/Tag.
+- GBIF-Nachschau 26.9.2026 (`werkzeuge/berichte/gbif-nachschau.md`, 68 Steinpilz- gegen 4 498 Hintergrund-
+  meldungen): Moor-Deckel st entfernt (Steinpilz auf „moor“ 0,78×, n = 6), Warm-trocken-Deckel 0,15 → 0,4 (greift bei
+  7 von 68 Funden gegenüber 6 % des Hintergrunds), Kältesumme Basis 10 °C (Anteil 1.–15.10. 0,39, 16.–31.10. 0,37
+  gegenüber Anfang September; n = 15 Funde ab Oktober). Alles Annahmen, zu kalibrieren. Ergebnis: AUC Endwert
+  0,55 → 0,60 (Juni–Nov.), 0,50 → 0,55 (Aug.–Okt.).
 - Erfahrungswissen (schwächer gewichtet): Osthang für Pfifferling, Zeigerpilze Marone, Hexenröhrlinge,
   Fliegenpilz, Pfefferröhrling, Semmelstoppelpilz; stickstoffreiche Krautschicht ungünstig.
 

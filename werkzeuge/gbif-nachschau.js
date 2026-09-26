@@ -15,7 +15,17 @@ const G = require("./gbif.js");
 const S = require("./gbif-stufe2.js");
 
 const OFFLINE = process.argv.includes("--offline");
-const A = S.A;
+const { execSync } = require("child_process");
+const { ladeApp } = require("./app.js");
+const A = S.A; // aktueller Modellstand (nach Auftrag O)
+// Modellstand vor Auftrag O (v2026-09-26.30) – aus Git, für die Abschnitte 1–3 (Befund) und Vorher/Nachher
+const REV_VORHER = "26a954b";
+const htmlVon = (rev) =>
+  execSync("git show " + rev + ":index.html", { cwd: path.join(__dirname, ".."), maxBuffer: 64e6 }).toString(
+    "utf8",
+  );
+const AV = ladeApp(S.NAMEN, { html: htmlVon(REV_VORHER) });
+AV.lernUebernehmen({}, false);
 const HG_STICHPROBE = 250;
 const ARCHIV = "https://archive-api.open-meteo.com/v1/archive";
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
@@ -98,7 +108,7 @@ async function bodenfeuchteHolen(auswahl) {
 }
 
 // ---------- 2. Begrenzender Teil: welcher Faktor, auf 1 gesetzt, hebt den Endwert am stärksten?
-function begrenzung(x) {
+function begrenzung(x, A) {
   const v = x.v,
     h = x.hoehe,
     basis = A.endwert(v, "st", x.rf, x.tf, h),
@@ -142,6 +152,158 @@ const TEILE = [
   "kein Einzelteil",
 ];
 
+// Saisonende je halbem Monat (September–November)
+function perioden(werte) {
+  const P = [
+    [9, 1, "1.–15. September"],
+    [9, 2, "16.–30. September"],
+    [10, 1, "1.–15. Oktober"],
+    [10, 2, "16.–31. Oktober"],
+    [11, 1, "1.–15. November"],
+    [11, 2, "16.–30. November"],
+  ];
+  const inP = (x, [m, hlf]) => x.m === m && (+x.datum.slice(8, 10) <= 15 ? 1 : 2) === hlf;
+  return P.map((p) => {
+    const l = werte.filter((x) => inP(x, p)),
+      n = l.length,
+      s = l.filter((x) => x.st).length;
+    return {
+      name: p[2],
+      n,
+      s,
+      anteil: n ? s / n : NaN,
+      frost: mittel(l.map((x) => x.frost)),
+      kaelte: mittel(l.map((x) => x.kaelte)),
+      ende: mittel(l.map((x) => x.frost * x.kaelte)),
+      uebrig: mittel(l.map((x) => Math.min(1, x.rf) * x.tfTemp)), // Regen × Temperatur ohne Saisonende
+      ks: median(l.map((x) => x.ks)),
+      ks8: median(l.map((x) => x.ksBasis[0])),
+      ks10: median(l.map((x) => x.ksBasis[1])),
+      frostTage: mittel(l.map((x) => x.frost14)),
+    };
+  });
+}
+
+// ---------- 4. Moor-Zuordnung: welche ÜBK25-Einheiten deutet bodenDeuten als „moor“? (nur beschreiben)
+function moorAuswertung() {
+  const dir = path.join(__dirname, ".cache"),
+    einheiten = new Map();
+  if (fs.existsSync(dir))
+    fs.readdirSync(dir)
+      .filter((f) => f.endsWith(".txt"))
+      .forEach((f) => {
+        const t = fs.readFileSync(path.join(dir, f), "utf8");
+        if (!/kartiereinheiten_uebk25/.test(t)) return;
+        const m = /\n\s*([0-9]+[a-z]?): ([^;]+);/.exec(t);
+        if (m && !einheiten.has(m[1])) einheiten.set(m[1], { code: m[1], text: m[2].trim(), roh: t });
+      });
+  const moor = [];
+  einheiten.forEach((e) => {
+    const d = A.bodenDeuten(e.roh);
+    if (!d || d.wert !== "moor") return;
+    const kw = (/\(([^)]+)\)$/.exec(d.text) || [])[1] || "?",
+      klasse =
+        /hochmoor|niedermoor|torf/.test(kw) || kw === "moor"
+          ? "Moor (Hoch-/Niedermoor, Torf)"
+          : /anmoor/.test(kw)
+            ? "Anmoor"
+            : "Gley (grundwassernah)";
+    moor.push({ code: e.code, kw, klasse, text: e.text });
+  });
+  // Anteil „moor“ an der Waldfläche des Grundstocks (G-Kanal = Boden-Code)
+  G.grundstockLaden();
+  const R = G.META.raster;
+  let wald = 0,
+    wMoor = 0;
+  for (let i = 0; i < R.NY; i++)
+    for (let j = 0; j < R.NX; j++) {
+      const g = G.grundstockAm(G.META.raster.latN - (i + 0.5) * R.dLat, R.lngW + (j + 0.5) * R.dLng);
+      if (!g || !g.baum || !g.daten) continue;
+      wald++;
+      if (g.boden === G.META.codes.boden.moor) wMoor++;
+    }
+  return { einheiten: einheiten.size, moor, wald, wMoor };
+}
+
+// ---------- 6. Überblick heute (wetter.json): Anteil der Waldfläche mit Steinpilz-Bewertung ≥ 40
+function ueberblickAnteil(html) {
+  const wj = G.lesen(path.join(__dirname, "..", "daten", "wetter.json"));
+  if (!wj) return null;
+  const M = ladeApp(
+      [
+        "daten",
+        "standortFeldBauen",
+        "wetterFeldBauen",
+        "regionAusGrundstock",
+        "rasterCache",
+        "bewertungAn",
+        "lernUebernehmen",
+      ],
+      {
+        html,
+        form: {
+          "f-saison": "herbst",
+          "f-alter": "mittel",
+          "f-rand": "innen",
+          "f-baum": "fichte",
+          "f-boden": "sauer",
+          "f-lage": "eben",
+        },
+      },
+    ),
+    R = G.META.raster,
+    N = R.NX * R.NY;
+  M.lernUebernehmen({}, false);
+  G.grundstockLaden();
+  const png = (f) => G.pngLesen(path.join(__dirname, "..", "daten", "grundstock", f)),
+    g = png("grundlage.png"),
+    h = png("hoehe.png"),
+    grund = {
+      baum: new Uint8Array(N),
+      boden: new Uint8Array(N),
+      lage: new Uint8Array(N),
+      hoehe: new Uint8Array(N),
+      dichte: new Uint8Array(N),
+      abdeckung: G.META.abdeckung ? new Uint8Array(N) : null,
+    };
+  for (let q = 0; q < N; q++) {
+    grund.baum[q] = g.px[q * g.bpp];
+    grund.boden[q] = g.px[q * g.bpp + 1];
+    grund.lage[q] = g.px[q * g.bpp + 2];
+    grund.hoehe[q] = h.px[q * h.bpp];
+    grund.dichte[q] = h.px[q * h.bpp + 1];
+    if (grund.abdeckung) grund.abdeckung[q] = h.px[q * h.bpp + 2];
+  }
+  const d = M.daten;
+  d.meta = G.META;
+  d.grund = grund;
+  d.wetter = { stand: wj.stand };
+  d.SG = M.standortFeldBauen(grund, G.META);
+  d.WF = M.wetterFeldBauen(wj, grund, G.META, null, wj.stand);
+  d.bereit = true;
+  M.regionAusGrundstock(
+    {
+      getNorth: () => R.latN,
+      getSouth: () => R.latN - R.NY * R.dLat,
+      getWest: () => R.lngW,
+      getEast: () => R.lngW + R.NX * R.dLng,
+    },
+    100,
+  );
+  const C = M.rasterCache;
+  C.saison = "herbst";
+  let wald = 0,
+    ab40 = 0;
+  for (let fy = 0; fy < C.FY; fy++)
+    for (let fx = 0; fx < C.FX; fx++) {
+      const q = fy * C.FX + fx;
+      if (C.FS.st[q] > 100) continue; // kein Wald, Boden unbekannt, außerhalb, keine Daten
+      wald++;
+      if (M.bewertungAn(C, 0, "st", q, fy, fx) >= 40) ab40++;
+    }
+  return { wald, ab40, stand: wj.stand };
+}
+
 // ---------- Bericht
 function bericht(W0, BF, bfInfo, stichprobe, W1) {
   let t = "";
@@ -155,9 +317,13 @@ function bericht(W0, BF, bfInfo, stichprobe, W1) {
   L(
     "Erzeugt von `werkzeuge/gbif-nachschau.js` am " +
       heute +
-      " (App-Version " +
+      ". Abschnitte 1–3: Befund mit dem **Modellstand vor Auftrag O** (App-Version " +
+      AV.VERSION +
+      ", Git " +
+      REV_VORHER +
+      "); Abschnitte 4–6: Moor-Zuordnung, Temperaturkurve und Vorher/Nachher mit dem aktuellen Modell (" +
       A.VERSION +
-      ", Lernen aus). Gleiche Meldungen, Filter, HYRAS-Reihen und Endformel wie [Stufe 2](gbif-stufe2.md) " +
+      "). Lernen aus. Gleiche Meldungen, Filter, HYRAS-Reihen und Endformel wie [Stufe 2](gbif-stufe2.md) " +
       "(" +
       st.length +
       " Steinpilz-, " +
@@ -265,8 +431,8 @@ function bericht(W0, BF, bfInfo, stichprobe, W1) {
       "Rechnung ohne Bodenfeuchte wie in Stufe 2.",
   );
   L();
-  const stU = st.filter((x) => x.endwert < 20).map((x) => Object.assign({}, x, begrenzung(x)));
-  const hgU = hg.filter((x) => x.endwert < 20).map((x) => Object.assign({}, x, begrenzung(x)));
+  const stU = st.filter((x) => x.endwert < 20).map((x) => Object.assign({}, x, begrenzung(x, AV)));
+  const hgU = hg.filter((x) => x.endwert < 20).map((x) => Object.assign({}, x, begrenzung(x, AV)));
   const abweichung = stU.concat(hgU).filter((x) => x.basis !== x.endwert).length;
   const hoeheKl = (h) =>
     h < 500
@@ -364,35 +530,8 @@ function bericht(W0, BF, bfInfo, stichprobe, W1) {
   // --- 3. Saisonende
   L("## 3. Saisonende: Steinpilz-Anteil je halbem Monat");
   L();
-  const perioden = [
-    [9, 1, "1.–15. September"],
-    [9, 2, "16.–30. September"],
-    [10, 1, "1.–15. Oktober"],
-    [10, 2, "16.–31. Oktober"],
-    [11, 1, "1.–15. November"],
-    [11, 2, "16.–30. November"],
-  ];
-  const inP = (x, [m, hlf]) => x.m === m && (+x.datum.slice(8, 10) <= 15 ? 1 : 2) === hlf;
-  const P = perioden.map((p) => {
-    const l = werte.filter((x) => inP(x, p)),
-      n = l.length,
-      s = l.filter((x) => x.st).length;
-    return {
-      name: p[2],
-      n,
-      s,
-      anteil: n ? s / n : NaN,
-      frost: mittel(l.map((x) => x.frost)),
-      kaelte: mittel(l.map((x) => x.kaelte)),
-      ende: mittel(l.map((x) => x.frost * x.kaelte)),
-      uebrig: mittel(l.map((x) => Math.min(1, x.rf) * x.tfTemp)), // Regen × Temperatur ohne Saisonende
-      ks: median(l.map((x) => x.ks)),
-      ks8: median(l.map((x) => x.ksBasis[0])),
-      ks10: median(l.map((x) => x.ksBasis[1])),
-      frostTage: mittel(l.map((x) => x.frost14)),
-    };
-  });
-  const p0 = P[0];
+  const P = perioden(werte),
+    p0 = P[0];
   L(
     "Anteil = Steinpilz ÷ alle ausgewerteten Meldungen des Zeitraums. „relativ“ = bezogen auf 1.–15. September. " +
       "Saisonende-Faktor = Frost × Kälte des Modells (Mittel), übrige Wetterfaktoren = Regen × Temperatur (ohne " +
@@ -442,7 +581,7 @@ function bericht(W0, BF, bfInfo, stichprobe, W1) {
         "Zeitraum",
         "Steinpilz",
         "nötig (beobachtet)",
-        "Modell jetzt (Frost × Kälte)",
+        "Modell vor O (Frost × Kälte)",
         "Kältesumme Basis 5 °C",
         "Basis 8 °C",
         "Basis 10 °C",
@@ -462,7 +601,7 @@ function bericht(W0, BF, bfInfo, stichprobe, W1) {
     "Kältesumme je Zeitraum als Median (Basis 5 °C wie im Modell; 8 und 10 °C als Kandidaten, aus HYRAS-" +
       "Tagesmitteln ab 1.9.). Bei Basis 5 °C bleibt die Kältesumme bis Ende Oktober im Median 0 – der Rückgang ab " +
       "Oktober lässt sich damit nicht abbilden. " +
-      "Jetzige Annahmen: `KAELTE_KURVE` [0 → 1, 25 → 0,7, 60 → 0,3, 100 → 0,1], `FROST` 0 °C → 0,3 über 7 Tage, " +
+      "Annahmen vor Auftrag O: `KAELTE_KURVE` [0 → 1, 25 → 0,7, 60 → 0,3, 100 → 0,1], `FROST` 0 °C → 0,3 über 7 Tage, " +
       "−3 °C → 0,15 über 10 Tage. Die Zeilen oben sind Kandidaten für Stützstellen (Kältesumme → Faktor), nicht " +
       "mehr: " +
       P.slice(2)
@@ -475,16 +614,247 @@ function bericht(W0, BF, bfInfo, stichprobe, W1) {
   return t;
 }
 
+// ---------- Abschnitte 4–6 (Auftrag O)
+function berichtO(W0, WN, moor, ueber) {
+  let t = "";
+  const L = (x) => (t += (x === undefined ? "" : x) + "\n");
+  const st = (W) => W.werte.filter((x) => x.st),
+    hg = (W) => W.werte.filter((x) => !x.st),
+    aug = (l) => l.filter((x) => x.m >= 8 && x.m <= 10);
+
+  // --- 4. Moor-Zuordnung
+  L("## 4. Moor-Zuordnung der Bodenkarte (nur beschrieben)");
+  L();
+  const kl = {};
+  moor.moor.forEach((m) => (kl[m.klasse] = (kl[m.klasse] || 0) + 1));
+  L(
+    "`bodenDeuten` ordnet eine ÜBK25-Einheit „moor“ zu, wenn im Legendentext zuerst eines dieser Wörter steht: " +
+      "Hochmoor, Niedermoor, Anmoor, Moor, Torf, Nass-, Hang-, Quell-, Auengley oder Gley (nicht Pseudo-, Stagno-, " +
+      "Paragley). In den " +
+      moor.einheiten +
+      " ÜBK25-Einheiten aus dem Zwischenspeicher des Grundstock-Laufs sind " +
+      moor.moor.length +
+      " als „moor“ gedeutet: " +
+      Object.keys(kl)
+        .map((k) => k + " " + kl[k])
+        .join(", ") +
+      ". Im Grundstock ist „moor“ " +
+      pc(moor.wMoor, moor.wald) +
+      " der Waldfläche. Anmoor und Gley sind Übergänge (grundwassernah, humusreich), keine Moore – dort kann der " +
+      "Steinpilz in der Randlage fruchten. Zuordnung unverändert.",
+  );
+  L();
+  L(
+    G.tabelle(
+      ["Einheit", "Klasse", "Schlüsselwort", "Legende (gekürzt)"],
+      moor.moor
+        .sort(
+          (a, b) => a.klasse.localeCompare(b.klasse) || a.code.localeCompare(b.code, "de", { numeric: true }),
+        )
+        .map((m) => [m.code, m.klasse, m.kw, m.text.length > 110 ? m.text.slice(0, 107) + " …" : m.text]),
+    ),
+  );
+  // Fraglich: Mineralböden mit Gley-Einfluss („vergleyt“, Gley-Braunerde, Gley-Rendzina …) landen ebenfalls bei „moor“
+  const fraglich = moor.moor.filter((m) =>
+    /vergley|^(überwiegend |fast ausschließlich |vorherrschend )?gley-(braunerde|rendzina|pararendzina|kalkpaternia|vega)/i.test(
+      m.text,
+    ),
+  );
+  L(
+    "**Fraglich (nur benannt):** " +
+      fraglich.map((m) => m.code).join(", ") +
+      " – Mineralböden mit Gley-Einfluss (Gley-Braunerde, Gley-Rendzina/-Pararendzina, Gley-Kalkpaternia/-Vega); " +
+      "Einheit 7 ist eine pseudovergleyte Braunerde, das Muster `gley` trifft dort „vergleyt“ (der Ausschluss gilt " +
+      "nur für „pseudogley“). Echte Moore sind nur 78, 78a, 79 (Nieder-/Übergangs-/Hochmoor), dazu Moor- und " +
+      "Anmoorgleye (75, 65c, 72c, 72f, 73c).",
+  );
+  L();
+
+  // --- 5. Temperaturkurve Steinpilz
+  L("## 5. Temperaturkurve Steinpilz (20-Tage-Mittel) – nur ausgewertet");
+  L();
+  const KL = [
+    ["≤ 10 °C", -99, 10, 9],
+    ["10–12 °C", 10, 12, 11],
+    ["12–14 °C", 12, 14, 13],
+    ["14–16 °C", 14, 16, 15],
+    ["16–18 °C", 16, 18, 17],
+    ["18–20 °C", 18, 20, 19],
+    ["> 20 °C", 20, 99, 21],
+  ];
+  const tf = (T) => A.tempFaktor("st", new Array(20).fill(T), new Array(20).fill(T)).f;
+  const zeilenT = KL.map(([name, a, b, mitte]) => {
+    const l = WN.werte.filter((x) => x.t20 > a && x.t20 <= b),
+      s = l.filter((x) => x.st).length;
+    return { name, n: l.length, s, anteil: l.length ? s / l.length : NaN, f: tf(mitte), mitte };
+  });
+  const maxA = Math.max(...zeilenT.filter((z) => z.s >= 3).map((z) => z.anteil));
+  L(
+    G.tabelle(
+      [
+        "20-Tage-Mittel",
+        "Meldungen",
+        "Steinpilz",
+        "Anteil",
+        "relativ zum Höchstwert",
+        "tempFaktor(st) Klassenmitte",
+      ],
+      zeilenT.map((z) => [
+        z.name,
+        G.zahl(z.n),
+        String(z.s),
+        z.n ? (100 * z.anteil).toFixed(1).replace(".", ",") + " %" : "–",
+        z.s >= 3 ? k2(z.anteil / maxA) : "(zu wenige)",
+        k2(z.f) + " (" + z.mitte + " °C)",
+      ]),
+    ),
+  );
+  const spitze = zeilenT.filter((z) => z.s >= 3).sort((a, b) => b.anteil - a.anteil)[0];
+  L(
+    "**Zu entscheiden:** Der höchste Steinpilz-Anteil liegt in der Klasse " +
+      spitze.name +
+      " (" +
+      spitze.s +
+      " Funde); das Modell hat sein Optimum bei 13,7 °C (Bielefeld-Studie). Weicht die beobachtete Kurve davon ab, " +
+      "wäre ein flacherer Abfall zu den warmen Klassen denkbar – mit " +
+      st(WN).length +
+      " Funden nur ein Hinweis; die Warm-Klassen enthalten vor allem August-Meldungen, deren Hintergrund anders " +
+      "zusammengesetzt ist.",
+  );
+  L();
+
+  // --- 6. Vorher/Nachher
+  L("## 6. Nach Auftrag O (Moor-Deckel st, Warm-trocken 0,4, Kältesumme Basis 10 °C)");
+  L();
+  const aucM = (W, l) => {
+    const p = l.filter((x) => x.st).map((x) => x.endwert),
+      n = l.filter((x) => !x.st).map((x) => x.endwert),
+      sp = S.aucSpanne(p, n);
+    return k2(S.auc(p, n)) + " (" + k2(sp[0]) + "–" + k2(sp[1]) + ")";
+  };
+  L(
+    G.tabelle(
+      ["", "vorher (" + AV.VERSION + ")", "nachher (" + A.VERSION + ")"],
+      [
+        ["AUC Endwert Juni–November", aucM(W0, W0.werte), aucM(WN, WN.werte)],
+        ["AUC Endwert August–Oktober", aucM(W0, aug(W0.werte)), aucM(WN, aug(WN.werte))],
+        [
+          "Steinpilzfunde mit Endwert < 20",
+          st(W0).filter((x) => x.endwert < 20).length + " von " + st(W0).length,
+          st(WN).filter((x) => x.endwert < 20).length + " von " + st(WN).length,
+        ],
+        [
+          "Hintergrund mit Endwert < 20",
+          pc(hg(W0).filter((x) => x.endwert < 20).length, hg(W0).length),
+          pc(hg(WN).filter((x) => x.endwert < 20).length, hg(WN).length),
+        ],
+      ],
+    ),
+  );
+  // Verschiebung der Steinpilzfunde über die Schwelle 20 (gleiche Meldung vorher/nachher)
+  const vorK = new Map(st(W0).map((x) => [x.k, x])),
+    hoch = st(WN).filter((x) => x.endwert >= 20 && vorK.get(x.k) && vorK.get(x.k).endwert < 20),
+    runter = st(WN).filter((x) => x.endwert < 20 && vorK.get(x.k) && vorK.get(x.k).endwert >= 20);
+  const grundHoch = (x) => (x.v.boden === "moor" ? "Moor" : x.aus5 ? "warm-trocken" : "anderes");
+  L(
+    "Über die Schwelle 20 gehoben: " +
+      hoch.length +
+      " Steinpilzfunde (" +
+      ["Moor", "warm-trocken", "anderes"]
+        .map((g) => g + " " + hoch.filter((x) => grundHoch(x) === g).length)
+        .join(", ") +
+      "); neu unter 20: " +
+      runter.length +
+      " (" +
+      runter.map((x) => MONAT[x.m]).join(", ") +
+      " – Kältesumme Basis 10 °C). Die Zahl bleibt gleich, die Fälle tauschen.",
+  );
+  L();
+  const klassen = [
+    [0, 20],
+    [20, 40],
+    [40, 60],
+    [60, 80],
+    [80, 101],
+  ];
+  const kal = (W, a, b) => {
+    const l = W.werte.filter((x) => x.endwert >= a && x.endwert < b),
+      s = l.filter((x) => x.st).length;
+    return l.length
+      ? ((100 * s) / l.length).toFixed(1).replace(".", ",") + " % (" + s + "/" + G.zahl(l.length) + ")"
+      : "–";
+  };
+  L("### Steinpilz-Anteil je Endwertklasse");
+  L();
+  L(
+    G.tabelle(
+      ["Endwert", "vorher", "nachher"],
+      klassen.map(([a, b]) => [a + "–" + Math.min(b, 100), kal(W0, a, b), kal(WN, a, b)]),
+    ),
+  );
+  L("### Saisonende mit neuem Frost × Kälte");
+  L();
+  const P0 = perioden(W0.werte),
+    PN = perioden(WN.werte);
+  L(
+    G.tabelle(
+      [
+        "Zeitraum",
+        "Steinpilz",
+        "Anteil relativ (beobachtet)",
+        "nötig (beobachtet ÷ übrige)",
+        "Frost × Kälte relativ vorher",
+        "nachher",
+        "Kältesumme Median vorher (5 °C)",
+        "nachher (10 °C)",
+      ],
+      PN.map((p, i) => [
+        p.name,
+        String(p.s),
+        k2(p.anteil / PN[0].anteil),
+        i === 0 ? "1,00" : p.s < 3 ? "(zu wenige)" : k2(p.anteil / PN[0].anteil / (p.uebrig / PN[0].uebrig)),
+        k2(P0[i].ende / P0[0].ende),
+        k2(p.ende / PN[0].ende),
+        k1(P0[i].ks),
+        k1(p.ks),
+      ]),
+    ),
+  );
+  L(
+    "Gewollt bildet die neue Kurve nur etwa den halben beobachteten Rückgang ab (Hintergrund verschiebt sich im " +
+      "Oktober). Frost-/Kältekalibrierung mit Oktober-Besuchen bleibt offen.",
+  );
+  L();
+  L("### Überblick heute (Tageswetter wetter.json)");
+  L();
+  if (ueber.vorher && ueber.nachher)
+    L(
+      "Anteil der Waldfläche (Grundstock-Gebiet, 300 m, heute, Steinpilz) mit Bewertung ≥ 40: vorher " +
+        pc(ueber.vorher.ab40, ueber.vorher.wald) +
+        ", nachher " +
+        pc(ueber.nachher.ab40, ueber.nachher.wald) +
+        " (" +
+        G.zahl(ueber.nachher.wald) +
+        " Waldpixel, Tageswetter vom " +
+        ueber.nachher.stand.slice(0, 10) +
+        ").",
+    );
+  else L("_wetter.json fehlt lokal (daten/wetter.json) – Überblick nicht gerechnet._");
+  L();
+  return t;
+}
+
 async function hauptprogramm() {
   log("Meldungen und Reihen (Stufe 2) …");
   const M = S.meldungenLaden(),
     reihen = await S.reihenBauen(M.meldungen),
-    W0 = S.rechnen(M.meldungen, reihen);
+    W0 = S.rechnen(M.meldungen, reihen, undefined, AV), // Modellstand vor Auftrag O
+    WN = S.rechnen(M.meldungen, reihen); // aktuelles Modell
   // Art je Meldung (Steinpilz-Gruppe = B. edulis + B. reticulatus): edulis-Schlüssel aus Stufe 1
   const taxa = G.lesen(path.join(G.CACHE, "taxa.json")),
     edulis = new Set(taxa.arten.st.map((m) => m.suchKey)),
     artVon = new Map(M.meldungen.map((r) => [r.k, r.t]));
-  W0.werte.forEach((x) => (x.edulis = edulis.has(artVon.get(x.k))));
+  W0.werte.concat(WN.werte).forEach((x) => (x.edulis = edulis.has(artVon.get(x.k))));
   // Auswahl: alle Steinpilzmeldungen + Zufallsstichprobe des Hintergrunds (feste Folge, reproduzierbar)
   const rechenbar = new Set(W0.werte.map((x) => x.k)),
     stM = M.meldungen.filter((r) => r.st && rechenbar.has(r.k)),
@@ -505,9 +875,15 @@ async function hauptprogramm() {
     auswahl.filter((r) => typeof bf[r.k] === "number"),
     reihen,
     bf,
+    AV,
   );
   const jahre = [...new Set(hgM.map((r) => r.j))].sort();
-  const text = bericht(W0, bf, info, { hg: hgM.length, jahre: jahre[0] + "–" + jahre[jahre.length - 1] }, W1);
+  log("Moor-Zuordnung, Überblick vorher/nachher …");
+  const moor = moorAuswertung(),
+    ueber = { vorher: ueberblickAnteil(htmlVon(REV_VORHER)), nachher: ueberblickAnteil() };
+  const text =
+    bericht(W0, bf, info, { hg: hgM.length, jahre: jahre[0] + "–" + jahre[jahre.length - 1] }, W1) +
+    berichtO(W0, WN, moor, ueber);
   fs.writeFileSync(path.join(G.BERICHTE, "gbif-nachschau.md"), text);
   log("Bericht geschrieben: werkzeuge/berichte/gbif-nachschau.md");
 }

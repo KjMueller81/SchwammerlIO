@@ -26,18 +26,48 @@ function stub(name) {
   });
 }
 
-// namen: Liste der Bezeichner, die herausgereicht werden sollen (fehlende werden undefined)
-function ladeApp(namen) {
-  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+// namen: Liste der Bezeichner, die herausgereicht werden sollen (fehlende werden undefined), als Getter – so
+// sind auch später gesetzte Variablen (z. B. rasterCache) aktuell.
+// opt.html: Skripttext eines anderen Stands (z. B. `git show <rev>:index.html`, Vorher/Nachher-Vergleiche);
+// opt.form: Werte der Formularfelder { "f-saison": "herbst", … } für Funktionen, die readForm() aufrufen.
+function ladeApp(namen, opt) {
+  opt = opt || {};
+  const html = opt.html || fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
   const js = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((x) => x[1]).join("\n");
   const start = /\n\s*update\(\);\s*\n\s*load\(\);/;
   if (!start.test(js)) throw new Error("Startstelle „update(); load();“ in index.html nicht gefunden");
   const rueck =
-    "{" + namen.map((n) => JSON.stringify(n) + ": typeof " + n + ' !== "undefined" ? ' + n + " : undefined").join(", ") + "}";
+    "{" +
+    namen
+      .map(
+        (n) =>
+          "get " +
+          JSON.stringify(n) +
+          "() { return typeof " +
+          n +
+          ' !== "undefined" ? ' +
+          n +
+          " : undefined; }",
+      )
+      .join(", ") +
+    "}";
   const kern = js.replace(start, "\nglobalThis.__APP = " + rueck + "; return;\n");
   const env = {
     window: stub("window"),
-    document: stub("document"),
+    document: opt.form
+      ? new Proxy(stub("document"), {
+          get(t, k) {
+            if (k !== "getElementById") return t[k];
+            return (id) =>
+              new Proxy(stub("#" + id), {
+                get(t2, k2) {
+                  if (k2 === "value") return opt.form[id] !== undefined ? opt.form[id] : "";
+                  return t2[k2];
+                },
+              });
+          },
+        })
+      : stub("document"),
     L: stub("L"),
     navigator: stub("navigator"),
     location: stub("location"),

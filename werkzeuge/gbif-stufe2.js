@@ -31,7 +31,7 @@ const R = G.META.raster;
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 
 // ---------- Modell aus der App (nichts nachgebaut)
-const A = ladeApp([
+const NAMEN = [
   "VERSION",
   "bewerte",
   "wetterFaktorenArt",
@@ -45,7 +45,10 @@ const A = ladeApp([
   "W",
   "endwert",
   "deckel",
-]);
+  "bodenDeuten",
+  "tempFaktor",
+];
+const A = ladeApp(NAMEN);
 A.lernUebernehmen({}, false); // nur das Grundmodell prüfen
 
 // ---------- Datum
@@ -320,7 +323,8 @@ async function vergleichZaehlen(taxa) {
 
 // ---------- 3. Rechnung je Meldung (nur App-Funktionen)
 // bodenFJe: optional { GBIF-Schlüssel: Modell-Bodenfeuchte 0–7 cm } (Nachschau); ohne → bodenF fehlt wie in HYRAS
-function rechnen(meldungen, reihen, bodenFJe) {
+function rechnen(meldungen, reihen, bodenFJe, modell) {
+  const X = modell || A; // Modellstand: Standard die aktuelle App, sonst z. B. ein älterer Stand aus Git
   const codes = G.META.codes,
     bodenName = {},
     lageName = {};
@@ -371,9 +375,9 @@ function rechnen(meldungen, reihen, bodenFJe) {
       },
       hoehe = g.hoehe,
       dichte = g.dichte === null ? 85 : g.dichte; // unbekannt wie im Überblick
-    const fk = A.wetterFaktorenArt("st", v, w, hoehe, dichte),
-      ew = A.bewerte(v, w, hoehe, undefined, dichte).st,
-      sg = A.standortGuete(v, "st"),
+    const fk = X.wetterFaktorenArt("st", v, w, hoehe, dichte),
+      ew = X.bewerte(v, w, hoehe, undefined, dichte).st,
+      sg = X.standortGuete(v, "st"),
       summe = (k) => s.pr.slice(n - k).reduce((a, b) => a + b, 0);
     aus.push({
       st: r.st,
@@ -389,14 +393,14 @@ function rechnen(meldungen, reihen, bodenFJe) {
       frost: fk.frost.f,
       kaelte: fk.kaelte.f,
       ks: fk.kaelte.ks,
-      summenF: A.summenFaktor("st", w.tw),
-      ausloeser: A.faktorAusWirksam(A.wirksamerRegen("st", w, 0, hoehe, dichte, v.alter)),
-      saisonF: A.SAISON[v.saison].st,
+      summenF: X.summenFaktor("st", w.tw),
+      ausloeser: X.faktorAusWirksam(X.wirksamerRegen("st", w, 0, hoehe, dichte, v.alter)),
+      saisonF: X.SAISON[v.saison].st,
       f: { baum: v.baum, boden: v.boden, lage: v.lage },
       mf: {
-        baum: A.merkmalFaktor(v, "baum", "st"),
-        boden: A.merkmalFaktor(v, "boden", "st"),
-        lage: A.merkmalFaktor(v, "lage", "st"),
+        baum: X.merkmalFaktor(v, "baum", "st"),
+        boden: X.merkmalFaktor(v, "boden", "st"),
+        lage: X.merkmalFaktor(v, "lage", "st"),
       },
       hoehe,
       regen: { 7: summe(7), 14: summe(14), 26: summe(26), 42: summe(42), 56: summe(56) },
@@ -408,6 +412,8 @@ function rechnen(meldungen, reihen, bodenFJe) {
       tf: fk.tf,
       dichte,
       t7: s.tas.slice(-7).reduce((a, b) => a + b, 0) / 7,
+      // 20-Tage-Mittel wie tempFaktor(st): Tagesmittel aus Tmin/Tmax
+      t20: tmin.slice(-20).reduce((a, t, k) => a + (t + tmax.slice(-20)[k]) / 2, 0) / 20,
       // Ausschlussregel Steinpilz (wetterFaktorenArt): 5-Tage-Mittel > 17,5 °C und < 5 mm in 5 Tagen
       aus5: (() => {
         let m5 = 0,
@@ -1062,7 +1068,18 @@ async function hauptprogramm() {
   log("Bericht geschrieben: werkzeuge/berichte/gbif-stufe2.md");
 }
 // Nachschau (gbif-nachschau.js) nutzt Filter, Reihen und Rechnung von hier
-module.exports = { A, meldungenLaden, reihenBauen, rechnen, auc, aucSpanne, zufall, JAHR_AB, JAHR_BIS };
+module.exports = {
+  A,
+  NAMEN,
+  meldungenLaden,
+  reihenBauen,
+  rechnen,
+  auc,
+  aucSpanne,
+  zufall,
+  JAHR_AB,
+  JAHR_BIS,
+};
 if (require.main === module)
   hauptprogramm().catch((e) => {
     console.error(e.stack || e.message);

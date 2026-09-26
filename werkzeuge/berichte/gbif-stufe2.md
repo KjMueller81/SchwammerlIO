@@ -1,6 +1,6 @@
 # GBIF Stufe 2 – Probe Steinpilz im jetzigen Gebiet
 
-Erzeugt von `werkzeuge/gbif-stufe2.js` am 2026-09-26 mit den Modellfunktionen aus index.html (Version 2026-09-26.28, Lernen aus). Nur Zählungen, Anteile und AUC – keine Fundorte. Grundlage: [Stufe 1](gbif-stufe1.md).
+Erzeugt von `werkzeuge/gbif-stufe2.js` am 2026-09-26 mit den Modellfunktionen aus index.html (Version 2026-09-26.31, Lernen aus). Nur Zählungen, Anteile und AUC – keine Fundorte. Grundlage: [Stufe 1](gbif-stufe1.md).
 
 **Frage:** Liegen die Werte der App an Ort und Tag echter Steinpilzmeldungen höher als an Ort und Tag aller anderen Pilzmeldungen (Hintergrund = dort war jemand im Wald)? Vorbild Kinoko (modell/docs/findings-01.md).
 
@@ -38,18 +38,18 @@ AUC = Wahrscheinlichkeit, dass eine zufällige Steinpilzmeldung einen höheren W
 
 | Wert | AUC (95 %) | Steinpilz | Hintergrund |
 |---|---:|---:|---:|
-| Endwert (App) | 0,55 (0,49–0,61) | 68 | 4498 |
+| Endwert (App) | 0,60 (0,54–0,66) | 68 | 4498 |
 | Standortgüte allein | 0,55 (0,48–0,61) | 68 | 4498 |
-| Wetterfaktor allein (rf × tf) | 0,56 (0,49–0,62) | 68 | 4498 |
+| Wetterfaktor allein (rf × tf) | 0,60 (0,53–0,66) | 68 | 4498 |
 | nur Saison (Kalenderwoche) | 0,56 (0,49–0,64) | 68 | 4498 |
 
 ### (2) nur August–Oktober
 
 | Wert | AUC (95 %) | Steinpilz | Hintergrund |
 |---|---:|---:|---:|
-| Endwert (App) | 0,50 (0,43–0,57) | 57 | 3307 |
+| Endwert (App) | 0,55 (0,48–0,62) | 57 | 3307 |
 | Standortgüte allein | 0,52 (0,45–0,59) | 57 | 3307 |
-| Wetterfaktor allein (rf × tf) | 0,51 (0,43–0,58) | 57 | 3307 |
+| Wetterfaktor allein (rf × tf) | 0,56 (0,49–0,63) | 57 | 3307 |
 | nur Saison (Kalenderwoche) | 0,60 (0,52–0,67) | 57 | 3307 |
 
 ### Einzelfaktoren (Juni–November)
@@ -59,9 +59,9 @@ AUC = Wahrscheinlichkeit, dass eine zufällige Steinpilzmeldung einen höheren W
 | Regen: Auslöser (wirksamer Regen) | 0,56 | 0,52 |
 | Regen: Summe 26 Tage (summenFaktor) | 0,57 | 0,53 |
 | Regenfaktor rf (Ensemble) | 0,57 | 0,52 |
-| Temperatur (ohne Frost/Kälte) | 0,54 | 0,51 |
+| Temperatur (ohne Frost/Kälte) | 0,55 | 0,52 |
 | Frostfaktor | 0,52 | 0,51 |
-| Kältefaktor | 0,54 | 0,52 |
+| Kältefaktor | 0,60 | 0,59 |
 | Saisonfaktor (Sommer 0,45 / Herbst 1) | 0,50 | 0,50 |
 | Baumart (merkmalFaktor) | 0,57 | 0,55 |
 | Boden (merkmalFaktor) | 0,54 | 0,53 |
@@ -71,34 +71,34 @@ AUC = Wahrscheinlichkeit, dass eine zufällige Steinpilzmeldung einen höheren W
 
 | Jahr | Steinpilz | Hintergrund | AUC Endwert (nur dieses Jahr) | AUC Saison (nur dieses Jahr) | AUC Endwert (Jahr ausgelassen) |
 |---|---:|---:|---:|---:|---:|
-| 2015 | 4 | 27 | 0,62 | 0,57 | 0,56 |
-| 2016 | 0 | 45 | (zu wenige) | (zu wenige) | 0,55 |
-| 2017 | 2 | 69 | (zu wenige) | (zu wenige) | 0,56 |
-| 2018 | 2 | 37 | (zu wenige) | (zu wenige) | 0,56 |
-| 2019 | 2 | 149 | (zu wenige) | (zu wenige) | 0,56 |
-| 2020 | 11 | 445 | 0,50 | 0,75 | 0,56 |
-| 2021 | 1 | 316 | (zu wenige) | (zu wenige) | 0,55 |
-| 2022 | 12 | 651 | 0,61 | 0,70 | 0,54 |
-| 2023 | 8 | 518 | 0,48 | 0,61 | 0,56 |
-| 2024 | 13 | 997 | 0,57 | 0,25 | 0,55 |
-| 2025 | 13 | 1244 | 0,67 | 0,64 | 0,52 |
+| 2015 | 4 | 27 | 0,69 | 0,57 | 0,61 |
+| 2016 | 0 | 45 | (zu wenige) | (zu wenige) | 0,60 |
+| 2017 | 2 | 69 | (zu wenige) | (zu wenige) | 0,60 |
+| 2018 | 2 | 37 | (zu wenige) | (zu wenige) | 0,60 |
+| 2019 | 2 | 149 | (zu wenige) | (zu wenige) | 0,61 |
+| 2020 | 11 | 445 | 0,59 | 0,75 | 0,61 |
+| 2021 | 1 | 316 | (zu wenige) | (zu wenige) | 0,60 |
+| 2022 | 12 | 651 | 0,67 | 0,70 | 0,59 |
+| 2023 | 8 | 518 | 0,52 | 0,61 | 0,61 |
+| 2024 | 13 | 997 | 0,62 | 0,25 | 0,60 |
+| 2025 | 13 | 1244 | 0,69 | 0,64 | 0,57 |
 
 ### Blockweise: Nord-/Südhälfte (Grenze 48,14° N)
 
 | Hälfte | Steinpilz | Hintergrund | AUC Endwert (App) | AUC Standortgüte allein | AUC Wetterfaktor allein (rf × tf) | AUC nur Saison (Kalenderwoche) |
 |---|---:|---:|---:|---:|---:|---:|
-| Nord | 28 | 1695 | 0,55 | 0,54 | 0,58 | 0,57 |
-| Süd | 40 | 2803 | 0,57 | 0,55 | 0,55 | 0,56 |
+| Nord | 28 | 1695 | 0,60 | 0,54 | 0,61 | 0,57 |
+| Süd | 40 | 2803 | 0,61 | 0,55 | 0,60 | 0,56 |
 
 ## b) Kalibrierung
 
 | Endwert | Meldungen | davon Steinpilz | Anteil Steinpilz |
 |---|---:|---:|---:|
-| 0–20 | 2.243 | 30 | 1,3 % |
-| 20–40 | 1.239 | 17 | 1,4 % |
-| 40–60 | 611 | 15 | 2,5 % |
-| 60–80 | 467 | 6 | 1,3 % |
-| 80–100 | 6 | 0 | 0,0 % |
+| 0–20 | 2.479 | 30 | 1,2 % |
+| 20–40 | 1.353 | 22 | 1,6 % |
+| 40–60 | 500 | 11 | 2,2 % |
+| 60–80 | 234 | 5 | 2,1 % |
+| 80–100 | 0 | 0 | – |
 
 Gesamtanteil Steinpilz: 1,5 %.
 
@@ -147,10 +147,10 @@ Unter rf 0,2 deckelt `deckel` den Endwert auf 8–30 (je nach Standortgüte). Li
 
 | Kältesumme ab 1.9. | Meldungen | davon Steinpilz | Anteil Steinpilz |
 |---|---:|---:|---:|
-| 0 | 3.832 | 63 | 1,6 % |
-| > 0–25 | 652 | 5 | 0,8 % |
-| > 25–60 | 70 | 0 | 0,0 % |
-| > 60 | 12 | 0 | 0,0 % |
+| 0 | 2.167 | 42 | 1,9 % |
+| > 0–25 | 1.423 | 19 | 1,3 % |
+| > 25–60 | 565 | 4 | 0,7 % |
+| > 60 | 411 | 3 | 0,7 % |
 
 ## f) Standort: Beobachtung gegen die Gewichte W (Steinpilz)
 
@@ -208,8 +208,8 @@ Höhe hat im Modell kein eigenes Standortgewicht; sie wirkt nur über die Regenv
 
 ## h) Urteil
 
-Nein – der Endwert trennt Steinpilz vom Hintergrund nicht besser als „nur Saison“: AUC 0,55 (0,49–0,61) gegen 0,56 über Juni–November, innerhalb August–Oktober 0,50 gegen 0,60; die Spanne des Endwerts schließt den Zufall (0,5) ein.
-Kein Teil trägt deutlich – am stärksten sind Regen: Summe 26 Tage (0,57) und Baumart (0,57), Standortgüte 0,55 und Wetterfaktor 0,56 liegen gleichauf; innerhalb der Hauptsaison (Aug.–Okt.) fällt der Wetterfaktor auf 0,51.
+Nein – der Endwert trennt Steinpilz vom Hintergrund nicht besser als „nur Saison“: AUC 0,60 (0,54–0,66) gegen 0,56 über Juni–November, innerhalb August–Oktober 0,55 gegen 0,60.
+Kein Teil trägt deutlich – am stärksten sind Kältefaktor (0,60) und Regen: Summe 26 Tage (0,57), Standortgüte 0,55 und Wetterfaktor 0,60 liegen gleichauf; innerhalb der Hauptsaison (Aug.–Okt.) fällt der Wetterfaktor auf 0,56.
 Mit 68 Fällen ist die Spanne ±0,06 – Unterschiede unter ≈ 0,1 sind nicht messbar; Bayern brächte bei gleicher Ausbeute etwa 266 Fälle (±0,03), ganz Deutschland etwa 2.811 (±0,01), deshalb lohnt Stufe 3 nur als deutschlandweite Prüfung (Zählung GBIF 2026-09-26: Steinpilz Juni–Nov. 2015–2025 mit Unsicherheit ≤ 500 m – Gebiet 80, Bayern 313, Deutschland 3.307).
 
 Richtungs-Widersprüche Standort: Lage west (Verhältnis 1,48, W 5); Lage ost (Verhältnis 0,76, W 6).

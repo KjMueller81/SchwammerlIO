@@ -2377,7 +2377,7 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-26.30";
+        var VERSION = "2026-09-26.31";
         // Radar nur als Kartenebene; in der Bewertung zu unzuverlässig (gelernte Farbskala, leere Bilder)
         var RADAR_IM_MODELL = false;
         var LOG = [];
@@ -2993,7 +2993,7 @@
             27,
             600,
             {},
-            { pf: 11, st: 2, som: 2 },
+            { pf: 11, st: 6, som: 2 }, // st 2 → 6: Warm-trocken-Deckel 0,4 (Auftrag O)
           ],
           ["Landregen 30 mm vor 9 T, kühl", [[9, 30]], 1.5, 9, 17, 600, {}, { pf: 26, st: 40, som: 4 }],
           [
@@ -3036,7 +3036,7 @@
             25,
             500,
             { baum: "buche", boden: "kalk", saison: "sommer", lage: "sued", unter: "gras" },
-            { pf: 19, st: 2, som: 50 },
+            { pf: 19, st: 6, som: 50 }, // st 2 → 6: Warm-trocken-Deckel 0,4 (Auftrag O)
           ],
           ["4 Wochen trocken", [], 3, 11, 22, 600, {}, { pf: 4, st: 4, som: 1 }],
           // Saisonende (v2026-09-26.21): Frost- und Kältewerte sind Annahmen, Sollwerte nur als Regressionsschutz
@@ -3054,7 +3054,7 @@
             15,
             600,
             {},
-            { pf: 12, st: 15, som: 1 },
+            { pf: 11, st: 13, som: 1 }, // pf 12 → 11, st 15 → 13: Kältesumme Basis 10 °C (Auftrag O)
             { datum: "2026-10-15", frost: [[2, -3]] },
           ],
           [
@@ -3071,7 +3071,7 @@
             15,
             600,
             {},
-            { pf: 37, st: 46, som: 3 },
+            { pf: 34, st: 42, som: 3 }, // pf 37 → 34, st 46 → 42: Kältesumme Basis 10 °C (Auftrag O)
             { datum: "2026-10-15", frost: [[12, -3]] },
           ],
           [
@@ -3168,10 +3168,12 @@
               W2 = mk([[9, 20]], 1.5, 9, 17);
             var regeln = [
               [
-                "Moor deckelt auf ≤ 10",
+                "Moor deckelt Pfifferling/Sommersteinpilz auf ≤ 10, Steinpilz nicht (bleibt unter sauer)",
                 function () {
                   var b = bewerte(V({ boden: "moor" }), W1, 600, undefined, 85);
-                  return b.pf <= 10 && b.st <= 10;
+                  return (
+                    b.pf <= 10 && b.som <= 10 && b.st > 10 && b.st < bewerte(V(), W1, 600, undefined, 85).st
+                  );
                 },
               ],
               [
@@ -3235,10 +3237,11 @@
                 function () {
                   var w = mk([], 1, 8, 15, { datum: "2026-10-15" }); // Reihe ab 10.9., Tagesmittel 11,5 °C
                   w.vorAb = "2026-09-01";
-                  // Vorlauf 1.–11.9. je 0 °C; 10./11.9. liegen schon in der Reihe → 9 Tage × 5 = 45
+                  // Vorlauf 1.–11.9. je 0 °C; 10./11.9. liegen schon in der Reihe → 9 Tage × 10 (Basis) = 90;
+                  // die Reihe selbst (11,5 °C) liegt über der Basis und zählt nicht
                   w.vor = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
                   return (
-                    kaelteSumme(w) === 45 && kaelteSumme(mk([], 1, 8, 15, { datum: "2026-08-20" })) === 0
+                    kaelteSumme(w) === 90 && kaelteSumme(mk([], 1, 8, 15, { datum: "2026-08-20" })) === 0
                   );
                 },
               ],
@@ -3323,7 +3326,7 @@
                 },
               ],
               [
-                "Warm und trocken (5 T > 17,5 °C, < 1 mm/T) → Steinpilz ≤ 12",
+                "Warm und trocken (5 T > 17,5 °C, < 1 mm/T) → Steinpilz ≤ 25 (Deckel 0,4)",
                 function () {
                   var Wt = mk(
                     [
@@ -3334,7 +3337,7 @@
                     12,
                     26,
                   );
-                  return bewerte(V({ lage: "nord" }), Wt, 600, undefined, 85).st <= 12;
+                  return bewerte(V({ lage: "nord" }), Wt, 600, undefined, 85).st <= 25;
                 },
               ],
             ];
@@ -4375,7 +4378,10 @@
         // Harte Deckel: Ausschlussbedingungen begrenzen das Ergebnis, egal wie gut der Rest ist.
         function deckel(v, a, rf, tf, sgVorab) {
           var c = 100;
-          if (v.boden === "moor") c = Math.min(c, 10);
+          // Moor-Deckel nur für Pfifferling und Sommersteinpilz: Steinpilz auf „moor“ laut Karte 0,78× gegenüber dem
+          // Hintergrund, 6 der 30 Steinpilzfunde unter 20 nur durch diesen Deckel – GBIF-Nachschau 26.9.2026 (n = 6).
+          // Annahme, zu kalibrieren. Das Bodengewicht W.boden.moor bleibt.
+          if (v.boden === "moor" && a !== "st") c = Math.min(c, 10);
           if (unterListe(v.unter).indexOf("brom") >= 0) c = Math.min(c, 20); // auch wenn nur mit gewählt
           if (v.alter === "jung") c = Math.min(c, 25);
           if (v.baum === "laub_jung") c = Math.min(c, 25);
@@ -4585,13 +4591,19 @@
           startHart: 0.15, // nach hartem Frost … (Annahme)
           tageHart: 10, // … Erholung über 10 Tage (Annahme)
         };
-        var KAELTE_BASIS = 5; // Kältesumme: Σ max(0, 5 °C − Tagesmittel) ab 1. September (Annahme)
+        // Kältesumme: Σ max(0, 10 °C − Tagesmittel) ab 1. September. Basis 5 → 10 °C, Kurve steiler: Bei 5 °C blieb
+        // die Kältesumme bis Ende Oktober im Median 0; beobachtet fällt der Steinpilz-Anteil gegenüber Anfang September
+        // schon 1.–15.10. auf 0,39 und 16.–31.10. auf 0,37 (nötiger Faktor), das Modell lag bei 0,93. Die Kurve bildet
+        // bewusst nur etwa den halben Rückgang ab, weil sich der Hintergrund im Oktober verschiebt (Fliegenpilz,
+        // Spätherbstarten) – GBIF-Nachschau 26.9.2026 (n = 15 Steinpilzfunde ab Oktober). Annahme, zu kalibrieren.
+        var KAELTE_BASIS = 10;
         var KAELTE_KURVE = [
           [0, 1],
-          [25, 0.7],
-          [60, 0.3],
-          [100, 0.1],
-        ]; // Annahme; Sommersteinpilz mit halb so großen KS-Werten (endet früher)
+          [15, 0.7],
+          [30, 0.45],
+          [60, 0.15],
+          [100, 0.05],
+        ]; // Sommersteinpilz mit doppelter Kältesumme (endet früher)
         // Datum (JJJJ-MM-TT) des ersten Werts der Reihe; ohne Angabe gilt: letzter Wert der Grundreihe = heute
         function tagPlus(iso, n) {
           var d = new Date(iso + "T12:00:00");
@@ -4684,8 +4696,10 @@
               r5 += w.tw[i5] || 0;
             }
             m5 /= 5;
+            // Deckel 0,15 → 0,4: greift bei 7 von 68 Steinpilzfunden (10 %) gegenüber 6 % des Hintergrunds –
+            // GBIF-Nachschau 26.9.2026 (n = 68). Annahme, zu kalibrieren.
             if (m5 > 17.5 && r5 < 5) {
-              tff = Math.min(tff, 0.15);
+              tff = Math.min(tff, 0.4);
               txt =
                 (txt ? txt + ", " : "") +
                 "warm und trocken (5 T: " +
@@ -5351,7 +5365,8 @@
             o.push(
               "Üppige Krautschicht zeigt stickstoffreichen Boden — Steinpilz und Pfifferling fruchten dort schwach.",
             );
-          if (v.boden === "moor") o.push("Staunasse Böden sind ungeeignet.");
+          // Steinpilz ohne Moor-Deckel (GBIF-Nachschau 26.9.2026): „moor“ laut Karte ist oft Anmoor/Gley-Übergang
+          if (v.boden === "moor") o.push("Moorboden laut Karte – oft nur Randlage, vor Ort prüfen.");
           if (v.alter === "mittel" && (v.baum === "fichte" || v.baum === "misch"))
             o.push("Mittelalter Fichtenbestand: die produktivste Phase für Steinpilze.");
           if (v.alter === "jung") o.push("Kultur ohne Kronenschluss — die Mykorrhiza braucht noch Jahre.");
@@ -5675,7 +5690,7 @@
         // MODELL_STAND = letzte Version, die Bewertung/wf eines Besuchs verschiebt (Endformel, Wetterreihe des
         // Besuchs). Bei solchen Änderungen mitziehen; Besuche mit älterem b.modell bekommen in der Stellenliste
         // den Hinweis „nachrechnen“ (nie automatisch).
-        var MODELL_STAND = "2026-09-26.30";
+        var MODELL_STAND = "2026-09-26.31"; // Auftrag O: Moor-Deckel st, Warm-trocken-Regel, Kältesumme
         function versionAlt(v) {
           if (!v) return true;
           var a = String(v).split(/[-.]/).map(Number),

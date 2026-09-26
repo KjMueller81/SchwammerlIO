@@ -1,17 +1,20 @@
 # Status Schwammerl-Karte
 
-Stand: v2026-09-26.30 (26.09.2026)
+Stand: v2026-09-26.31 (26.09.2026)
 
 ## Offene Aufträge
 Angenommen, aber noch nicht ausgeliefert. Beim Start hier eintragen, bei Auslieferung nach „Zuletzt ausgeliefert“.
 
 | Auftrag | Stand |
 |---|---|
-| O – Modell: Moor-Deckel st, Warm-trocken-Regel, Kältesumme nach GBIF-Nachschau | wartet, nach N |
+| – keine – | |
 
 ## Zuletzt ausgeliefert
 Nur die letzten fünf; ältere Auslieferungen stehen im Git-Verlauf.
 
+- **O – Modell nach GBIF-Nachschau (v2026-09-26.31):** Moor-Deckel nur noch für Pfifferling/Sommersteinpilz,
+  Warm-trocken-Deckel Steinpilz 0,15 → 0,4, Kältesumme Basis 10 °C mit steilerer Kurve; Selbsttest-Sollwerte von vier
+  Fällen und drei Regeln gewollt verschoben; Nachschau um Moor-Zuordnung, Temperaturkurve und Vorher/Nachher ergänzt.
 - **N – Besuche nachrechnen (v2026-09-26.30):** „Alle Besuche nachrechnen“ (Tab „Stellen“) und „Wetter nachholen“
   holen Besuche älter als 30 Tage aus dem Open-Meteo-Archiv (+ Stationsnetz für den Zeitraum), rechnen mit dem
   aktuellen Modell (Schnappschuss, Bewertung, wf, `b.modell`, `b.wetterQuelle`), zeigen Vorher/Nachher und speichern
@@ -29,8 +32,6 @@ Nur die letzten fünf; ältere Auslieferungen stehen im Git-Verlauf.
 - **K – GBIF Stufe 2, Probe Steinpilz (26.09.2026, ohne App-Version):** `werkzeuge/gbif-stufe2.js` (HYRAS 1 km,
   Endformel aus index.html, AUC/Bootstrap/Blöcke) und Bericht
   [werkzeuge/berichte/gbif-stufe2.md](werkzeuge/berichte/gbif-stufe2.md); Kurzfassung unter „Wartet auf Entscheidung“.
-- **J – Backlog: Schutzgebiete und Wildruhezonen (26.09.2026, nur Doku):** Backlog-Punkt mit Quellen (LfU
-  Schutzgebiete, Wildschutzgebiete der Landratsämter, DAV-Schongebiete), Umsetzungsvorschlag und Rechtshinweis.
 
 ## Offline-Grundkarte (entschieden: Webkarte Bayern)
 
@@ -43,8 +44,15 @@ Nur die letzten fünf; ältere Auslieferungen stehen im Git-Verlauf.
   (`navigator.storage.persist()`); Offline-Umschaltung auf die Webkarte funktioniert.
 
 ## Wartet auf Entscheidung
-- **Nachschau Stufe 2 – Saisonende und Ausschlussregel (Vorschläge, keine Modelländerung).** Bericht:
+- **Nachschau Stufe 2 – A–C entschieden und umgesetzt (v2026-09-26.31, Auftrag O), D offen.** Bericht:
   [gbif-nachschau.md](werkzeuge/berichte/gbif-nachschau.md) (26.9.2026).
+  **Umgesetzt:** Moor-Deckel st entfernt, Warm-trocken-Deckel 0,4, Kältesumme Basis 10 °C (Kurve 15/30/60/100 →
+  0,7/0,45/0,15/0,05). Vorher → nachher: AUC Endwert 0,55 → 0,60 (0,54–0,66; Juni–Nov.), 0,50 → 0,55 (Aug.–Okt.);
+  Steinpilzfunde unter 20 bleiben 30 von 68 (4 gehoben: 3 Moor, 1 warm-trocken; 4 im Oktober neu darunter);
+  Überblick heute: Waldfläche mit Steinpilz ≥ 40 von 27 % auf 25 %.
+  **Offen (D, zu entscheiden):** Temperaturkurve Steinpilz – höchster Anteil bei 16–18 °C im 20-Tage-Mittel
+  (24 Funde), Modell-Optimum 13,7 °C; ein flacherer Abfall zu warm ist denkbar, aber nur ein Hinweis.
+  **Befund vor O:**
   **Artefakt des Tests – ausgeschlossen:** Mit Bodenfeuchte (Open-Meteo-Archiv, 318 Abrufe) sinken die Steinpilzfunde
   unter 20 nur von 30 auf 28 von 68, AUC bleibt 0,55; die fehlende Bodenfeuchte erklärt die niedrigen Werte nicht.
   **Hinweis auf das Modell:** Begrenzend bei den 30 Funden unter 20 sind Regenfaktor (11) und Temperaturfaktor (11),
@@ -71,8 +79,9 @@ Nur die letzten fünf; ältere Auslieferungen stehen im Git-Verlauf.
   - Unterwuchs bisher nur Moos/Heidelbeere besucht, keine Leerfunde in Gras/Kraut erfasst – die Lernfaktoren für
     Unterwuchs haben daher keinen Vergleich.
 - **Frost- und Kältewerte kalibrieren, sobald Oktober-Besuche vorliegen.** Alle Zahlen sind Annahmen
-  (Frost 0 / −3 °C, Start 0,3 / 0,15, Erholung 7 / 10 Tage, Kältesumme Basis 5 °C mit 25 → 0,7, 60 → 0,3,
-  100 → 0,1, Sommersteinpilz doppelt). Besuche mit „nichts“ nach Frost und Funde nach Frost sind besonders wertvoll.
+  (Frost 0 / −3 °C, Start 0,3 / 0,15, Erholung 7 / 10 Tage, Kältesumme Basis 10 °C mit 15 → 0,7, 30 → 0,45,
+  60 → 0,15, 100 → 0,05 seit v…31, Sommersteinpilz doppelt). Besuche mit „nichts“ nach Frost und Funde nach
+  Frost sind besonders wertvoll.
 - **Zeitkurven validieren** mit weiteren Funden, inklusive Fruchtkörperalter (Regenverzögerung, Regensummen).
 
 ## Backlog
@@ -126,8 +135,8 @@ Offene Punkte ohne Termin (aus CLAUDE.md hierher verschoben, 26.9.).
 - Offline-Test iPhone 26.9.: Grundkarte und Pin ok.
 
 ## Nächste Schritte
-- Nach dem Update einmal „Alle Besuche nachrechnen“ (Tab „Stellen“) und übernehmen – die Besuche vom 8.9. fallen
-  sonst bald aus jeder Live-Reihe.
+- Nach dem Update einmal „Alle Besuche nachrechnen“ (Tab „Stellen“) und übernehmen (Modell v…31) – die Besuche vom
+  8.9. fallen sonst bald aus jeder Live-Reihe.
 - Am iPhone: Toast, unteren Rand, Unsicher-Schalter und Datumsfeld (v…28) sowie Pin-Popup (v…29: Tabellenkopf,
   Fingerprobe-Link vor Ort) prüfen; bei Streifen unten die Diagnose-Zeile (Tab „Karten“ → Diagnose, „Ansicht: …“)
   in allen drei Schubladen-Stufen ablesen und schicken.

@@ -1095,6 +1095,7 @@ module.exports = {
   lesen,
   schreiben,
   pngSchreiben,
+  pngLesen,
   grundstockLaden,
   grundstockAm,
   tagesDatum,
