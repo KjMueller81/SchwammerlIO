@@ -1,17 +1,22 @@
 # Status Schwammerl-Karte
 
-Stand: v2026-09-26.29 (26.09.2026)
+Stand: v2026-09-26.30 (26.09.2026)
 
 ## Offene Aufträge
 Angenommen, aber noch nicht ausgeliefert. Beim Start hier eintragen, bei Auslieferung nach „Zuletzt ausgeliefert“.
 
 | Auftrag | Stand |
 |---|---|
-| – keine – | |
+| O – Modell: Moor-Deckel st, Warm-trocken-Regel, Kältesumme nach GBIF-Nachschau | wartet, nach N |
 
 ## Zuletzt ausgeliefert
 Nur die letzten fünf; ältere Auslieferungen stehen im Git-Verlauf.
 
+- **N – Besuche nachrechnen (v2026-09-26.30):** „Alle Besuche nachrechnen“ (Tab „Stellen“) und „Wetter nachholen“
+  holen Besuche älter als 30 Tage aus dem Open-Meteo-Archiv (+ Stationsnetz für den Zeitraum), rechnen mit dem
+  aktuellen Modell (Schnappschuss, Bewertung, wf, `b.modell`, `b.wetterQuelle`), zeigen Vorher/Nachher und speichern
+  erst mit „Übernehmen“ (Rückgängig im Toast); Hinweis „n Besuche mit älterem Modell“. Fix: `wetterBisTag` behält
+  Datum und Kältesummen-Vorlauf. Tests (x)–(z).
 - **M – Nachschau Stufe 2 (26.09.2026, ohne App-Version):** `werkzeuge/gbif-nachschau.js` (Bodenfeuchte aus dem
   Open-Meteo-Archiv, begrenzender Teil je Meldung, Saisonende je halbem Monat) und Bericht
   [werkzeuge/berichte/gbif-nachschau.md](werkzeuge/berichte/gbif-nachschau.md); Kurzfassung unter „Wartet auf
@@ -26,9 +31,6 @@ Nur die letzten fünf; ältere Auslieferungen stehen im Git-Verlauf.
   [werkzeuge/berichte/gbif-stufe2.md](werkzeuge/berichte/gbif-stufe2.md); Kurzfassung unter „Wartet auf Entscheidung“.
 - **J – Backlog: Schutzgebiete und Wildruhezonen (26.09.2026, nur Doku):** Backlog-Punkt mit Quellen (LfU
   Schutzgebiete, Wildschutzgebiete der Landratsämter, DAV-Schongebiete), Umsetzungsvorschlag und Rechtshinweis.
-- **G – GBIF Stufe 1 (26.09.2026, ohne App-Version):** Werkzeug `werkzeuge/gbif.js` (öffentliche GBIF-API, Zählung
-  + Einzelmeldungen, Zwischenspeicher außerhalb des Repos) und Bericht
-  [werkzeuge/berichte/gbif-stufe1.md](werkzeuge/berichte/gbif-stufe1.md); Kurzfassung unter „Wartet auf Entscheidung“.
 
 ## Offline-Grundkarte (entschieden: Webkarte Bayern)
 
@@ -124,6 +126,8 @@ Offene Punkte ohne Termin (aus CLAUDE.md hierher verschoben, 26.9.).
 - Offline-Test iPhone 26.9.: Grundkarte und Pin ok.
 
 ## Nächste Schritte
+- Nach dem Update einmal „Alle Besuche nachrechnen“ (Tab „Stellen“) und übernehmen – die Besuche vom 8.9. fallen
+  sonst bald aus jeder Live-Reihe.
 - Am iPhone: Toast, unteren Rand, Unsicher-Schalter und Datumsfeld (v…28) sowie Pin-Popup (v…29: Tabellenkopf,
   Fingerprobe-Link vor Ort) prüfen; bei Streifen unten die Diagnose-Zeile (Tab „Karten“ → Diagnose, „Ansicht: …“)
   in allen drei Schubladen-Stufen ablesen und schicken.

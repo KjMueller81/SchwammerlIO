@@ -468,6 +468,26 @@
         flex: 1;
         margin-top: 6px;
       }
+      /* Nachrechnen im Tab „Stellen“: Vorher/Nachher */
+      .nach-liste {
+        margin: 6px 0;
+        font-size: 12.5px;
+        font-variant-numeric: tabular-nums;
+      }
+      .nach-z {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 2px 10px;
+        padding: 4px 0;
+        border-top: 1px solid var(--linie);
+      }
+      .nach-hinweis a {
+        color: var(--pfiff);
+        display: inline-block;
+        min-height: 40px;
+        line-height: 40px;
+      }
       /* Bearbeiten im Tab „Stellen“ */
       .bb .bz-s,
       .bb .md-kopf {
@@ -2183,9 +2203,13 @@
           <label class="inl" style="margin: 8px 0 6px"
             ><input type="checkbox" id="lern-an" checked /> Aus Funden lernen</label
           >
+          <div class="note nach-hinweis" id="nach-hinweis" style="display: none"></div>
           <div id="list"></div>
           <button class="act ghost" id="export">Als GeoJSON exportieren</button>
           <button class="act ghost" id="import-btn">GeoJSON importieren</button>
+          <button class="act ghost" id="nachrechnen">Alle Besuche nachrechnen</button>
+          <div class="note" id="nach-info"></div>
+          <div id="nach-box"></div>
           <input
             type="file"
             id="import"
@@ -2353,7 +2377,7 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-26.29";
+        var VERSION = "2026-09-26.30";
         // Radar nur als Kartenebene; in der Bewertung zu unzuverlässig (gelernte Farbskala, leere Bilder)
         var RADAR_IM_MODELL = false;
         var LOG = [];
@@ -5581,6 +5605,12 @@
             f: { tw: [], et0: [], tmin: [], tmax: [], pp: [] },
             hoehe: w.hoehe,
             unsicher: w.unsicher,
+            // Datum des ersten Werts und Kältesummen-Vorlauf mitgeben – sonst hielte die gekürzte Reihe den
+            // Besuchstag für heute (Kältesumme mit falschem Datum). Bodenfeuchte gilt nur für heute.
+            datum0: datum0Von(w),
+            vor: w.vor,
+            vorAb: w.vorAb,
+            bodenF: null,
           };
         }
         // Wetter-Schnappschuss zum Besuch (w bereits auf den Besuchstag gekürzt); fehlende Fenster → null
@@ -5640,6 +5670,59 @@
           if (b.bestand) v.alter = b.bestand;
           v.saison = v.saison || (new Date(b.ts).getMonth() >= 8 ? "herbst" : "sommer");
           return v;
+        }
+        // ---- Besuche mit dem aktuellen Modell nachrechnen ----
+        // MODELL_STAND = letzte Version, die Bewertung/wf eines Besuchs verschiebt (Endformel, Wetterreihe des
+        // Besuchs). Bei solchen Änderungen mitziehen; Besuche mit älterem b.modell bekommen in der Stellenliste
+        // den Hinweis „nachrechnen“ (nie automatisch).
+        var MODELL_STAND = "2026-09-26.30";
+        function versionAlt(v) {
+          if (!v) return true;
+          var a = String(v).split(/[-.]/).map(Number),
+            b = MODELL_STAND.split(/[-.]/).map(Number);
+          for (var i = 0; i < b.length; i++) if ((a[i] || 0) !== b[i]) return (a[i] || 0) < b[i];
+          return false;
+        }
+        function besucheAlt(liste) {
+          var n = 0;
+          liste.forEach(function (sp) {
+            (sp.besuche || []).forEach(function (b) {
+              if (versionAlt(b.modell)) n++;
+            });
+          });
+          return n;
+        }
+        // Neuer Stand eines Besuchs (Kopie) aus q = { w: Reihe bis einschließlich Besuchstag, hoehe, dichte, quelle }.
+        // Nachgetragen-Status bleibt; ohne Wetter null (Besuch unverändert).
+        function besuchNeuRechnen(sp, b, q) {
+          if (!q || !q.w || !q.w.tw || !q.w.tw.length) return null;
+          var nb = kopie(b),
+            nt = !!b.nachgetragen;
+          besuchWetterNeu(nb, besuchV(sp, nb), q.w, 0, q.hoehe, q.dichte);
+          nb.nachgetragen = nt;
+          nb.wetterQuelle = q.quelle || null;
+          nb.modell = VERSION;
+          return nb;
+        }
+        // Alle Besuche: holen(sp, b) liefert q oder null (offline, kein Archiv). Ergebnis: Liste der Änderungen
+        async function besucheNachrechnen(liste, holen, melde) {
+          var aus = [],
+            ohne = 0,
+            alle = [];
+          liste.forEach(function (sp) {
+            (sp.besuche || []).forEach(function (b) {
+              alle.push({ sp: sp, b: b });
+            });
+          });
+          for (var i = 0; i < alle.length; i++) {
+            var x = alle[i],
+              q = await holen(x.sp, x.b),
+              nb = besuchNeuRechnen(x.sp, x.b, q);
+            if (nb) aus.push({ sp: x.sp, b: x.b, neu: nb });
+            else ohne++;
+            if (melde) melde(i + 1, alle.length);
+          }
+          return { aenderungen: aus, ohne: ohne };
         }
         // GeoJSON-Export: alte Felder + besuche vollständig
         function stellenGeojson(liste) {
@@ -14015,6 +14098,238 @@
           } catch (e) {}
           return out;
         }
+        // ---- Wetter früherer Besuche: Live-Reihe (bis 30 Tage) oder Open-Meteo-Archiv + Stationsnetz ----
+        // Archiv wie der Tageslauf (werkzeuge/wetter.js): Regen, ET0, Tmin, Tmax, Bodenfeuchte 0–7 cm; Temperatur von
+        // der Modellhöhe auf die Grundstock-Höhe der Stelle (tempAufHoehe). Reihe 36 Tage bis zum Besuchstag, dazu
+        // Tagesmittel ab 1.9. als Kältesummen-Vorlauf. Regen der Vergangenheit wie am Pin aus dem Stationsnetz
+        // (Bright Sky, 30 km, 1/(d²+2)), falls für den Zeitraum vorhanden, sonst Open-Meteo.
+        // Bündelung: Besuche derselben 0,1°-Zelle innerhalb von 20 Tagen teilen eine Archiv- und eine Stationsabfrage.
+        var NACH_LIVE_TAGE = 30,
+          nachZaehler = { om: 0, bs: 0 };
+        function tagIso(iso, n) {
+          var d = new Date(iso + "T12:00:00");
+          d.setDate(d.getDate() + n);
+          return datumIso(d);
+        }
+        async function stationsTageZeitraum(ll, von, bis) {
+          var res = await fetch(
+            "https://api.brightsky.dev/sources?lat=" +
+              ll.lat.toFixed(4) +
+              "&lon=" +
+              ll.lng.toFixed(4) +
+              "&max_dist=50000",
+          );
+          nachZaehler.bs++;
+          var j = await res.json().catch(function () {
+            return {};
+          });
+          if (!res.ok || !j.sources) return [];
+          var kand = j.sources
+            .filter(function (x) {
+              return x.observation_type === "historical" && x.lat && x.lon && !stationOhneDaten[x.id];
+            })
+            .sort(function (a, b) {
+              return (a.distance || 0) - (b.distance || 0);
+            })
+            .slice(0, 28);
+          var erg = await pool(
+            kand.map(function (x) {
+              return async function () {
+                var r = await fetch(
+                  "https://api.brightsky.dev/weather?source_id=" +
+                    x.id +
+                    "&date=" +
+                    von +
+                    "&last_date=" +
+                    tagIso(bis, 1) +
+                    "&tz=Europe/Berlin&units=dwd",
+                  { leise404: true },
+                );
+                nachZaehler.bs++;
+                if (!r.ok) return null;
+                var d = await r.json().catch(function () {
+                  return {};
+                });
+                if (!d.weather || !d.weather.length) return null;
+                var tage = {};
+                d.weather.forEach(function (h) {
+                  var k = h.timestamp.slice(0, 10);
+                  tage[k] = tage[k] || { p: 0, n: 0 };
+                  if (h.precipitation !== null) {
+                    tage[k].p += h.precipitation;
+                    tage[k].n++;
+                  }
+                });
+                return { tage: tage, lat: x.lat, lon: x.lon };
+              };
+            }),
+            4,
+          );
+          return erg
+            .filter(function (e) {
+              return e;
+            })
+            .slice(0, 14); // die 14 nächsten mit Daten (wie am Pin)
+        }
+        // auftraege: [{ sp, b }] → Map b.id → q | null
+        async function archivWetterFuer(auftraege, melde) {
+          var gruppen = {},
+            aus = new Map();
+          auftraege
+            .map(function (x) {
+              return { sp: x.sp, b: x.b, datum: datumIso(new Date(x.b.ts)) };
+            })
+            .sort(function (a, b) {
+              return a.datum < b.datum ? -1 : 1;
+            })
+            .forEach(function (x) {
+              var zelle = x.sp.lat.toFixed(1) + "," + x.sp.lng.toFixed(1),
+                gl = gruppen[zelle] || (gruppen[zelle] = []),
+                g = gl[gl.length - 1];
+              if (!g || tageDiff(g[0].datum, x.datum) > 20) gl.push((g = []));
+              g.push(x);
+            });
+          var liste = [];
+          for (var z in gruppen)
+            gruppen[z].forEach(function (g) {
+              liste.push(g);
+            });
+          for (var gi = 0; gi < liste.length; gi++) {
+            var g = liste[gi],
+              erst = g[0].datum,
+              letzt = g[g.length - 1].datum,
+              sep1 = letzt.slice(0, 4) + "-09-01",
+              von = tagIso(erst, -35);
+            if (letzt >= sep1 && sep1 < von) von = sep1; // Kältesumme ab 1. September
+            var lat = +g[0].sp.lat.toFixed(1) + 0.05,
+              lng = +g[0].sp.lng.toFixed(1) + 0.05,
+              url =
+                "https://archive-api.open-meteo.com/v1/archive?latitude=" +
+                lat.toFixed(2) +
+                "&longitude=" +
+                lng.toFixed(2) +
+                "&start_date=" +
+                von +
+                "&end_date=" +
+                letzt +
+                "&daily=precipitation_sum,temperature_2m_max,temperature_2m_min,et0_fao_evapotranspiration" +
+                "&hourly=soil_moisture_0_to_7cm&timezone=Europe%2FBerlin",
+              j = null,
+              netz = [];
+            try {
+              var res = await fetch(url);
+              nachZaehler.om++;
+              j = await res.json().catch(function () {
+                return null;
+              });
+              if (!res.ok || !j || !j.daily) j = null;
+            } catch (e) {
+              j = null;
+            }
+            try {
+              netz = await stationsTageZeitraum(L.latLng(lat, lng), von, letzt);
+            } catch (e) {
+              netz = [];
+            }
+            g.forEach(function (x) {
+              aus.set(x.b.id, j ? archivReiheFuer(j, x, netz) : null);
+            });
+            if (melde) melde(gi + 1, liste.length);
+          }
+          return aus;
+        }
+        // Reihe eines Besuchs aus der Archivantwort j (Tage ab j.daily.time[0]) und dem Stationsnetz
+        function archivReiheFuer(j, x, netz) {
+          var d = j.daily,
+            i = d.time.indexOf(x.datum);
+          if (i < 35) return null;
+          var z = function (a, k0, k1) {
+              return (a || []).slice(k0, k1).map(function (v) {
+                return v === null ? 0 : v;
+              });
+            },
+            g = grundstockAmPunkt(L.latLng(x.sp.lat, x.sp.lng)),
+            hoehe = g ? g.hoehe : null,
+            dichte = g && g.dichte !== null ? g.dichte : 85,
+            w = {
+              tw: z(d.precipitation_sum, i - 35, i + 1),
+              et0: z(d.et0_fao_evapotranspiration, i - 35, i + 1),
+              tmin: z(d.temperature_2m_min, i - 35, i + 1),
+              tmax: z(d.temperature_2m_max, i - 35, i + 1),
+              f: { tw: [], et0: [], tmin: [], tmax: [], pp: [] },
+              datum0: d.time[i - 35],
+              unsicher: 0,
+              bodenF: null,
+            };
+          var vorT = { tmin: z(d.temperature_2m_min, 0, i - 35), tmax: z(d.temperature_2m_max, 0, i - 35) };
+          if (hoehe !== null && typeof j.elevation === "number") {
+            tempAufHoehe(w, j.elevation, hoehe);
+            tempAufHoehe(vorT, j.elevation, hoehe);
+          }
+          // Kältesummen-Vorlauf: Tagesmittel ab 1.9. bis zum Tag vor der Reihe
+          var sep1 = x.datum.slice(0, 4) + "-09-01",
+            k0 = d.time.indexOf(sep1);
+          if (k0 >= 0 && k0 < i - 35) {
+            w.vorAb = sep1;
+            w.vor = vorT.tmin.slice(k0).map(function (t, k) {
+              return Math.round(((t + vorT.tmax[k0 + k]) / 2) * 10) / 10;
+            });
+          }
+          // Bodenfeuchte wie wetterFuer: Mittel der 24 Stunden bis 12 Uhr am Besuchstag
+          var hm = j.hourly && j.hourly.soil_moisture_0_to_7cm;
+          if (hm) {
+            var bf = hm.slice(i * 24 - 12, i * 24 + 13).filter(function (v) {
+              return v !== null;
+            });
+            if (bf.length)
+              w.bodenF =
+                bf.reduce(function (a, b) {
+                  return a + b;
+                }, 0) / bf.length;
+          }
+          // Regen der Vergangenheit aus dem Stationsnetz, sonst Open-Meteo (quellenAbgleich wie am Pin)
+          var quelle = "Open-Meteo-Archiv";
+          if (netz.length) {
+            var gew = stationsGewichte(x.sp.lat, x.sp.lng, netz, 30),
+              ers = 0;
+            w.q = {
+              modell: w.tw.slice(),
+              station: w.tw.map(function () {
+                return null;
+              }),
+            };
+            for (var t = 0; t < 36; t++) {
+              var v = stationsRegenMitGewichten(gew, d.time[i - 35 + t], netz);
+              if (v !== null) {
+                w.q.station[t] = Math.round(v * 10) / 10;
+                ers++;
+              }
+            }
+            if (ers) {
+              quellenAbgleich(w);
+              quelle = "Regen: Stationsnetz (" + netz.length + ") · Rest Open-Meteo-Archiv";
+            }
+          }
+          return { w: w, hoehe: hoehe, dichte: dichte, quelle: quelle };
+        }
+        // Wetter für einen Besuch: bis 30 Tage aus der Live-Reihe der Stelle, älter aus dem Archiv; offline null
+        async function besuchWetterHolen(sp, b, archiv) {
+          if (istOffline()) return null;
+          var tage = tageZurueck(datumIso(new Date(b.ts)));
+          if (tage <= NACH_LIVE_TAGE) {
+            var sw = await stelleWetter(sp),
+              wT = sw.w ? wetterBisTag(sw.w, tage) : null;
+            if (wT)
+              return {
+                w: wT,
+                hoehe: sw.hoehe,
+                dichte: sw.dichte,
+                quelle: "Live: " + (sw.w.quelle || "Open-Meteo"),
+              };
+          }
+          var m = archiv || (await archivWetterFuer([{ sp: sp, b: b }]));
+          return m.get(b.id) || null;
+        }
         // Rückgängig: tiefe Kopie der Stelle vorher an dieselbe Stelle der Liste zurücklegen
         function stelleGeaendert(sp, vorher, text) {
           altfelderSpiegeln(sp);
@@ -14135,22 +14450,18 @@
             if (bb.b && bb.b.id === id) bb.b = null;
             stelleGeaendert(sp, vorher, "Besuch „" + besuchKurz(b) + "“ gelöscht");
           } else if (aktion === "nachholen" && b) {
+            // bis 30 Tage aus der Live-Reihe, älter aus dem Open-Meteo-Archiv (+ Stationsnetz)
             var vorher2 = kopie(sp),
-              sw = await stelleWetter(sp);
-            if (
-              !besuchWetterNeu(
-                b,
-                besuchV(sp, b),
-                sw.w,
-                tageZurueck(datumIso(new Date(b.ts))),
-                sw.hoehe,
-                sw.dichte,
-              )
-            ) {
-              toast("Wetter für diesen Tag noch nicht verfügbar.");
+              nb = besuchNeuRechnen(sp, b, await besuchWetterHolen(sp, b));
+            if (!nb) {
+              toast(
+                istOffline()
+                  ? "Offline – Wetter später nachholen."
+                  : "Wetter für diesen Tag nicht verfügbar.",
+              );
               return;
             }
-            b.geaendert = Date.now();
+            Object.assign(b, nb, { geaendert: Date.now() });
             stelleGeaendert(sp, vorher2, "Wetter nachgeholt: " + besuchKurz(b));
           }
         }
@@ -14191,6 +14502,7 @@
               interactive: false,
             }).addTo(map);
           var ls = $("lernstand");
+          nachZustand(); // Hinweis „n Besuche mit älterem Modell“ und Zustand der Aktion
           if (lernStand.besuche === 0)
             ls.textContent =
               'Noch keine Besuche eingetragen. Nach jedem Waldgang im Popup „Besuch erfassen" ausfüllen —' +
@@ -14421,6 +14733,147 @@
           rd.readAsText(f);
           this.value = "";
         });
+        // „Alle Besuche nachrechnen“: Wetter holen (Live/Archiv), mit dem aktuellen Modell rechnen, Vorher/Nachher
+        // zeigen und erst mit „Übernehmen“ speichern (danach lerne, „Rückgängig“ im Toast)
+        var nachLauf = null; // { aenderungen, ohne } bis Übernehmen/Verwerfen
+        function nachZustand() {
+          var off = istOffline(),
+            btn = $("nachrechnen"),
+            n = besucheAlt(spots);
+          if (!btn) return;
+          btn.disabled = off || !spots.length || !!nachLauf;
+          if (!nachLauf)
+            $("nach-info").textContent = off ? "Offline – Nachrechnen braucht Netz (Wetter-Archiv)." : "";
+          var h = $("nach-hinweis");
+          h.style.display = n && !nachLauf ? "" : "none";
+          h.innerHTML =
+            n +
+            " Besuch" +
+            (n === 1 ? "" : "e") +
+            ' mit älterem Modell – <a href="#" id="nach-link">nachrechnen</a>';
+        }
+        function nachZeile(x) {
+          var a = x.b.bewertung || {},
+            n = x.neu.bewertung || {},
+            w = function (o, k) {
+              return o[k] === undefined || o[k] === null ? "–" : o[k];
+            };
+          return (
+            '<div class="nach-z"><span>' +
+            x.sp.name.replace(/</g, "&lt;") +
+            " · " +
+            new Date(x.b.ts).getDate() +
+            "." +
+            (new Date(x.b.ts).getMonth() + 1) +
+            "." +
+            "</span><span>Stein " +
+            w(a, "st") +
+            " → <b>" +
+            w(n, "st") +
+            "</b> · Pfiff " +
+            w(a, "pf") +
+            " → <b>" +
+            w(n, "pf") +
+            "</b></span></div>"
+          );
+        }
+        function nachZeigen() {
+          var box = $("nach-box");
+          if (!nachLauf) {
+            box.innerHTML = "";
+            return nachZustand();
+          }
+          box.innerHTML =
+            '<div class="nach-liste">' +
+            nachLauf.aenderungen.map(nachZeile).join("") +
+            "</div>" +
+            '<div class="bb-knoepfe"><button class="act" id="nach-ok">Übernehmen</button>' +
+            '<button class="act ghost" id="nach-weg">Verwerfen</button></div>';
+          $("nach-ok").onclick = nachUebernehmen;
+          $("nach-weg").onclick = function () {
+            nachLauf = null;
+            nachZeigen();
+          };
+          nachZustand();
+        }
+        function nachUebernehmen() {
+          var vorher = kopie(spots),
+            n = nachLauf.aenderungen.length;
+          nachLauf.aenderungen.forEach(function (x) {
+            var i = x.sp.besuche.indexOf(x.b);
+            if (i >= 0) x.sp.besuche[i] = x.neu;
+            altfelderSpiegeln(x.sp);
+          });
+          nachLauf = null;
+          persist();
+          lerne(spots);
+          render();
+          update();
+          nachZeigen();
+          toast(n + " Besuch" + (n === 1 ? "" : "e") + " nachgerechnet.", {
+            text: "Rückgängig",
+            fn: function () {
+              spots.length = 0;
+              vorher.forEach(function (sp) {
+                spots.push(sp);
+              });
+              persist();
+              lerne(spots);
+              render();
+              update();
+              nachZustand();
+            },
+          });
+        }
+        async function nachStarten() {
+          if (istOffline() || nachLauf) return;
+          var btn = $("nachrechnen"),
+            info = $("nach-info"),
+            alle = [];
+          spots.forEach(function (sp) {
+            stelleNormal(sp).besuche.forEach(function (b) {
+              alle.push({ sp: sp, b: b });
+            });
+          });
+          if (!alle.length) return;
+          btn.disabled = true;
+          nachZaehler = { om: 0, bs: 0 };
+          var alt = alle.filter(function (x) {
+            return tageZurueck(datumIso(new Date(x.b.ts))) > NACH_LIVE_TAGE;
+          });
+          info.textContent = "Wetter-Archiv wird geladen …";
+          var archiv = await archivWetterFuer(alt, function (i, n) {
+            info.textContent = "Wetter-Archiv " + i + " / " + n + " …";
+          });
+          var erg = await besucheNachrechnen(
+            spots,
+            function (sp, b) {
+              return besuchWetterHolen(sp, b, archiv);
+            },
+            function (i, n) {
+              info.textContent = "Rechne " + i + " / " + n + " …";
+            },
+          );
+          nachLauf = erg;
+          info.textContent =
+            erg.aenderungen.length +
+            " nachgerechnet" +
+            (erg.ohne ? ", " + erg.ohne + " ohne Wetter (unverändert)" : "") +
+            " · Abrufe: Open-Meteo-Archiv " +
+            nachZaehler.om +
+            ", Bright Sky " +
+            nachZaehler.bs;
+          nachZeigen();
+        }
+        $("nachrechnen").addEventListener("click", nachStarten);
+        $("nach-hinweis").addEventListener("click", function (ev) {
+          if (ev.target.id !== "nach-link") return;
+          ev.preventDefault();
+          $("nachrechnen").scrollIntoView({ block: "center" });
+          nachStarten();
+        });
+        window.addEventListener("online", nachZustand);
+        window.addEventListener("offline", nachZustand);
         $("export").addEventListener("click", function () {
           if (!spots.length) {
             toast("Noch keine Stellen.");

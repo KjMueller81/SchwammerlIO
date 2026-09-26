@@ -135,6 +135,10 @@ const EXPORT = [
   "prognoseHtml",
   "artenKopfHtml",
   "empfehlung",
+  "besuchNeuRechnen",
+  "besucheNachrechnen",
+  "versionAlt",
+  "MODELL_STAND",
 ];
 // als Getter, damit auch später gesetzte Variablen (rasterCache) aktuell gelesen werden
 const kern = js.replace(
@@ -934,7 +938,127 @@ const asynchron = [
   })(),
 ];
 
-Promise.all(asynchron).then(() => {
+// ---- Besuche nachrechnen (Auftrag N) ----
+// Archiv-Reihe als Testdaten: 36 Tage bis zum Besuchstag vor 60 Tagen (datum0 = Besuchstag − 35)
+const isoN = (ms) => new Date(ms).toISOString().slice(0, 10);
+function reiheArchiv(tsBesuch, trocken) {
+  const tw = new Array(36).fill(0);
+  if (!trocken) {
+    tw[36 - 13] = 13;
+    tw[36 - 5] = 31;
+  }
+  return {
+    tw,
+    et0: tw.map(() => 2),
+    tmin: tw.map(() => 10),
+    tmax: tw.map(() => 20),
+    f: { tw: [], et0: [], tmin: [], tmax: [], pp: [] },
+    datum0: isoN(tsBesuch - 35 * 864e5),
+    unsicher: 0,
+    bodenF: null,
+  };
+}
+const TS60 = Date.now() - 60 * 864e5;
+const qArchiv = (trocken) => ({
+  w: reiheArchiv(TS60, trocken),
+  hoehe: 800,
+  dichte: 85,
+  quelle: "Open-Meteo-Archiv",
+});
+const besuchAlt = (id, fund, nachgetragen = true) => ({
+  id,
+  ts: TS60,
+  fund,
+  unter: ["moos"],
+  bestand: "mittel",
+  bewertung: { pf: 10, st: 20, som: 1 },
+  wf: { pf: 0.8, st: 0.8, som: 0.8 },
+  wetter: null,
+  nachgetragen,
+});
+pruefe("(x) Besuch vor 60 Tagen mit Archiv-Reihe → Schnappschuss, wf neu, b.modell = VERSION", () => {
+  const b = besuchAlt("n1", ["st"]),
+    sp = { name: "T", lat: 47.83, lng: 11.75, v: SP_V, besuche: [b] },
+    nb = T.besuchNeuRechnen(sp, b, qArchiv(false));
+  return (
+    nb &&
+    nb.wetter &&
+    nb.wetter.regen26 === 44 &&
+    typeof nb.wf.st === "number" &&
+    nb.wf.st !== 0.8 &&
+    nb.bewertung.st !== 20 &&
+    nb.modell === T.VERSION &&
+    nb.nachgetragen === true && // Status bleibt
+    nb.wetterQuelle === "Open-Meteo-Archiv" &&
+    b.wf.st === 0.8 && // Original unverändert (erst „Übernehmen“ speichert)
+    T.versionAlt(undefined) &&
+    T.versionAlt("2026-09-26.9") && // .9 < .30 (Zahl, nicht Text)
+    !T.versionAlt(nb.modell) &&
+    !T.versionAlt(T.MODELL_STAND)
+  );
+});
+const asynchronN = [
+  // (y) ohne Netz: holen liefert null → Besuch unverändert, keine Änderung
+  (async () => {
+    let g = false,
+      info = "";
+    try {
+      const b = besuchAlt("n2", []),
+        sp = { name: "T", lat: 47.83, lng: 11.75, v: SP_V, besuche: [b] },
+        vorher = JSON.stringify(sp),
+        erg = await T.besucheNachrechnen([sp], async () => null);
+      g = erg.aenderungen.length === 0 && erg.ohne === 1 && JSON.stringify(sp) === vorher;
+    } catch (e) {
+      info = "  (" + (e && e.message ? e.message : e) + ")";
+    }
+    t.n++;
+    if (g) t.ok++;
+    t.zeilen.push((g ? "OK   " : "FEHL ") + "Test: (y) Besuch ohne Netz → unverändert" + info);
+  })(),
+  // (z) lerne vor/nach Nachrechnen: LERN ändert sich nur über die neuen wf
+  (async () => {
+    let g = false,
+      info = "";
+    try {
+      const stelle = (lage, fund, id) => ({
+        name: lage,
+        lat: 47.8,
+        lng: 11.7,
+        v: Object.assign({}, SP_V, { lage }),
+        // nicht nachgetragen: sonst zählt der neue Schnappschuss mit (nachgetragen ohne Wetter = halbes Gewicht)
+        besuche: [besuchAlt(id, fund, false)],
+      });
+      const liste = [
+        stelle("nord", ["st"], "z1"),
+        stelle("sued", [], "z2"),
+        stelle("ost", [], "z3"),
+        stelle("west", ["pf"], "z4"),
+      ];
+      T.lerne(liste);
+      const l1 = JSON.stringify(T.LERN);
+      const erg = await T.besucheNachrechnen(liste, async () => qArchiv(true)); // trocken → kleine wf
+      erg.aenderungen.forEach((x) => (x.sp.besuche[x.sp.besuche.indexOf(x.b)] = x.neu));
+      T.lerne(liste);
+      const l2 = JSON.stringify(T.LERN);
+      // wf zurück auf den alten Stand, Rest (Schnappschuss, Bewertung, modell) neu → LERN wie vorher
+      liste.forEach((sp) => (sp.besuche[0].wf = { pf: 0.8, st: 0.8, som: 0.8 }));
+      T.lerne(liste);
+      const l3 = JSON.stringify(T.LERN);
+      T.lerne([]); // Lernstand für die übrigen Tests zurücksetzen
+      g = erg.aenderungen.length === 4 && l2 !== l1 && l3 === l1;
+      info = "  (" + erg.aenderungen.length + " nachgerechnet)";
+    } catch (e) {
+      info = "  (" + (e && e.stack ? e.stack.split("\n").slice(0, 2).join(" | ") : e) + ")";
+    }
+    t.n++;
+    if (g) t.ok++;
+    t.zeilen.push(
+      (g ? "OK   " : "FEHL ") + "Test: (z) lerne vor/nach Nachrechnen ändert LERN nur über wf" + info,
+    );
+  })(),
+];
+
+Promise.all(asynchron.concat(asynchronN)).then(() => {
   t.zeilen.forEach((z) => console.log(z));
   console.log("Ergebnis:", t.ok + "/" + t.n + (t.ok === t.n ? " – grün" : " – ABWEICHUNG"));
   process.exit(t.ok === t.n ? 0 : 2);

@@ -8,7 +8,7 @@ Bewertet Waldstandorte für **Pfifferling (pf)**, **Fichtensteinpilz (st)** und 
 aus Geodaten (Baumart, Boden, Kronendichte, Gelände) und gemessenem Wetter. Nutzer: ein Sammler,
 Bedienung meist am iPhone im Wald, Auswertung am Windows-Rechner.
 
-Stand dieser Datei: v2026-09-26.29. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
+Stand dieser Datei: v2026-09-26.30. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
 
 ---
 
@@ -477,6 +477,24 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
   `besuchWetterNeu` mit dem Wetter an der Stelle (`stelleWetter`: Grundstock-Höhe/-Dichte, `holeWetterCached`);
   offline oder außerhalb der Reihe → ohne Wetter, nachgetragen, später „Wetter nachholen“. Unterwuchs/Bestand
   geändert und Wetter vorhanden → Bewertung/wf neu. „Neu laden“ wartet, solange das Bearbeiten ungespeichert ist.
+- Besuch zusätzlich (v2026-09-26.30): `wetterQuelle` (Herkunft der Reihe, z. B. „Regen: Stationsnetz (13) · Rest
+  Open-Meteo-Archiv“ oder „Live: …“), `modell` (VERSION beim letzten Nachrechnen). `MODELL_STAND` = letzte Version,
+  die Bewertung/wf eines Besuchs verschiebt – bei Modelländerungen mitziehen; `versionAlt` vergleicht zahlenweise
+  (.9 < .30). Die Stellenliste zeigt dann „n Besuche mit älterem Modell – nachrechnen“ (`#nach-hinweis`), nie
+  automatisch umgerechnet.
+- Nachrechnen (Tab „Stellen“, „Alle Besuche nachrechnen“ unter Export/Import; auch „Wetter nachholen“ je Besuch):
+  `besuchWetterHolen` – bis 30 Tage (`NACH_LIVE_TAGE`) aus der Live-Reihe der Stelle (`wetterBisTag`), älter aus dem
+  Open-Meteo-Archiv (`archivWetterFuer`: Regen, ET0, Tmin, Tmax, stündliche Bodenfeuchte 0–7 cm; Temperatur mit
+  `tempAufHoehe` auf die Grundstock-Höhe; 36 Tage bis zum Besuchstag, ab 1.9. Tagesmittel als `vor`). Regen der
+  Vergangenheit wie am Pin aus dem Stationsnetz (`stationsTageZeitraum`, Bright Sky für den Zeitraum, 14 nächste
+  mit Daten, 30 km, `quellenAbgleich`), sonst Open-Meteo. Bündelung: gleiche 0,1°-Zelle und ≤ 20 Tage Abstand =
+  eine Archiv- und eine Stationsabfrage; Zähler `nachZaehler` in der Info-Zeile, Open-Meteo zusätzlich im
+  Tageszähler der Diagnose. `besuchNeuRechnen` rechnet auf einer Kopie (Nachgetragen-Status bleibt, `b.modell =
+  VERSION`), `besucheNachrechnen` sammelt Vorher/Nachher; gespeichert erst mit „Übernehmen“ (dann `lerne`,
+  „Rückgängig“ mit tiefer Kopie aller Stellen). Offline: Aktion ausgegraut mit Hinweis.
+- `wetterBisTag` gibt `datum0`, `vor`, `vorAb` weiter und setzt `bodenF` für frühere Tage auf null (vorher hielt die
+  gekürzte Reihe den Besuchstag für heute – Kältesumme mit falschem Datum – und nahm die heutige Bodenfeuchte).
+- Lernen: Ein nachgetragener Besuch ohne Schnappschuss zählt halb; bekommt er beim Nachrechnen Wetter, zählt er voll.
 
 ---
 
