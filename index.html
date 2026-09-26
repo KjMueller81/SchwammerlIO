@@ -417,6 +417,32 @@
         opacity: 0.55;
         cursor: default;
       }
+      #gk-punkt {
+        flex-wrap: wrap;
+      }
+      #gk-punkt .gk-fort {
+        flex: 1 1 100%;
+      }
+      .gk-eintrag {
+        border: 1px solid var(--linie);
+        border-radius: 9px;
+        padding: 6px 10px;
+        margin-top: 7px;
+      }
+      .gk-name {
+        font-size: 13px;
+      }
+      .gk-name span {
+        color: var(--papier-2);
+      }
+      .gk-knoepfe {
+        display: flex;
+        gap: 6px;
+      }
+      .gk-knoepfe button {
+        flex: 1;
+        margin-top: 6px;
+      }
       .gk-balken {
         height: 6px;
         margin-top: 8px;
@@ -1708,7 +1734,8 @@
           <h2>Offline-Karte</h2>
           <div class="gk" id="gk-box">
             <div class="note" id="gk-info">Noch keine Offline-Karte gespeichert.</div>
-            <button class="act" id="gk-gebiet">Gebiet offline speichern (ca. 100 MB, WLAN empfohlen)</button>
+            <button class="act" id="gk-gebiet">Gebiet offline speichern (bis Zoom 11, ca. 22 MB)</button>
+            <div id="gk-liste"></div>
             <div class="gk-fort" style="display: none">
               <div class="gk-balken"><i></i></div>
               <div class="note gk-text"></div>
@@ -1831,8 +1858,16 @@
           <div class="note" id="r-note"></div>
           <div id="u-list"></div>
           <button class="act ghost" id="u-save" style="display: none">Alle fünf speichern</button>
-          <div class="gk" id="gk-punkt">
-            <button class="act ghost" id="gk-umg">Umgebung speichern (15 km)</button>
+          <div class="gk row" id="gk-punkt" style="align-items: flex-end">
+            <div>
+              <label for="gk-r">Offline-Umgebung</label>
+              <select id="gk-r">
+                <option value="5">5 km</option>
+                <option value="10" selected>10 km</option>
+                <option value="15">15 km</option>
+              </select>
+            </div>
+            <div><button class="act ghost" id="gk-umg" style="margin-top: 0">Umgebung speichern</button></div>
             <div class="gk-fort" style="display: none">
               <div class="gk-balken"><i></i></div>
               <div class="note gk-text"></div>
@@ -2134,7 +2169,7 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-26.23";
+        var VERSION = "2026-09-26.24";
         // Radar nur als Kartenebene; in der Bewertung zu unzuverlässig (gelernte Farbskala, leere Bilder)
         var RADAR_IM_MODELL = false;
         var LOG = [];
@@ -6186,11 +6221,15 @@
           update();
           // Inhalt frisch aufbauen, sonst öffnet ein Tipp auf den Pin den alten, schon gespeicherten Entwurf
           if (pin && pin.getPopup()) pinInhalt("");
+          // Online und die Umgebung dort noch nicht offline gespeichert: im Toast anbieten, nicht automatisch laden
+          var angebot = umgebungAngebot(L.latLng(sp.lat, sp.lng), sp.name);
           toast(
             "Besuch gespeichert — " +
               sp.name +
               (b.nachgetragen ? " (nachgetragen" + (b.wetter ? ")" : ", ohne Wetter)") : "") +
-              (wetter || b.nachgetragen ? "" : " · ohne Wetterdaten"),
+              (wetter || b.nachgetragen ? "" : " · ohne Wetterdaten") +
+              (angebot ? " · " + angebot.text : ""),
+            angebot ? { text: "Speichern", fn: angebot.fn } : undefined,
           );
         };
         // Fingerprobe: wirkt sofort auf die Bewertung am Pin und wird beim Speichern in den Besuch übernommen
@@ -10423,16 +10462,16 @@
         // Nur auf Knopfdruck gespeichert, online bleibt OSM die Grundkarte; offline ersetzt die gespeicherte Webkarte
         // OSM. Ablage im Cache „schwammerl-grundkarte-v1“, Schlüssel immer über Server 1 (keine Dreifachablage).
         // Schonend: höchstens 4 Abrufe parallel, Pause zwischen den Paketen, Gespeichertes wird übersprungen.
+        // Zwei Stufen: „Gebiet“ grob (±100 km bis Zoom 11), „Umgebungen“ fein (5/10/15 km, Zoom 13–15).
         var GK_CACHE = "schwammerl-grundkarte-v1",
           GK_URL = "https://wmtsod{s}.bayernwolke.de/wmts/by_webkarte/smerc/",
-          GK_KB = 72, // gemessener Mittelwert je Kachel (kB), nur für die Größenangabe vorab
-          GK_UMGEBUNG_KM = 15,
+          GK_GEBIET_ZOOM = 11,
           // Quellenvermerk laut „Nutzungshinweise WMTS Geobasisdaten Bayern“ (Stand 27.10.2023), Layer Webkarte
           GK_ZUSCHREIBUNG =
             'Geobasisdaten: Bayerische Vermessungsverwaltung – <a href="https://www.geodaten.bayern.de" ' +
             'target="_blank" rel="noopener">www.geodaten.bayern.de</a>, CC BY 4.0 · © Datenquellen: Bayerische ' +
             "Vermessungsverwaltung, GeoBasis-DE / BKG 2023 – Daten verändert",
-          gk = { lauf: null, stand: gkStandLesen(), persist: null, cache: null };
+          gk = { lauf: null, stand: gkStandLesen(), persist: null, cache: null, umg: umgLesen() };
         function gkStandLesen() {
           try {
             return JSON.parse(localStorage.getItem("schwammerl:grundkarte")) || { n: 0, bytes: 0 };
@@ -10445,6 +10484,19 @@
             localStorage.setItem("schwammerl:grundkarte", JSON.stringify(gk.stand));
           } catch (e) {}
         }
+        // Gespeicherte Umgebungen: [{id, name, lat, lng, r (km), zMax, r15 (km, Zoom 15 nur innen), datum, n, bytes}]
+        function umgLesen() {
+          try {
+            return JSON.parse(localStorage.getItem("schwammerl:umgebungen"));
+          } catch (e) {
+            return null;
+          }
+        }
+        function umgSchreiben() {
+          try {
+            localStorage.setItem("schwammerl:umgebungen", JSON.stringify(gk.umg || []));
+          } catch (e) {}
+        }
         function gkSchluessel(z, x, y) {
           return GK_URL.replace("{s}", "1") + z + "/" + x + "/" + y;
         }
@@ -10454,6 +10506,10 @@
         }
         function mbText(bytes) {
           return bytes < 1e6 ? Math.round(bytes / 1e3) + " kB" : Math.round(bytes / 1e6) + " MB";
+        }
+        // kB je Kachel für die Größenangabe: am Gerät gemessen, sonst iPhone-Messung (80 MB / 1 371 ≈ 58 kB)
+        function gkKb() {
+          return gk.stand.n > 50 ? gk.stand.bytes / gk.stand.n / 1000 : 58;
         }
         function kachelXY(lat, lng, z) {
           var n = Math.pow(2, z),
@@ -10471,7 +10527,7 @@
             ((x + 0.5) / n) * 360 - 180,
           );
         }
-        // Stufe „Gebiet“: Grundstock-Gebiet München ±100 km, Zoom 0–12
+        // Stufe „Gebiet“: Grundstock-Gebiet München ±100 km, Zoom 0–11 (grob)
         function gkGebietKacheln() {
           var R = (daten.meta && daten.meta.raster) || {
               latN: 49.0353,
@@ -10480,19 +10536,23 @@
               lngE: 12.9214,
             },
             out = [];
-          for (var z = 0; z <= 12; z++) {
+          for (var z = 0; z <= GK_GEBIET_ZOOM; z++) {
             var a = kachelXY(R.latN, R.lngW, z),
               b = kachelXY(R.latS, R.lngE, z);
             for (var x = a.x; x <= b.x; x++) for (var y = a.y; y <= b.y; y++) out.push([z, x, y]);
           }
           return out;
         }
-        // Stufe „Umgebung“: Kreis um Pin/GPS, Zoom 13–14 (Kachelmitte näher als r + halbe Diagonale)
-        function gkUmgebungKacheln(ll, rKm) {
-          var out = [],
-            r = rKm * 1000;
-          for (var z = 13; z <= 14; z++) {
-            var kante = (40075016 * Math.cos((ll.lat * Math.PI) / 180)) / Math.pow(2, z),
+        // Stufe „Umgebung“: Zoom 13–15 im Kreis (Kachelmitte näher als r + halbe Diagonale);
+        // bei 15 km Zoom 15 nur im inneren 5-km-Kreis (sonst ≈ 4 × so groß)
+        function umgZooms(rKm) {
+          return { zMax: 15, r15: rKm > 10 ? 5 : null };
+        }
+        function gkUmgebungKacheln(ll, rKm, zMax, r15) {
+          var out = [];
+          for (var z = 13; z <= (zMax || 15); z++) {
+            var r = (z === 15 && r15 ? r15 : rKm) * 1000,
+              kante = (40075016 * Math.cos((ll.lat * Math.PI) / 180)) / Math.pow(2, z),
               dLat = r / 111320,
               dLng = r / (111320 * Math.cos((ll.lat * Math.PI) / 180)),
               a = kachelXY(ll.lat + dLat, ll.lng - dLng, z),
@@ -10503,6 +10563,9 @@
           }
           return out;
         }
+        function umgKacheln(u) {
+          return gkUmgebungKacheln(L.latLng(u.lat, u.lng), u.r, u.zMax, u.r15);
+        }
         async function gkFehlend(liste) {
           var c = await gkCache(),
             fehlt = [];
@@ -10510,7 +10573,7 @@
             if (!(await c.match(gkSchluessel(liste[i][0], liste[i][1], liste[i][2])))) fehlt.push(liste[i]);
           return fehlt;
         }
-        // Dauerhaften Speicher erbitten (iPhone: greift laut WebKit v. a. als Home-Bildschirm-App)
+        // Dauerhaften Speicher erbitten (iPhone: greift als Home-Bildschirm-App – dort getestet: ja)
         function gkPersistenz(anfragen) {
           if (!navigator.storage || !navigator.storage.persisted) {
             gk.persist = "nicht unterstützt";
@@ -10531,7 +10594,7 @@
               gkAnzeigen();
             });
         }
-        async function gkLaden(liste, titel) {
+        async function gkLaden(liste, titel, nachher) {
           if (gk.lauf) return;
           var c = await gkCache(),
             lauf = (gk.lauf = {
@@ -10578,6 +10641,7 @@
           }
           gk.lauf = null;
           gkStandSchreiben();
+          if (nachher && (lauf.neu || !lauf.abbruch)) await nachher(lauf); // auch Teilstand eintragen
           toast(
             lauf.abbruch
               ? "Abgebrochen – bisher gespeicherte Kacheln bleiben."
@@ -10592,6 +10656,201 @@
           gkAnzeigen();
           grundkarteWahl();
         }
+        // Größe einer Kachelliste im Speicher (vorhandene Kacheln)
+        async function gkGroesse(liste) {
+          var c = await gkCache(),
+            n = 0,
+            bytes = 0;
+          for (var i = 0; i < liste.length; i++) {
+            var r = await c.match(gkSchluessel(liste[i][0], liste[i][1], liste[i][2]));
+            if (!r) continue;
+            n++;
+            bytes += (await r.blob()).size;
+          }
+          return { n: n, bytes: bytes };
+        }
+        // Name einer Umgebung: Stelle im Umkreis 100 m, sonst nächster Ort (OSM Nominatim), sonst Koordinaten
+        async function umgName(ll, vorgabe) {
+          if (vorgabe) return vorgabe;
+          var sp = spots.find(function (x) {
+            return kmSchnell(x.lat, x.lng, ll.lat, ll.lng) < 0.1;
+          });
+          if (sp) return sp.name;
+          try {
+            var r = await fetch(
+              "https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=13&accept-language=de&lat=" +
+                ll.lat.toFixed(4) +
+                "&lon=" +
+                ll.lng.toFixed(4),
+            );
+            var j = await r.json(),
+              a = (j && j.address) || {};
+            var ort = a.village || a.town || a.city || a.hamlet || a.municipality || a.suburb;
+            if (ort) return ort;
+          } catch (e) {}
+          return ll.lat.toFixed(3) + " N, " + ll.lng.toFixed(3) + " E";
+        }
+        // Größen aller Einträge neu (gemeinsame Kacheln zählen bei jedem Eintrag, der sie braucht)
+        async function umgGroessenNeu() {
+          for (var i = 0; i < (gk.umg || []).length; i++) {
+            var g = await gkGroesse(umgKacheln(gk.umg[i]));
+            gk.umg[i].n = g.n;
+            gk.umg[i].bytes = g.bytes;
+          }
+          umgSchreiben();
+          umgListe();
+        }
+        // Umgebung in die Liste eintragen (gleiche Mitte ±200 m und gleicher Radius → aktualisieren)
+        async function umgEintragen(ll, rKm, zMax, r15, name, teil) {
+          var u = {
+            teil: !!teil, // abgebrochen: unvollständig
+            id: Date.now(),
+            lat: +ll.lat.toFixed(5),
+            lng: +ll.lng.toFixed(5),
+            r: rKm,
+            zMax: zMax,
+            r15: r15,
+            datum: new Date().toISOString().slice(0, 10),
+          };
+          var g = await gkGroesse(umgKacheln(u));
+          u.n = g.n;
+          u.bytes = g.bytes;
+          u.name = await umgName(ll, name);
+          gk.umg = (gk.umg || []).filter(function (x) {
+            return !(x.r === rKm && kmSchnell(x.lat, x.lng, u.lat, u.lng) < 0.2);
+          });
+          gk.umg.push(u);
+          await umgGroessenNeu();
+          return u;
+        }
+        // Umgebung löschen: nur Kacheln, die keine andere Umgebung braucht (Gebiet ≤ Zoom 12 überschneidet nicht)
+        async function umgLoeschen(id) {
+          var u = (gk.umg || []).find(function (x) {
+            return x.id === id;
+          });
+          if (!u) return;
+          var andere = {};
+          gk.umg.forEach(function (x) {
+            if (x.id === id) return;
+            umgKacheln(x).forEach(function (k) {
+              andere[k.join("/")] = true;
+            });
+          });
+          var c = await gkCache(),
+            weg = 0,
+            bytes = 0;
+          var liste = umgKacheln(u);
+          for (var i = 0; i < liste.length; i++) {
+            if (andere[liste[i].join("/")]) continue;
+            var key = gkSchluessel(liste[i][0], liste[i][1], liste[i][2]),
+              r = await c.match(key);
+            if (!r) continue;
+            bytes += (await r.blob()).size;
+            await c.delete(key);
+            weg++;
+          }
+          gk.stand.n = Math.max(0, gk.stand.n - weg);
+          gk.stand.bytes = Math.max(0, gk.stand.bytes - bytes);
+          gkStandSchreiben();
+          gk.umg = gk.umg.filter(function (x) {
+            return x.id !== id;
+          });
+          umgKreis.clearLayers();
+          var weg0 = u.n; // vor dem Neuberechnen merken
+          await umgGroessenNeu();
+          gkAnzeigen();
+          grundkarteWahl();
+          toast(
+            u.name +
+              " gelöscht (" +
+              mbText(bytes) +
+              " frei" +
+              (weg < weg0 ? ", gemeinsame Kacheln bleiben" : "") +
+              ")",
+          );
+        }
+        var umgKreis = L.layerGroup().addTo(map);
+        function umgZeigen(id) {
+          var u = (gk.umg || []).find(function (x) {
+            return x.id === id;
+          });
+          if (!u) return;
+          umgKreis.clearLayers();
+          var k = L.circle([u.lat, u.lng], {
+            radius: u.r * 1000,
+            color: cssFarbe("--humus"),
+            opacity: 0.8,
+            weight: 1.5,
+            fill: false,
+            dashArray: "6 6",
+            interactive: false,
+          }).addTo(umgKreis);
+          if (MOBIL) setzeStufe(0);
+          map.fitBounds(k.getBounds(), { padding: [20, 20] });
+        }
+        function umgListe() {
+          var el = $("gk-liste");
+          if (!el) return;
+          el.innerHTML = "";
+          (gk.umg || []).forEach(function (u) {
+            var d = document.createElement("div"),
+              dt = u.datum ? u.datum.slice(8, 10) + "." + u.datum.slice(5, 7) + "." : "";
+            d.className = "gk-eintrag";
+            d.innerHTML =
+              '<div class="gk-name"><b></b><span></span></div>' +
+              '<div class="gk-knoepfe"><button class="act ghost" data-a="zeigen">Auf Karte zeigen</button>' +
+              '<button class="act ghost" data-a="weg">Löschen</button></div>';
+            d.querySelector("b").textContent = u.name || "Umgebung";
+            d.querySelector("span").textContent =
+              " · " +
+              u.r +
+              " km · " +
+              mbText(u.bytes || 0) +
+              (dt ? " · " + dt : "") +
+              (u.teil ? " · unvollständig" : "");
+            d.querySelector('[data-a="zeigen"]').addEventListener("click", function () {
+              umgZeigen(u.id);
+            });
+            var weg = d.querySelector('[data-a="weg"]');
+            weg.addEventListener("click", function () {
+              if (!weg.dataset.sicher) {
+                weg.dataset.sicher = "1";
+                weg.textContent = "Wirklich löschen?";
+                setTimeout(function () {
+                  delete weg.dataset.sicher;
+                  weg.textContent = "Löschen";
+                }, 6000);
+                return;
+              }
+              weg.disabled = true;
+              umgLoeschen(u.id);
+            });
+            el.appendChild(d);
+          });
+        }
+        // Umgebung laden und eintragen (Knopf im Tab „Punkt“ oder Angebot nach dem Speichern einer Stelle)
+        function umgLaden(ll, rKm, liste, name) {
+          var zz = umgZooms(rKm);
+          gkLaden(liste, "Umgebung " + rKm + " km", function (lauf) {
+            return umgEintragen(ll, rKm, zz.zMax, zz.r15, name, lauf.abbruch);
+          });
+        }
+        // Angebot nach dem Speichern einer Stelle: online, nichts läuft, Umgebung dort noch nicht gespeichert
+        function umgebungAngebot(ll, name) {
+          if (istOffline() || gk.lauf || !window.caches) return null;
+          var gedeckt = (gk.umg || []).some(function (u) {
+            return kmSchnell(u.lat, u.lng, ll.lat, ll.lng) <= Math.max(1, u.r - 5);
+          });
+          if (gedeckt) return null;
+          var zz = umgZooms(10),
+            liste = gkUmgebungKacheln(ll, 10, zz.zMax, zz.r15);
+          return {
+            text: "Umgebung (10 km, ca. " + mbText(liste.length * gkKb() * 1000) + ") offline speichern?",
+            fn: async function () {
+              umgLaden(ll, 10, await gkFehlend(liste), name);
+            },
+          };
+        }
         function gkAnzeigen() {
           var l = gk.lauf,
             info = $("gk-info");
@@ -10604,6 +10863,13 @@
                   mbText(gk.stand.bytes)
                 : "Noch keine Offline-Karte gespeichert.") +
               (gk.persist ? " · Speicher dauerhaft: " + gk.persist : "");
+          if ($("gk-gebiet") && !l)
+            $("gk-gebiet").textContent =
+              "Gebiet offline speichern (bis Zoom " +
+              GK_GEBIET_ZOOM +
+              ", ca. " +
+              mbText(gkGebietKacheln().length * gkKb() * 1000) +
+              ")";
           document.querySelectorAll(".gk-fort").forEach(function (el) {
             el.style.display = l ? "block" : "none";
             if (!l) return;
@@ -10623,7 +10889,7 @@
                 ? " · noch ~" + (rest < 90 ? Math.round(rest) + " s" : Math.round(rest / 60) + " min")
                 : "");
           });
-          ["gk-gebiet", "gk-umg", "gk-weg"].forEach(function (id) {
+          ["gk-gebiet", "gk-umg", "gk-weg", "gk-r"].forEach(function (id) {
             if ($(id)) $(id).disabled = !!l;
           });
         }
@@ -10675,36 +10941,67 @@
             osmEbene.bringToBack();
           }
         }
+        // Bisherige 15-km-Umgebung (Zoom 13–14, v2026-09-26.20) als ersten Listeneintrag übernehmen:
+        // Mitte = Schwerpunkt der gespeicherten Zoom-14-Kacheln
+        async function umgUebernehmen(keys) {
+          var xs = 0,
+            ys = 0,
+            n = 0;
+          keys.forEach(function (k) {
+            var m = k.match(/\/smerc\/14\/(\d+)\/(\d+)$/);
+            if (!m) return;
+            xs += +m[1];
+            ys += +m[2];
+            n++;
+          });
+          gk.umg = [];
+          if (n) {
+            var ll = kachelMitte(xs / n, ys / n, 14);
+            await umgEintragen(ll, 15, 14, null);
+            gk.umg[0].datum = null; // Datum unbekannt
+          }
+          umgSchreiben();
+        }
         // Start: gespeicherten Stand mit dem Cache abgleichen (Browser kann ihn geräumt haben)
         async function gkInit() {
           try {
             if (!window.caches || !window.isSecureContext) return;
-            var n = (await (await gkCache()).keys()).length;
+            var keys = (await (await gkCache()).keys()).map(function (r) {
+                return r.url;
+              }),
+              n = keys.length;
             if (n !== gk.stand.n) {
-              gk.stand.bytes = gk.stand.n ? Math.round((gk.stand.bytes / gk.stand.n) * n) : n * GK_KB * 1000;
+              gk.stand.bytes = gk.stand.n ? Math.round((gk.stand.bytes / gk.stand.n) * n) : n * gkKb() * 1000;
               gk.stand.n = n;
               gkStandSchreiben();
             }
+            if (gk.umg === null) await umgUebernehmen(keys);
           } catch (e) {}
           gkPersistenz(false);
           gkAnzeigen();
+          umgListe();
           grundkarteWahl();
         }
         $("gk-gebiet").addEventListener("click", function () {
           gkLaden(gkGebietKacheln(), "Gebiet");
         });
-        // Umgebung: erster Tipp nennt die Größe, zweiter lädt (Bestätigung im Knopf selbst)
+        // Umgebung: erster Tipp nennt Kachelzahl und Größe, zweiter lädt (Bestätigung im Knopf selbst)
         var gkUmgebungListe = null,
           gkUmgebungTimer = null;
+        function umgKnopfZurueck() {
+          clearTimeout(gkUmgebungTimer);
+          gkUmgebungListe = null;
+          $("gk-umg").textContent = "Umgebung speichern";
+        }
+        $("gk-r").addEventListener("change", umgKnopfZurueck);
         $("gk-umg").addEventListener("click", async function () {
           var btn = this,
-            ll = pos || standortLL;
+            ll = pos || standortLL,
+            rKm = +$("gk-r").value || 10;
           if (gkUmgebungListe) {
-            clearTimeout(gkUmgebungTimer);
             var liste = gkUmgebungListe;
-            gkUmgebungListe = null;
-            btn.textContent = "Umgebung speichern (" + GK_UMGEBUNG_KM + " km)";
-            gkLaden(liste, "Umgebung");
+            umgKnopfZurueck();
+            umgLaden(ll, rKm, liste);
             return;
           }
           if (!ll) {
@@ -10712,9 +11009,11 @@
             return;
           }
           btn.textContent = "Prüfe …";
-          var fehlt = await gkFehlend(gkUmgebungKacheln(ll, GK_UMGEBUNG_KM));
+          var zz = umgZooms(rKm),
+            fehlt = await gkFehlend(gkUmgebungKacheln(ll, rKm, zz.zMax, zz.r15));
           if (!fehlt.length) {
-            btn.textContent = "Umgebung speichern (" + GK_UMGEBUNG_KM + " km)";
+            umgKnopfZurueck();
+            await umgEintragen(ll, rKm, zz.zMax, zz.r15);
             toast("Umgebung ist schon vollständig gespeichert.");
             return;
           }
@@ -10723,25 +11022,24 @@
             "Jetzt laden: " +
             fehlt.length +
             " Kacheln, ca. " +
-            mbText(fehlt.length * GK_KB * 1000) +
-            " (Zoom 13–14)";
-          gkUmgebungTimer = setTimeout(function () {
-            gkUmgebungListe = null;
-            btn.textContent = "Umgebung speichern (" + GK_UMGEBUNG_KM + " km)";
-          }, 15000);
+            mbText(fehlt.length * gkKb() * 1000) +
+            " (Zoom 13–15" +
+            (zz.r15 ? ", 15 nur innen" : "") +
+            ")";
+          gkUmgebungTimer = setTimeout(umgKnopfZurueck, 15000);
         });
         document.querySelectorAll(".gk-stopp").forEach(function (b) {
           b.addEventListener("click", function () {
             if (gk.lauf) gk.lauf.abbruch = true;
           });
         });
-        // Löschen: erster Tipp fragt im Knopf nach, zweiter löscht
+        // Alles löschen: erster Tipp fragt im Knopf nach, zweiter löscht (auch die Liste der Umgebungen)
         var gkWegTimer = null;
         $("gk-weg").addEventListener("click", async function () {
           var btn = this;
           if (!btn.dataset.sicher) {
             btn.dataset.sicher = "1";
-            btn.textContent = "Wirklich löschen? (" + mbText(gk.stand.bytes) + ")";
+            btn.textContent = "Wirklich alles löschen? (" + mbText(gk.stand.bytes) + ")";
             gkWegTimer = setTimeout(function () {
               delete btn.dataset.sicher;
               btn.textContent = "Offline-Karte löschen";
@@ -10756,7 +11054,11 @@
           } catch (e) {}
           gk.cache = null;
           gk.stand = { n: 0, bytes: 0 };
+          gk.umg = [];
           gkStandSchreiben();
+          umgSchreiben();
+          umgKreis.clearLayers();
+          umgListe();
           gkAnzeigen();
           grundkarteWahl();
           toast("Offline-Karte gelöscht");

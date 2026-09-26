@@ -8,7 +8,7 @@ Bewertet Waldstandorte für **Pfifferling (pf)**, **Fichtensteinpilz (st)** und 
 aus Geodaten (Baumart, Boden, Kronendichte, Gelände) und gemessenem Wetter. Nutzer: ein Sammler,
 Bedienung meist am iPhone im Wald, Auswertung am Windows-Rechner.
 
-Stand dieser Datei: v2026-09-26.23. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
+Stand dieser Datei: v2026-09-26.24. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
 
 ---
 
@@ -224,9 +224,17 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
   das rote Band (`zeigeFehler` aus `merkeBlockade`) kommt nur, wenn Netz da ist und die Dienste abweisen.
 - Kartenhintergrund hell (`--karte-leer`): wo offline keine Kachel liegt, bleiben die Bewertungsfarben lesbar.
 - **Offline-Grundkarte** (Webkarte Bayern, WMTS Geobasisdaten Bayern, Kachelsatz `smerc`, CC BY 4.0): nur auf
-  Knopfdruck. Tab „Karten“: „Gebiet offline speichern“ (`gkGebietKacheln`, Grundstock-Gebiet, Zoom 0–12,
-  1 371 Kacheln ≈ 100 MB), Stand, „Offline-Karte löschen“ (zweiter Tipp bestätigt). Tab „Punkt“: „Umgebung
-  speichern“ (`gkUmgebungKacheln`, 15 km um Pin/GPS, Zoom 13–14, erster Tipp nennt Kacheln und MB).
+  Knopfdruck. „Gebiet grob, Umgebungen fein“ (v2026-09-26.24): Tab „Karten“: „Gebiet offline speichern“
+  (`gkGebietKacheln`, Grundstock-Gebiet, Zoom 0–11, 379 Kacheln ≈ 20 MB; ältere Zoom-12-Kacheln bleiben bis zum
+  Löschen), Liste der Umgebungen (`gk.umg`, `schwammerl:umgebungen`: Name = Stelle ≤ 100 m oder nächster Ort über
+  OSM Nominatim, Radius, Größe, Datum, „Auf Karte zeigen“, „Löschen“), „Offline-Karte löschen“ (alles). Tab
+  „Punkt“: Radius 5/10/15 km (`#gk-r`, Standard 10) + „Umgebung speichern“ (Zoom 13–15, bei 15 km Zoom 15 nur im
+  inneren 5-km-Kreis, `umgZooms`; erster Tipp nennt Kacheln und MB, zweiter lädt). Überschneidungen: eine Kachel
+  liegt nur einmal im Cache; `umgLoeschen` entfernt nur Kacheln, die keine andere Umgebung braucht; Größen je
+  Eintrag zählen gemeinsame Kacheln mit (`umgGroessenNeu`). Abgebrochene Umgebungen stehen als „unvollständig“ in
+  der Liste. Die frühere 15-km-Umgebung (Zoom 13–14) übernimmt `umgUebernehmen` einmalig als ersten Eintrag
+  (Mitte = Schwerpunkt der Zoom-14-Kacheln). Nach „Besuch speichern“ bietet der Toast „Umgebung (10 km, ca. x MB)
+  offline speichern?“ an, wenn online und die Stelle nicht schon in einer Umgebung liegt (`umgebungAngebot`).
   `gkLaden`: Pakete à 4 parallel, 120 ms Pause, Gespeichertes übersprungen, Fortschritt/Restzeit/Abbrechen
   (`.gk-fort`). Cache `schwammerl-grundkarte-v1`, Schlüssel immer `wmtsod1` (keine Dreifachablage), Zähler in
   `schwammerl:grundkarte` (beim Start mit dem Cache abgeglichen, `gkInit`). `navigator.storage.persist()` beim

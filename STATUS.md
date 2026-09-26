@@ -1,15 +1,20 @@
 # Status Schwammerl-Karte
 
-Stand: v2026-09-26.23 (26.09.2026)
+Stand: v2026-09-26.24 (26.09.2026)
 
 ## Offene Aufträge
 Angenommen, aber noch nicht ausgeliefert. Beim Start hier eintragen, bei Auslieferung nach „Zuletzt ausgeliefert“.
 
 | Auftrag | Stand |
 |---|---|
-| C – Offline-Karte umgewichten: Gebiet bis Zoom 11, Umgebungen 5/10/15 km mit Liste, Angebot beim Stelle-Speichern | begonnen |
+| – keine – | |
 
 ## Zuletzt ausgeliefert
+- **Offline-Karte umgewichtet (v2026-09-26.24):** Gebiet nur noch bis Zoom 11 (379 Kacheln, ≈ 20 MB); Umgebungen
+  5/10/15 km (Standard 10) mit Zoom 13–15 (15 km: Zoom 15 nur im inneren 5-km-Kreis), Größe vorab; Liste im Tab
+  „Karten“ mit Name, Radius, Größe, Datum, „Auf Karte zeigen“, „Löschen“ (gemeinsame Kacheln bleiben); alte
+  15-km-Umgebung als erster Eintrag übernommen; nach „Besuch speichern“ Angebot im Toast. Gemessen lokal:
+  5 km = 176 Kacheln / 6 MB, 10 km = 705 Kacheln (≈ 35–40 MB).
 - **iPhone-Nachtrag (v2026-09-26.23):** Kopfzeile unter der Statusleiste, Tabs über der Home-Leiste (sicherer
   Bereich), Version bricht nicht mehr um (schmal „v09-26.23“); Pin-Popup auf die freie Karte begrenzt, Abstand zu
   GPS-Knöpfen und Zuschreibung, passt sich beim Öffnen der Schublade neu an; Quellenangaben aktualisiert (ohne
