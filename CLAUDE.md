@@ -8,7 +8,7 @@ Bewertet Waldstandorte für **Pfifferling (pf)**, **Fichtensteinpilz (st)** und 
 aus Geodaten (Baumart, Boden, Kronendichte, Gelände) und gemessenem Wetter. Nutzer: ein Sammler,
 Bedienung meist am iPhone im Wald, Auswertung am Windows-Rechner.
 
-Stand dieser Datei: v2026-09-26.15. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
+Stand dieser Datei: v2026-09-26.16. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
 
 ---
 
@@ -28,6 +28,7 @@ Stand dieser Datei: v2026-09-26.15. Die Entwicklung bis v2026-09-26.4 lief in ei
    genau das hat früher Pin und Überblick auseinanderlaufen lassen.
 6. **Keine Zugangsdaten** (Tokens, Passwörter) in Code, Commits oder Chat.
 7. Deutsche Oberfläche und Kommentare. Keine `alert()`-Dialoge (Ausnahme GPS-Fehler), stattdessen `toast()`.
+   Oberfläche nach den **UI/UX-Leitlinien** (eigener Abschnitt); offene Punkte und Stand in `STATUS.md`.
 8. Kleine, begründete Änderungen; bei Modellwerten die Quelle im Kommentar nennen.
 9. **Vor jedem Commit `node tests/selbsttest.js` ausführen – muss grün sein** (Exitcode 0).
    Das Skript prüft die Syntax im strikten Modus und rechnet `selbsttest()` ohne Browser;
@@ -36,6 +37,82 @@ Stand dieser Datei: v2026-09-26.15. Die Entwicklung bis v2026-09-26.4 lief in ei
    erzeugt mit `werkzeuge/testausschnitt.js`; nach neuem Grundstock oder geänderter `wetter.json`-Form neu erzeugen).
 
 ---
+
+## UI/UX-Leitlinien
+
+### Grundsatz
+Karte zuerst. Die App wird im Wald einhändig am Handy bedient, oft ohne Netz, und abends am Rechner
+ausgewertet. Jedes Bedienelement muss sich seinen Platz verdienen; im Zweifel einklappen oder weglassen.
+
+### Hierarchie
+1. Karte mit Region-Überblick (wichtigste Funktion) und Pin
+2. Pin-Popup: Urteil mit Spanne, Prognose, Besuch erfassen
+3. Tab „Punkt": Pin-Details, beste Stellen im Umkreis
+4. Tab „Stellen": Liste, Bearbeiten, Export/Import
+5. Tab „Karten": Hintergrund- und Datenebenen
+6. Alles zum Debuggen (Diagnose, Rechenweg, Protokoll) standardmäßig zugeklappt
+
+### Layout
+- Mobil (< 900 px): Schublade unten (zu / halb / voll), Karte darüber.
+- Desktop (≥ 900 px): Seitenleiste rechts, ca. 400 px, volle Höhe; Karte füllt den Rest.
+- Schwebende Kartenelemente: Region-Feld unten links, GPS/Folgen am Rand der Seitenleiste bzw. rechts.
+  Sie dürfen Popup und einander nicht verdecken.
+- Beim Einpassen auf einen Umkreis alle verdeckenden Elemente berücksichtigen; der Kreis füllt den freien
+  Kartenbereich möglichst aus.
+
+### Kompaktheit
+- Auswahl mit mehreren Optionen als Dropdown, nicht als Knopfreihe. Einfachauswahl: natives `<select>`.
+  Mehrfachauswahl: eigenes kompaktes Dropdown mit Häkchen (kein `<select multiple>`).
+- Formulare zweispaltig, Beschriftung klein über dem Feld.
+- Sekundäre Infos (Wetterdetails, Quellen, Rechenweg) hinter „Details" bzw. `<details>`.
+- Keine doppelten Funktionen (eine Speichern-Aktion, ein Schwellenregler je Zweck).
+- Keine Texte, die erklären, was sichtbar ist; Hinweise nur, wenn sie eine Entscheidung ändern.
+
+### Bedienung
+- Tippflächen mindestens 40 px hoch, Abstand ≥ 6 px.
+- Keine `alert()`/`confirm()`/`prompt()`; Rückmeldung per `toast()`, Bestätigungen im Element selbst,
+  Löschen mit „Rückgängig".
+- Lange Vorgänge mit Fortschritt (Schritt, Prozent, Restzeit); die Karte bleibt dabei bedienbar.
+- Ein Tipp auf die Karte bei offenem Popup schließt nur das Popup.
+
+### Ehrlichkeit der Anzeige
+- Ortsfest: gleiche Stelle = gleicher Wert, egal welcher Ausschnitt oder Pin.
+- Pin und Überblick rechnen über dieselbe Endformel; Abweichungen werden sichtbar gemacht, nicht versteckt.
+- Unsicherheit zeigen: Spanne zu jedem Wert („34 (24–50)"); breite Spanne mit Hinweis auf die Fingerprobe.
+- Datenstand immer erkennbar: „Wetter: heute 5:30", „offline — Wetter vom …", „live nachgeladen".
+- Unbekanntes grau darstellen, nie mit Annahmen schönrechnen. Fehlt das Wetter, keine Wetterfarben.
+
+### Darstellung auf der Karte
+- Bewertungsfarben: rot schlecht → orange → gelb → grün gut, gleiche Skala wie am Pin (`farbeStetig`;
+  `farbeGrob` nur für die Darstellungen „Wetter“, „Standort“ und den Trend).
+- Regen/Feuchte: eigene Blauskala, nie rot–grün.
+- Flächenbilder: innen geglättet, an Waldkanten hart; nie über Felder verlaufen.
+- Rasterbilder immer mit `inMercator` ausrichten.
+
+### Stil
+- Dunkles Waldthema, Farben nur über CSS-Variablen (`--moos`, `--moos-hell`, `--papier`, `--papier-2`,
+  `--linie`, `--feld`, `--pfiff`); keine neuen Einzelfarben im Code.
+- Deutsche, knappe Beschriftungen; Einheiten mit Leerzeichen („12 mm", „630 m").
+- Zahlen tabellarisch ausgerichtet (`font-variant-numeric: tabular-nums`).
+
+### Vor jedem UI-Commit prüfen
+Handy-Breite (ca. 390 px) und Desktop-Breite: Konsole ohne Skriptfehler, Popup, Region-Lauf,
+Tagesregler, Schwellenregler, Besuch speichern, Umkreis-Suche, Offline-Hinweis.
+
+### Umsetzung im Code (Stand v2026-09-26.16)
+- Alle Farben stehen in `:root` (u. a. `--weiss`, `--tief`, `--knopf`, `--glas`, `--standort`, `--grau-leer`).
+  Leaflet-Linien und -Marker verstehen keine CSS-Variablen → `cssFarbe("--name")`. Ausnahme: die Farbskalen
+  (`SKALA_GROB`, `SKALA_REGEN`, Legenden-Verläufe) sind Daten.
+- `toast(text, { text: "Rückgängig", fn })` zeigt einen Knopf im Toast (8 s). Löschen einer Stelle oder des
+  letzten Besuchs geschieht sofort, rückgängig über den Toast. Notizen werden im Element bearbeitet
+  (Stellenliste: Textfeld, Enter/Wegtippen speichert, Escape verwirft; Popup: „Notiz“ klappt `#pn-notiz` auf).
+- Breite Spanne (> 20 Punkte bei einer Art, ohne Fingerprobe): Popup zeigt „Unsicher — Fingerprobe klärt
+  das“ (`.unsicher`), der Link springt zum Boden-Feld `#bz-boden` im Besuchsblock (`__bzFinger`).
+- Tippflächen: Selects, Regler, Aufklapper, Ebenen-Zeilen, GPS-Knöpfe und Region-Bedienung ≥ 40 px.
+- Überlappung: Ladeanzeigen (`#start`, `#lade`) lassen rechts 60 px für GPS/Folgen frei; das Pin-Popup hält am
+  Handy oben 104 px Abstand (`autoPanPaddingTopLeft`). Umkreis-Kreise sind dunkel (`--humus`), sonst auf der
+  hellen OSM-Karte unsichtbar.
+- Offene Abweichungen stehen in `STATUS.md`.
 
 ## Schichten der Rechnung (Architektur-Umbau ab v2026-09-26.13)
 
@@ -96,6 +173,10 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
   Kronendichte des Pixels, unbekannt = 85 %, unter 60 % wie 60 %) → `wetterPixel`/`potAn`/`bewertungAn`.
   Keine Netzabfrage. Der alte Live-Weg bleibt Rückfall: Grundstock fehlt/lädt, kein Tageswetter, Wetter älter als
   26 h (außer offline) oder Mitte außerhalb des Gebiets – der Grund steht im Region-Feld (`#rg-stand`).
+- Außerhalb des Grundstocks (`grundstockLage(b)`: innen/teil/aussen): Mitte draußen → live mit „Außerhalb des
+  Kartengebiets München ±100 km — nur live, langsamer“; Rand draußen → Grundstock-Weg, Rand grau, „teilweise
+  außerhalb — Rand wird grau“. Die Gebietsgrenze zeigt `grenzeZeigen` als dünne gestrichelte Linie, sobald
+  der Kartenausschnitt über das Gebiet hinausreicht.
 - Region-Feld zeigt den Datenstand („Wetter: heute 5:30 · Grundlage: Sept. 2026“). Ohne Pin/GPS nimmt der Umkreis
   die letzte Region-Mitte, solange sie im Bild ist (sonst wanderte die Mitte mit jedem Einpassen nach Süden).
 - Ist `wetter.json` von einem früheren Tag, rücken Pin und Wetterfeld die Reihen gleich vor
@@ -193,8 +274,7 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
   ausgegraut (`schwelleAktiv`). Regler im Feld 40 px hoch; das Feld ist höchstens Kartenhöhe − 130 px
   (GPS-Knöpfe bleiben frei) und scrollt sonst innen.
 - Region-Überblick als Feld auf der Karte (`#region`, zugeklappt Knopf `#region-knopf`, `regionOffen`):
-  Umkreis-Knöpfe 25/50/100 km und Pilzart-Knöpfe schreiben in versteckte Felder `#g-r`/`#g-art`
-  (`knopfGruppe`), Darstellung `#g-modus` („Bewertung“ = Wert `zwei`, „Wetter“, „Standort“),
+  Dropdowns Umkreis `#g-r` (25/50/100 km, passt sofort ein) und Pilzart `#g-art`, Darstellung `#g-modus` („Bewertung“ = Wert `zwei`, „Wetter“, „Standort“),
   „Region bewerten“ (`bewerteRegion`), Tagesregler `#tagregler` (Tage ohne Neuberechnung,
   `setzeTag`), Stichproben (`stichproben`, bis 60 Punkte mit echter Pin-Rechnung). Am Handy klappt das
   Feld beim Pin-Setzen ein; der Knopf „Region“ ist unter 900 px ausgeblendet, solange ein Popup offen ist
@@ -202,7 +282,8 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
   Stichproben, Kontrollzeile und CSV.
 - Überblick ehrlich: Unterwuchs im Überblick und in den Stichproben neutral (`UNTER_FERN` = Pseudoklasse
   `W.unter.mittel`, Mittel aller Klassen, ohne Kraut-/Brombeer-Deckel); der Pin nutzt die echte Eingabe.
-  Feinraster-Code `FS` 255 = kein Wald, 254 = Wald mit unbekanntem Boden (grau, nicht in Bestwert/Statistik).
+  Feinraster-Code `FS` 255 = kein Wald, 254 = Wald mit unbekanntem Boden (grau, nicht in Bestwert/Statistik),
+  253 = außerhalb des Grundstock-Gebiets (heller grau, in jeder Darstellung, nicht in der Statistik).
   `zweiRaster(C, modus, art, min)` rechnet die Darstellung ohne Leinwand (testbar), `zeichneZweiEbenen` malt.
   „Bewertung“: Farbe = erwartete Bewertung je Feinpixel (`bewertungAn` → `endwert` mit der Standortgüte des
   Pixels als `sgVorab`, Regen-/Temperaturfaktor aus dem Wetterfeld `GW[tag].rf/.tf`), Skala `farbeStetig` wie

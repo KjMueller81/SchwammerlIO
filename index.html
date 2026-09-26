@@ -23,6 +23,20 @@
         --papier-2: #c9c8bc;
         --linie: #3a4033;
         --rot: #e0704f;
+        --weiss: #fff;
+        --tief: #151810;
+        --humus-3: #20251b;
+        --knopf: #2c3126;
+        --knopf-hell: #4a5142;
+        --moos-mittel: #587e45;
+        --fehler: #4a2418;
+        --fehler-text: #ffd9c9;
+        --kontrolle-text: #333;
+        --kontrolle-hover: #f4f4f4;
+        --glas: rgba(29, 33, 25, 0.93);
+        --standort: #2b7de9;
+        --folgen-an: #cfe6ff;
+        --grau-leer: #9a9a90;
       }
       * {
         box-sizing: border-box;
@@ -76,15 +90,15 @@
       #fehler {
         display: none;
         padding: 8px 14px;
-        background: #4a2418;
-        color: #ffd9c9;
+        background: var(--fehler);
+        color: var(--fehler-text);
         font-size: 12.5px;
         border-bottom: 1px solid var(--linie);
       }
       #map {
         flex: 1 1 auto;
         min-height: 180px;
-        background: #151810;
+        background: var(--tief);
       }
 
       .sheet {
@@ -139,7 +153,7 @@
         height: 3px;
         margin-left: -18px;
         border-radius: 2px;
-        background: #4a5142;
+        background: var(--knopf-hell);
       }
       @media (max-width: 700px) {
         header {
@@ -208,7 +222,7 @@
       }
       .tabs button[aria-selected="true"] {
         background: var(--moos);
-        color: #fff;
+        color: var(--weiss);
       }
       .tabs .griff {
         flex: 0 0 40px;
@@ -247,6 +261,7 @@
       select,
       input[type="text"] {
         width: 100%;
+        min-height: 40px;
         padding: 8px 9px;
         font: inherit;
         font-size: 14px;
@@ -260,8 +275,11 @@
         outline: 2px solid var(--moos-hell);
         outline-offset: -1px;
       }
+      /* Regler: 40 px hohe Berührungsfläche für den Daumen */
       input[type="range"] {
         width: 100%;
+        height: 40px;
+        margin: -6px 0 -8px;
         accent-color: var(--moos-hell);
       }
       input[type="checkbox"],
@@ -291,7 +309,7 @@
       .layer {
         border: 1px solid var(--linie);
         border-radius: 9px;
-        padding: 8px 10px;
+        padding: 0 10px;
         margin-bottom: 7px;
       }
       .layer .top {
@@ -300,6 +318,9 @@
         gap: 9px;
       }
       .layer .top label {
+        min-height: 40px;
+        display: flex;
+        align-items: center;
         margin: 0;
         color: var(--papier);
         font-size: 14px;
@@ -314,7 +335,7 @@
         padding: 1px 6px;
       }
       .layer .op {
-        margin-top: 6px;
+        margin: 0 0 8px;
         display: none;
       }
       .layer.on .op {
@@ -354,13 +375,13 @@
         font-size: 14.5px;
         font-weight: 600;
         background: var(--moos);
-        color: #fff;
+        color: var(--weiss);
         border: none;
         border-radius: 8px;
         cursor: pointer;
       }
       button.act:hover {
-        background: #587e45;
+        background: var(--moos-mittel);
       }
       button.act[disabled] {
         opacity: 0.55;
@@ -372,7 +393,7 @@
         border: 1px solid var(--linie);
       }
       button.ghost:hover {
-        background: #20251b;
+        background: var(--humus-3);
         color: var(--papier);
       }
 
@@ -520,7 +541,7 @@
       .bar {
         height: 4px;
         border-radius: 2px;
-        background: #2c3126;
+        background: var(--knopf);
         margin-top: 7px;
         overflow: hidden;
       }
@@ -544,7 +565,7 @@
       .fort {
         height: 5px;
         border-radius: 3px;
-        background: #2c3126;
+        background: var(--knopf);
         overflow: hidden;
         margin-top: 8px;
         display: none;
@@ -607,7 +628,7 @@
       }
       .spot .nav:hover {
         background: var(--moos);
-        color: #fff;
+        color: var(--weiss);
       }
       .empty {
         color: var(--papier-2);
@@ -636,7 +657,7 @@
       .spot .fund button.an {
         background: var(--moos);
         border-color: var(--moos);
-        color: #fff;
+        color: var(--weiss);
       }
       .spot .notiz {
         font-size: 12px;
@@ -663,7 +684,7 @@
       }
 
       .leaflet-container {
-        background: #151810;
+        background: var(--tief);
         font-family: inherit;
       }
       .leaflet-popup-content-wrapper {
@@ -708,6 +729,31 @@
         font-size: 12.5px;
         margin-bottom: 5px;
       }
+      .pinpop .unsicher a {
+        display: inline-block;
+        min-height: 40px;
+        line-height: 40px;
+        margin: -8px 0 -6px;
+        color: var(--pfiff);
+      }
+      /* Notizfeld im Popup und in der Stellenliste */
+      .pn-notiz {
+        margin-top: 6px;
+      }
+      .pn-notiz textarea,
+      .spot .notiz textarea {
+        width: 100%;
+        min-height: 44px;
+        font: inherit;
+        font-size: 13px;
+        font-style: normal;
+        color: var(--papier);
+        background: var(--feld);
+        border: 1px solid var(--linie);
+        border-radius: 7px;
+        padding: 6px 8px;
+        resize: vertical;
+      }
       .pinpop .i {
         font-size: 11.5px;
         color: var(--papier-2);
@@ -735,7 +781,7 @@
       }
       .pinpop .btn:hover {
         background: var(--moos);
-        color: #fff;
+        color: var(--weiss);
       }
       .pinpop.m .u {
         margin-bottom: 3px;
@@ -782,7 +828,7 @@
       }
       .pinpop .btn.an {
         background: var(--moos);
-        color: #fff;
+        color: var(--weiss);
       }
       /* Besuch erfassen: zwei Spalten, Beschriftung klein über dem Feld */
       .pinpop .besuch {
@@ -876,7 +922,7 @@
       .pinpop .md-e.an::before {
         content: "✓";
         background: var(--moos);
-        color: #fff;
+        color: var(--weiss);
       }
       .pinpop .md-e:hover,
       .pinpop .md-e:focus-visible {
@@ -901,7 +947,7 @@
       .pinpop .bz-z small {
         display: block;
         font-size: 10.5px;
-        color: #e8a516;
+        color: var(--pfiff);
       }
       .pinpop .btn.speichern {
         display: block;
@@ -911,7 +957,7 @@
         font-size: 14px;
         font-weight: 600;
         background: var(--moos);
-        color: #fff;
+        color: var(--weiss);
       }
       .spot .besuche {
         font-size: 11.5px;
@@ -922,7 +968,7 @@
         background: transparent;
         border: none;
         box-shadow: none;
-        color: #1d2119;
+        color: var(--humus);
         font-weight: 700;
         font-size: 12px;
       }
@@ -932,10 +978,10 @@
       #lade {
         position: absolute;
         left: 10px;
-        right: 10px;
+        right: 60px; /* rechts liegen GPS- und Folgen-Knopf */
         top: 10px;
         z-index: 1200;
-        background: rgba(29, 33, 25, 0.94);
+        background: var(--glas);
         border: 1px solid var(--linie);
         border-radius: 10px;
         padding: 8px 12px 9px;
@@ -962,7 +1008,7 @@
       #lade .l-bar {
         height: 6px;
         border-radius: 3px;
-        background: #2c3126;
+        background: var(--knopf);
         overflow: hidden;
       }
       #lade .l-bar i {
@@ -987,7 +1033,7 @@
       @media (min-width: 701px) {
         #lade {
           left: auto;
-          right: 12px;
+          right: 60px;
           width: 340px;
         }
       }
@@ -1058,8 +1104,8 @@
         left: 50%;
         bottom: calc(70px + env(safe-area-inset-bottom, 0px));
         transform: translateX(-50%);
-        background: #efeee6;
-        color: #1d2119;
+        background: var(--papier);
+        color: var(--humus);
         padding: 8px 14px;
         border-radius: 8px;
         font-size: 13px;
@@ -1067,6 +1113,18 @@
         display: none;
         box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
         max-width: 88vw;
+      }
+      .toast-knopf {
+        min-height: 40px;
+        margin: -6px -6px -6px 12px;
+        padding: 0 12px;
+        font: inherit;
+        font-weight: 600;
+        color: var(--moos);
+        background: transparent;
+        border: 1px solid var(--moos);
+        border-radius: 7px;
+        cursor: pointer;
       }
       .leaflet-image-layer.weich {
         image-rendering: auto;
@@ -1082,7 +1140,7 @@
         color: var(--moos-hell);
         font-size: 13.5px;
         font-weight: 600;
-        padding: 8px 0;
+        padding: 11px 0;
         list-style: none;
       }
       details.grp summary::before {
@@ -1128,9 +1186,9 @@
         margin-top: 2px;
       }
       .gps {
-        width: 34px;
-        height: 34px;
-        background: #fff;
+        width: 40px;
+        height: 40px;
+        background: var(--weiss);
         border-radius: 4px;
         border: 2px solid rgba(0, 0, 0, 0.2);
         background-clip: padding-box;
@@ -1139,10 +1197,10 @@
         align-items: center;
         justify-content: center;
         font-size: 18px;
-        color: #333;
+        color: var(--kontrolle-text);
       }
       .gps:hover {
-        background: #f4f4f4;
+        background: var(--kontrolle-hover);
       }
       /* Region-Bedienfeld auf der Karte: zugeklappt nur Knopf, offen Kasten unten (Desktop unten links) */
       .region-knopf,
@@ -1151,7 +1209,7 @@
         z-index: 900;
         bottom: 28px;
         left: 10px;
-        background: rgba(29, 33, 25, 0.94);
+        background: var(--glas);
         border: 1px solid var(--linie);
         border-radius: 10px;
         color: var(--papier);
@@ -1159,6 +1217,7 @@
         backdrop-filter: blur(4px);
       }
       .region-knopf {
+        min-height: 40px;
         padding: 8px 14px;
         font-size: 13.5px;
         font-weight: 600;
@@ -1185,6 +1244,9 @@
         color: var(--papier-2);
         font-size: 20px;
         line-height: 1;
+        min-width: 40px;
+        min-height: 40px;
+        margin: -10px -8px -10px 0; /* 40 px Tippfläche, ohne die Kopfzeile höher zu machen */
         padding: 0 4px;
         cursor: pointer;
       }
@@ -1194,34 +1256,23 @@
         margin-top: 5px;
         align-items: stretch;
       }
-      .rg-zeile button[data-w] {
-        flex: 1;
-        min-height: 32px;
-        padding: 4px 2px;
-        font: inherit;
-        font-size: 12.5px;
-        background: transparent;
-        color: var(--moos-hell);
-        border: 1px solid var(--moos);
-        border-radius: 6px;
-        cursor: pointer;
-      }
-      .rg-zeile button[data-w].an {
-        background: var(--moos);
-        color: #fff;
-      }
       .rg-zeile select {
         flex: 1;
         width: auto;
+        min-height: 40px;
         padding: 4px 6px;
         font-size: 12.5px;
       }
       #region button.act {
         flex: 1.3;
         width: auto;
+        min-height: 40px;
         margin-top: 0;
         padding: 6px 8px;
         font-size: 13px;
+      }
+      .rg-note:empty {
+        display: none;
       }
       .rg-note {
         margin-top: 6px;
@@ -1248,7 +1299,7 @@
         width: min(340px, 78%);
         z-index: 950;
         padding: 6px 10px 7px;
-        background: rgba(29, 33, 25, 0.92);
+        background: var(--glas);
         border: 1px solid var(--linie);
         border-radius: 9px;
         color: var(--papier);
@@ -1264,10 +1315,25 @@
         justify-content: space-between;
         gap: 8px;
       }
+      .st-kopf b,
+      .st-kopf span {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
       .st-kopf span {
         color: var(--papier-2);
         font-size: 10.5px;
-        white-space: nowrap;
+      }
+      /* Handy: Ladeanzeige links neben den GPS-Knöpfen statt mittig darunter */
+      @media (max-width: 899px) {
+        .start {
+          left: 10px;
+          right: 60px;
+          width: auto;
+          transform: none;
+        }
       }
       .st-bar {
         margin-top: 5px;
@@ -1289,10 +1355,10 @@
         margin: -2px 0 2px;
       }
       .rg-stand.warn {
-        color: #e8a516;
+        color: var(--pfiff);
       }
       .rg-note.warn {
-        color: #e8a516;
+        color: var(--pfiff);
         font-weight: 600;
       }
       .rg-legende {
@@ -1321,7 +1387,9 @@
       .rg-link {
         background: none;
         border: none;
-        padding: 4px 0 0;
+        min-height: 40px;
+        margin-bottom: -6px;
+        padding: 0;
         font: inherit;
         font-size: 11.5px;
         color: var(--moos-hell);
@@ -1417,13 +1485,18 @@
             ><button class="rg-zu" id="rg-zu" title="Einklappen" aria-label="Einklappen">×</button>
           </div>
           <div class="rg-stand" id="rg-stand">Daten laden …</div>
-          <div class="rg-zeile" id="rg-r">
-            <button data-w="25">25</button><button data-w="50" class="an">50</button
-            ><button data-w="100">100 km</button>
-          </div>
-          <div class="rg-zeile" id="rg-art">
-            <button data-w="best" class="an">Beste</button><button data-w="pf">Pfiff</button
-            ><button data-w="st">Stein</button><button data-w="som">Sommer</button>
+          <div class="rg-zeile">
+            <select id="g-r" aria-label="Umkreis">
+              <option value="25">25 km</option>
+              <option value="50" selected>50 km</option>
+              <option value="100">100 km</option>
+            </select>
+            <select id="g-art" aria-label="Pilzart">
+              <option value="best" selected>Beste Art</option>
+              <option value="pf">Pfifferling</option>
+              <option value="st">Steinpilz</option>
+              <option value="som">Sommersteinpilz</option>
+            </select>
           </div>
           <div class="rg-zeile">
             <select id="g-modus" aria-label="Darstellung">
@@ -1455,8 +1528,6 @@
           <div class="rg-note" id="g-note" title="Antippen für den ganzen Text">Noch nicht berechnet.</div>
           <div class="rg-legende" id="rg-legende"></div>
           <button class="rg-link" id="g-stich">Stichproben prüfen</button>
-          <input type="hidden" id="g-r" value="50" />
-          <input type="hidden" id="g-art" value="best" />
           <input type="hidden" id="g-tag" value="0" />
         </div>
       </div>
@@ -1517,15 +1588,10 @@
             </div>
           </div>
 
-          <div class="note" id="diagnose">Luftbild DOP20: wartet</div>
-          <div class="note" id="dienste">Noch keine Datenabfrage.</div>
-
           <details class="grp" id="diag-box">
             <summary>Diagnose</summary>
-            <p class="hint">
-              Protokoll aller Datenabfragen und Fehler. „Bericht kopieren" erzeugt einen Text, den du direkt
-              weiterschicken kannst.
-            </p>
+            <div class="note" id="diagnose">Luftbild DOP20: wartet</div>
+            <div class="note" id="dienste">Noch keine Datenabfrage.</div>
             <div class="row">
               <div>
                 <button class="act ghost" id="dbg-copy" style="margin-top: 0">Bericht kopieren</button>
@@ -1778,16 +1844,28 @@
 
         // ============ Fehler & Hilfen ============
         var toastT = null;
-        function toast(msg) {
+        // Rückmeldung unten; mit aktion {text, fn} ein Knopf im Toast (z. B. „Rückgängig“ nach dem Löschen)
+        function toast(msg, aktion) {
           var t = $("toast");
           t.textContent = msg;
+          if (aktion) {
+            var b = document.createElement("button");
+            b.className = "toast-knopf";
+            b.textContent = aktion.text;
+            b.onclick = function (ev) {
+              ev.stopPropagation();
+              t.style.display = "none";
+              aktion.fn();
+            };
+            t.appendChild(b);
+          }
           t.style.display = "block";
           clearTimeout(toastT);
           toastT = setTimeout(
             function () {
               t.style.display = "none";
             },
-            msg.length > 90 ? 7000 : 2600,
+            aktion ? 8000 : msg.length > 90 ? 7000 : 2600,
           );
         }
         function zeigeFehler(msg) {
@@ -1797,7 +1875,7 @@
           var x = document.createElement("a");
           x.href = "#";
           x.textContent = "✕";
-          x.style.cssText = "float:right;color:#ffd9c9;text-decoration:none;font-weight:700";
+          x.style.cssText = "float:right;color:var(--fehler-text);text-decoration:none;font-weight:700";
           x.onclick = function (ev) {
             ev.preventDefault();
             el.style.display = "none";
@@ -1864,7 +1942,7 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-26.15";
+        var VERSION = "2026-09-26.16";
         // Radar nur als Kartenebene; in der Bewertung zu unzuverlässig (gelernte Farbskala, leere Bilder)
         var RADAR_IM_MODELL = false;
         var LOG = [];
@@ -2934,17 +3012,17 @@
           if (!standortPunkt) {
             standortKreis = L.circle(standortLL, {
               radius: acc,
-              color: "#2b7de9",
+              color: cssFarbe("--standort"),
               weight: 1,
-              fillColor: "#2b7de9",
+              fillColor: cssFarbe("--standort"),
               fillOpacity: 0.12,
               interactive: false,
             }).addTo(standortGruppe);
             standortPunkt = L.circleMarker(standortLL, {
               radius: 7,
-              color: "#fff",
+              color: cssFarbe("--weiss"),
               weight: 2.5,
-              fillColor: "#2b7de9",
+              fillColor: cssFarbe("--standort"),
               fillOpacity: 1,
               interactive: false,
             }).addTo(standortGruppe);
@@ -3016,7 +3094,7 @@
               L.DomEvent.stop(ev);
               starteStandort();
               folgen = !folgen;
-              b.style.background = folgen ? "#cfe6ff" : "#fff";
+              b.style.background = folgen ? "var(--folgen-an)" : "var(--weiss)";
               if (folgen && standortLL) map.setView(standortLL, Math.max(map.getZoom(), 15));
               toast(folgen ? "Karte folgt dem Standort" : "Folgen aus");
             });
@@ -4551,14 +4629,14 @@
         }
         // Markerfarbe nach dem letzten Besuch: Zielart gold, nur Zeiger braun, nichts grau, unbesucht grün
         function besuchFarbe(b) {
-          if (!b) return "#7ea262";
+          if (!b) return cssFarbe("--moos-hell");
           if (
             b.fund.some(function (f) {
               return ARTEN.indexOf(f) >= 0;
             })
           )
-            return "#e8a516";
-          return b.fund.length ? "#b8763c" : "#9a9a90";
+            return cssFarbe("--pfiff");
+          return b.fund.length ? cssFarbe("--stein") : cssFarbe("--grau-leer");
         }
         // Besuche zusammenführen; gleicher Zeitstempel ±5 Min. gilt als Dublette. Liefert die Zahl neuer Besuche.
         function besucheZusammenfuehren(ziel, neu) {
@@ -5031,18 +5109,27 @@
           if (letztePrognose) {
             var kurz = letztePrognose.slice(0, 5);
             h +=
-              '<div class="u" style="color:#7ea262">' +
+              '<div class="u" style="color:var(--moos-hell)">' +
               empfehlung(letztePrognose, "best") +
               "</div>" +
               prognoseHtml(kurz, true);
+            // Spanne breiter als 20 Punkte: Die Streufeuchte entscheidet – die Fingerprobe klärt das
+            var breit = ARTEN.some(function (a) {
+              return r[a + "_max"] - r[a + "_min"] > 20;
+            });
+            if (breit && !fingerprobe)
+              h +=
+                '<div class="u unsicher"><a href="#" onclick="event.stopPropagation();' +
+                'window.__bzFinger();return false;">Unsicher — Fingerprobe klärt das</a></div>';
           } else if (erkannt.wetter === false) {
             h +=
-              '<div class="u" style="color:#e8a516">Wetter fehlt — <a href="#" onclick="window.__spWetter();return false;" style="color:#e8a516">erneut laden</a></div>';
+              '<div class="u" style="color:var(--pfiff)">Wetter fehlt — <a href="#" onclick="window.__spWetter();' +
+              'return false;" style="color:var(--pfiff)">erneut laden</a></div>';
           } else if (status) h += '<div class="u">' + status + "</div>";
           h += '<div class="u" style="font-size:11.5px;color:var(--papier-2)">' + merkmalHtml() + "</div>";
           if (pinFehler.length)
             h +=
-              '<div class="u" style="font-size:10.5px;color:#e8a516">Nicht erkannt: ' +
+              '<div class="u" style="font-size:10.5px;color:var(--pfiff)">Nicht erkannt: ' +
               pinFehler.join(", ") +
               "</div>";
           var infos = pinInfo.filter(function (t) {
@@ -5067,7 +5154,14 @@
           h +=
             '<div class="reihe"><button class="btn" onclick="this.closest(\'.pinpop\').classList.toggle(\'offen\')">Details</button>' +
             '<button class="btn" onclick="window.__spUmkreis()">Umkreis</button>' +
-            '<button class="btn" onclick="window.__spNotiz()">Notiz</button></div></div>';
+            '<button class="btn" onclick="event.stopPropagation();window.__spNotiz()">Notiz</button></div>';
+          if (notizOffen)
+            h +=
+              '<div class="pn-notiz"><textarea id="pn-notiz" rows="2" maxlength="300"' +
+              ' placeholder="z. B. Boden trocken, 32 °C" onclick="event.stopPropagation()"></textarea>' +
+              '<button class="btn" onclick="event.stopPropagation();window.__spNotizSpeichern()">' +
+              "Notiz speichern</button></div>";
+          h += "</div>";
           return h;
         }
         function aktualisierePin(status) {
@@ -5076,7 +5170,8 @@
             pin.bindPopup("", {
               maxWidth: Math.min(MOBIL ? 320 : 380, window.innerWidth - 36),
               autoPan: true,
-              autoPanPaddingTopLeft: [10, 56],
+              // Handy: oben rechts liegen GPS- und Folgen-Knopf (2 × 40 px), das Popup soll darunter bleiben
+              autoPanPaddingTopLeft: [10, MOBIL ? 104 : 56],
               closeButton: true,
             });
           pinInhalt(status);
@@ -5554,13 +5649,37 @@
           map.closePopup();
           setzePunkt(L.latLng(lat, lng));
         };
-        window.__spNotiz = function () {
-          if (!pos) return;
-          var sp = spots.find(function (x) {
+        var notizOffen = false; // Notizfeld im Pin-Popup aufgeklappt
+        function notizStelle() {
+          return spots.find(function (x) {
             return map.distance(L.latLng(x.lat, x.lng), pos) < 60;
           });
-          var t = prompt("Notiz zur Stelle (z. B. Boden trocken, 32 °C)", sp && sp.notiz ? sp.notiz : "");
-          if (t === null) return;
+        }
+        // „Unsicher — Fingerprobe klärt das“: zum Boden-Feld im Besuchsblock springen und es öffnen
+        window.__bzFinger = function () {
+          var el = $("bz-boden");
+          if (!el) return;
+          el.scrollIntoView({ block: "center", behavior: "smooth" });
+          el.focus();
+          try {
+            el.showPicker();
+          } catch (x) {}
+        };
+        window.__spNotiz = function () {
+          if (!pos) return;
+          notizOffen = !notizOffen;
+          pinInhalt();
+          var ta = $("pn-notiz");
+          if (ta) {
+            var sp0 = notizStelle();
+            ta.value = sp0 && sp0.notiz ? sp0.notiz : "";
+            ta.focus();
+          }
+        };
+        window.__spNotizSpeichern = function () {
+          if (!pos || !$("pn-notiz")) return;
+          var sp = notizStelle(),
+            t = $("pn-notiz").value;
           if (!sp) {
             var v = readForm(),
               r = bewerte(v);
@@ -5581,10 +5700,13 @@
           sp.notiz = t.trim();
           persist();
           render();
+          notizOffen = false;
+          pinInhalt();
           toast("Notiz gespeichert");
         };
         function setzePunkt(ll) {
           if (MOBIL) setzeStufe(0);
+          notizOffen = false;
           pos = ll;
           wetter = null;
           reglerHand = false;
@@ -5629,36 +5751,38 @@
                 qT = fyT * CZ.FX + fxT,
                 rPin = pos ? bewerte(readForm()) : null;
               toast(
-                !wT.wald
-                  ? "Kein Wald laut Baumartenkarte."
-                  : wT.unbekannt
-                    ? (CZ.FS.baum[qT] || "Wald") + ": Boden unbekannt — hier keine Standortgüte."
-                    : ARTNAME[wT.a] +
-                      ": " +
-                      (wT.prod === null
-                        ? "Wetter nicht verfügbar · Standort " + wT.sg + " %"
-                        : "Bewertung ≈ " +
-                          Math.round(wT.prod) +
-                          (function () {
-                            var tg = CZ.tagIdx || 0,
-                              lo = bewertungAn(CZ, tg, wT.a, qT, fyT, fxT, "rfMin"),
-                              hi = bewertungAn(CZ, tg, wT.a, qT, fyT, fxT, "rfMax");
-                            return hi > lo ? " (Spanne " + lo + "–" + hi + ")" : "";
-                          })() +
-                          " (Wetter " +
-                          Math.round(wT.pot) +
-                          " %, Standort " +
-                          wT.sg +
-                          " %)") +
-                      (rPin ? " · Pin: " + rPin[wT.a] : "") +
-                      " — " +
-                      (CZ.FS.baum[qT] || "Wald") +
-                      ", " +
-                      CZ.FS.boden[qT] +
-                      ", " +
-                      (CZ.FS.lage ? LG[CZ.FS.lage[qT]] : "eben") +
-                      (CZ.D && CZ.D[qT] <= 100 ? ", Kronen " + CZ.D[qT] + " %" : "") +
-                      ", innen, Unterwuchs neutral.",
+                wT.aussen
+                  ? "Außerhalb des Kartengebiets München ±100 km – hier nur Pin-Bewertung."
+                  : !wT.wald
+                    ? "Kein Wald laut Baumartenkarte."
+                    : wT.unbekannt
+                      ? (CZ.FS.baum[qT] || "Wald") + ": Boden unbekannt — hier keine Standortgüte."
+                      : ARTNAME[wT.a] +
+                        ": " +
+                        (wT.prod === null
+                          ? "Wetter nicht verfügbar · Standort " + wT.sg + " %"
+                          : "Bewertung ≈ " +
+                            Math.round(wT.prod) +
+                            (function () {
+                              var tg = CZ.tagIdx || 0,
+                                lo = bewertungAn(CZ, tg, wT.a, qT, fyT, fxT, "rfMin"),
+                                hi = bewertungAn(CZ, tg, wT.a, qT, fyT, fxT, "rfMax");
+                              return hi > lo ? " (Spanne " + lo + "–" + hi + ")" : "";
+                            })() +
+                            " (Wetter " +
+                            Math.round(wT.pot) +
+                            " %, Standort " +
+                            wT.sg +
+                            " %)") +
+                        (rPin ? " · Pin: " + rPin[wT.a] : "") +
+                        " — " +
+                        (CZ.FS.baum[qT] || "Wald") +
+                        ", " +
+                        CZ.FS.boden[qT] +
+                        ", " +
+                        (CZ.FS.lage ? LG[CZ.FS.lage[qT]] : "eben") +
+                        (CZ.D && CZ.D[qT] <= 100 ? ", Kronen " + CZ.D[qT] + " %" : "") +
+                        ", innen, Unterwuchs neutral.",
               );
             }
           } else if (bildOverlay && rasterCache && rasterCache.grob) {
@@ -7886,8 +8010,22 @@
             code = C.FS.pf[q],
             wald = code !== 255,
             unbekannt = code === 254,
+            aussen = code === 253,
             tg = C.tagIdx || 0;
           var arten = art === "pf" || art === "st" || art === "som" ? [art] : ARTEN;
+          if (aussen)
+            // außerhalb des Grundstocks: weder Wald noch Wetter bekannt
+            return {
+              a: arten[0],
+              sg: 0,
+              pot: null,
+              prod: null,
+              diff: 0,
+              key: 0,
+              wald: false,
+              unbekannt: false,
+              aussen: true,
+            };
           var best = null;
           arten.forEach(function (a) {
             var sg = wald && !unbekannt ? C.FS[a][q] : 0,
@@ -7987,6 +8125,10 @@
                 w = zweiWertAn(C, eff, art, fy, fx);
               POT[q] = w.pot || 0;
               DIFF[q] = w.diff;
+              if (w.aussen) {
+                ST[q] = 3;
+                continue;
+              }
               if (!w.wald) continue;
               if (w.unbekannt) {
                 ST[q] = 2;
@@ -8022,7 +8164,10 @@
             var st = ST[q2],
               farbe,
               alpha;
-            if (eff === "wetter") {
+            if (st === 3) {
+              farbe = GRAU_UNBEKANNT; // außerhalb des Kartengebiets
+              alpha = 0.3;
+            } else if (eff === "wetter") {
               if (!st) {
                 farbe = farbeGrobRgb(POT[q2]);
                 alpha = 0.5;
@@ -8158,7 +8303,7 @@
           var out = [],
             schritt = Math.max(1, Math.floor((C.FX * C.FY) / 2000));
           for (var q = 0; q < C.FX * C.FY; q += schritt) {
-            if (C.FS.pf[q] >= 254) continue;
+            if (C.FS.pf[q] >= 253) continue;
             var fy = Math.floor(q / C.FX),
               fx = q % C.FX,
               rr = {};
@@ -8374,7 +8519,7 @@
                     e.z.ll.lat.toFixed(6) +
                     "," +
                     e.z.ll.lng.toFixed(6) +
-                    ');return false;" style="color:#7ea262">Pin hier setzen</a>',
+                    ');return false;" style="color:var(--moos-hell)">Pin hier setzen</a>',
                 )
                 .addTo(stichGruppe);
             });
@@ -8621,7 +8766,7 @@
               ],
               {
                 renderer: canvas,
-                color: grob ? "#1d2119" : farbe,
+                color: grob ? cssFarbe("--humus") : farbe,
                 weight: grob ? 0.6 : z.geschaetzt ? 1 : 0,
                 opacity: grob ? 0.35 : 0.5,
                 dashArray: !grob && z.geschaetzt ? "3 3" : null,
@@ -8687,7 +8832,7 @@
                     ll.lat.toFixed(6) +
                     "," +
                     ll.lng.toFixed(6) +
-                    ');return false;" style="color:#7ea262">Pin hier setzen</a>',
+                    ');return false;" style="color:var(--moos-hell)">Pin hier setzen</a>',
                 )
                 .openOn(map);
             });
@@ -9337,7 +9482,13 @@
           setzeSchwelle(SCHWELLE.umkreis);
           $("tagregler").style.display = "none";
           umkreisGruppe.addLayer(
-            L.circle(pos, { radius: r, color: "#efeee6", weight: 1.5, fill: false, dashArray: "4 5" }),
+            L.circle(pos, {
+              radius: r,
+              color: cssFarbe("--humus"),
+              weight: 1.5,
+              fill: false,
+              dashArray: "4 5",
+            }),
           );
           zeigeTab("punkt");
           try {
@@ -9380,7 +9531,7 @@
           top.forEach(function (z, k) {
             var m = L.circleMarker(z.ll, {
               radius: 9,
-              color: "#efeee6",
+              color: cssFarbe("--papier"),
               weight: 2,
               fillColor: farbeStetig(sc(z)),
               fillOpacity: 0.95,
@@ -9409,10 +9560,10 @@
                 z.ll.lat.toFixed(6) +
                 "," +
                 z.ll.lng.toFixed(6) +
-                '" target="_blank" rel="noopener" style="color:#7ea262">Navigation</a>' +
+                '" target="_blank" rel="noopener" style="color:var(--moos-hell)">Navigation</a>' +
                 ' &nbsp;<a href="#" onclick="window.__spTopSpeichern(' +
                 k +
-                ');return false;" style="color:#7ea262">Speichern</a>',
+                ');return false;" style="color:var(--moos-hell)">Speichern</a>',
             );
             umkreisGruppe.addLayer(m);
           });
@@ -9465,22 +9616,9 @@
           this.classList.toggle("offen");
         });
         // Knopfgruppe schreibt ihren Wert ins versteckte Feld (g-r, g-art), das die Rechnung liest
-        function knopfGruppe(box, feld, fn) {
-          $(box).addEventListener("click", function (ev) {
-            var b = ev.target.closest("button[data-w]");
-            if (!b) return;
-            Array.prototype.forEach.call(this.querySelectorAll("button[data-w]"), function (x) {
-              x.classList.toggle("an", x === b);
-            });
-            $(feld).value = b.dataset.w;
-            fn(b.dataset.w);
-          });
-        }
-        knopfGruppe("rg-r", "g-r", function (w) {
-          if (!rasterLaeuft) zoomAufUmkreis(+w);
-        });
-        knopfGruppe("rg-art", "g-art", function () {
-          $("g-art").dispatchEvent(new Event("change"));
+        // Umkreis-Auswahl: sofort auf den Kreis einpassen (Pilzart hört unten auf „change“)
+        $("g-r").addEventListener("change", function () {
+          if (!rasterLaeuft) zoomAufUmkreis(+this.value);
         });
         // Was die Karte verdeckt (Region-Feld, Ladeanzeige, Schublade/Seitenleiste, falls sie überlappen):
         // als Rand fürs Einpassen, je Seite höchstens 45 % der Karte
@@ -9505,6 +9643,14 @@
           pd.l = Math.min(pd.l, m.width * 0.45);
           pd.r = Math.min(pd.r, m.width * 0.45);
           return pd;
+        }
+        // Farbe aus den CSS-Variablen (für Leaflet-Linien, die keine CSS-Variablen verstehen)
+        function cssFarbe(name) {
+          try {
+            return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "#888";
+          } catch (e) {
+            return "#888";
+          }
         }
         // Genau auf den Kreis (25/50/100 km) um Pin, sonst GPS-Standort, sonst Kartenmitte zoomen
         var letzteRegionMitte = null;
@@ -9532,7 +9678,8 @@
           regionKreis.addLayer(
             L.circle(mitte, {
               radius: r,
-              color: "#efeee6",
+              color: cssFarbe("--humus"), // dunkel: auf der hellen Karte sichtbar
+              opacity: 0.8,
               weight: 1.5,
               fill: false,
               dashArray: "6 6",
@@ -9825,6 +9972,7 @@
               grund.dichte[q] = h[q * 4 + 1];
             }
             daten.grund = grund;
+            grenzeZeigen();
             startZeigen("Tageswetter …", 0.4);
             var wetterJ = null;
             try {
@@ -9916,18 +10064,49 @@
             c = b.getCenter();
           return !!R && c.lat < R.latN && c.lat > R.latS && c.lng > R.lngW && c.lng < R.lngE;
         }
+        // Ausschnitt ganz im Grundstock („innen“), Mitte drin und Rand draußen („teil“) oder Mitte draußen
+        function grundstockLage(b) {
+          var R = daten.meta && daten.meta.raster;
+          if (!R || !imGrundstock(b)) return "aussen";
+          return b.getNorth() <= R.latN &&
+            b.getSouth() >= R.latS &&
+            b.getWest() >= R.lngW &&
+            b.getEast() <= R.lngE
+            ? "innen"
+            : "teil";
+        }
+        // Grenze des Grundstock-Gebiets (München ±100 km) als dünne gestrichelte Linie, sobald sie im Bild ist
+        var grenzeLinie = null;
+        function grenzeZeigen() {
+          var R = daten.meta && daten.meta.raster;
+          if (!R) return;
+          var gb = L.latLngBounds([R.latS, R.lngW], [R.latN, R.lngE]),
+            zeigen = !gb.contains(map.getBounds());
+          if (zeigen && !grenzeLinie)
+            grenzeLinie = L.rectangle(gb, {
+              color: cssFarbe("--humus"),
+              opacity: 0.6,
+              weight: 1.2,
+              dashArray: "6 6",
+              fill: false,
+              interactive: false,
+            }).addTo(map);
+          if (!zeigen && grenzeLinie) {
+            map.removeLayer(grenzeLinie);
+            grenzeLinie = null;
+          }
+        }
+        map.on("moveend", grenzeZeigen);
         // Schicht 4: Überblick aus Grundstock + Wetterfeld – nur Ausschneiden, Rechnen, Zeichnen, keine Netzabfrage
         function regionAusGrundstock(b, rKm) {
           var M = daten.meta.raster,
             s = rKm > 50 ? 2 : 1, // 100 km in 300 m, sonst 150 m
-            form = readForm(),
-            k0 = function (x, n) {
-              return Math.max(0, Math.min(n, x));
-            };
-          var i0 = k0(Math.floor((M.latN - b.getNorth()) / M.dLat), M.NY),
-            i1 = k0(Math.ceil((M.latN - b.getSouth()) / M.dLat), M.NY),
-            j0 = k0(Math.floor((b.getWest() - M.lngW) / M.dLng), M.NX),
-            j1 = k0(Math.ceil((b.getEast() - M.lngW) / M.dLng), M.NX),
+            form = readForm();
+          // Ausschnitt darf über das Grundstock-Gebiet hinausragen: dort Code 253 (außerhalb, grau)
+          var i0 = Math.floor((M.latN - b.getNorth()) / M.dLat),
+            i1 = Math.ceil((M.latN - b.getSouth()) / M.dLat),
+            j0 = Math.floor((b.getWest() - M.lngW) / M.dLng),
+            j1 = Math.ceil((b.getEast() - M.lngW) / M.dLng),
             FY = Math.floor((i1 - i0) / s),
             FX = Math.floor((j1 - j0) / s),
             n = FX * FY,
@@ -9947,12 +10126,21 @@
             },
             H = new Float32Array(n),
             D = new Uint8Array(n),
-            unbekannt = 0;
+            unbekannt = 0,
+            aussen = 0;
           for (var y = 0; y < FY; y++)
             for (var x = 0; x < FX; x++) {
-              var q = (i0 + y * s) * M.NX + (j0 + x * s),
-                k = y * FX + x,
-                bc = daten.grund.baum[q];
+              var gi = i0 + y * s,
+                gj = j0 + x * s,
+                q = gi * M.NX + gj,
+                k = y * FX + x;
+              if (gi < 0 || gj < 0 || gi >= M.NY || gj >= M.NX) {
+                FS.pf[k] = FS.st[k] = FS.som[k] = 253;
+                D[k] = 255;
+                aussen++;
+                continue;
+              }
+              var bc = daten.grund.baum[q];
               FS.pf[k] = daten.SG.pf[q];
               FS.st[k] = daten.SG.st[q];
               FS.som[k] = daten.SG.som[q];
@@ -9969,6 +10157,7 @@
               }
             }
           if (unbekannt) FS.unbekannt = unbekannt;
+          if (aussen) FS.aussen = aussen;
           var alt = wetterAlterH() > WETTER_MAX_H;
           rasterCache = {
             zellen: [],
@@ -10027,27 +10216,28 @@
             return;
           }
           // Grundstock + Tageswetter vorhanden und frisch (bzw. offline): Schicht 4 ohne jede Netzabfrage
-          var offline = !navigator.onLine || daten.offline;
-          if (daten.bereit && daten.WF && imGrundstock(b) && (wetterAlterH() <= WETTER_MAX_H || offline)) {
+          var offline = !navigator.onLine || daten.offline,
+            gLage = grundstockLage(b);
+          if (daten.bereit && daten.WF && gLage !== "aussen" && (wetterAlterH() <= WETTER_MAX_H || offline)) {
             rasterStart(btn, "Überblick aus Grundstock …");
             umkreisGruppe.clearLayers();
             letzteTop = [];
             $("u-list").innerHTML = "";
             $("u-save").style.display = "none";
             regionAusGrundstock(b, rKm);
-            regionStandZeigen();
+            regionStandZeigen(gLage === "teil" ? "teilweise außerhalb — Rand wird grau" : "");
             regionFertig(btn);
             return;
           }
           regionStandZeigen(
-            !daten.bereit
-              ? daten.fehler
-                ? "Grundstock nicht verfügbar – live gerechnet"
-                : "Grundstock lädt noch – live gerechnet"
-              : !daten.WF
-                ? "kein Tageswetter – live nachgeladen"
-                : !imGrundstock(b)
-                  ? "außerhalb des Grundstock-Gebiets – live gerechnet"
+            daten.meta && gLage === "aussen"
+              ? "Außerhalb des Kartengebiets München ±100 km — nur live, langsamer"
+              : !daten.bereit
+                ? daten.fehler
+                  ? "Grundstock nicht verfügbar – live gerechnet"
+                  : "Grundstock lädt noch – live gerechnet"
+                : !daten.WF
+                  ? "kein Tageswetter – live nachgeladen"
                   : "Wetter vom " + standKurz(daten.wetter.stand) + " — live nachgeladen",
           );
           rasterStart(btn, "Überblick: Baumartenkarte …");
@@ -11125,17 +11315,14 @@
             var R = C.darstellung || zweiRaster(C, zweiModus(), $("r-art").value, +$("r-min").value),
               gn = $("g-note");
             gn.classList.toggle("warn", R.ohneWetter);
-            gn.textContent =
-              (R.ohneWetter
-                ? "Wetter nicht verfügbar" +
-                  (C.wetterGrund ? " (" + C.wetterGrund + ")" : "") +
-                  (R.modus === "wetter" ? " — Wetterbild leer. " : " — nur Standort angezeigt. ")
-                : "") +
-              zweiText(R.modus) +
-              (R.n ? " Bestwert im Ausschnitt: " + R.top + "." : "") +
-              (R.unbekannt
-                ? " " + R.unbekannt + " Waldpixel ohne bekannten Boden sind grau und nicht mitgezählt."
-                : "");
+            // nur was eine Entscheidung ändert; die Erklärung der Darstellung steht im Tooltip,
+            // Bestwert in der Kopfzeile, unbekannter Boden in der Legende
+            gn.title = zweiText(R.modus);
+            gn.textContent = R.ohneWetter
+              ? "Wetter nicht verfügbar" +
+                (C.wetterGrund ? " (" + C.wetterGrund + ")" : "") +
+                (R.modus === "wetter" ? " — Wetterbild leer." : " — nur Standort angezeigt.")
+              : "";
             return { n: R.ueber, top: R.top };
           }
           var art = $("r-art").value,
@@ -11330,7 +11517,7 @@
           gewaehltRing = null;
           gewaehltRing = L.circleMarker([sp.lat, sp.lng], {
             radius: 13,
-            color: "#e8a516",
+            color: cssFarbe("--pfiff"),
             weight: 3,
             fill: false,
             interactive: false,
@@ -11403,7 +11590,7 @@
           if (gewaehlt >= 0 && spots[gewaehlt])
             gewaehltRing = L.circleMarker([spots[gewaehlt].lat, spots[gewaehlt].lng], {
               radius: 13,
-              color: "#e8a516",
+              color: cssFarbe("--pfiff"),
               weight: 3,
               fill: false,
               interactive: false,
@@ -11453,12 +11640,35 @@
             nz.className = "notiz" + (s.notiz ? "" : " leer");
             nz.addEventListener("click", function (ev) {
               ev.stopPropagation();
-              var t = prompt("Notiz zur Stelle", s.notiz || "");
-              if (t !== null) {
-                s.notiz = t.trim();
+              if (nz.querySelector("textarea")) return;
+              nz.className = "notiz";
+              nz.textContent = "";
+              var ta = document.createElement("textarea");
+              ta.rows = 2;
+              ta.maxLength = 300;
+              ta.placeholder = "z. B. Boden trocken, 32 °C";
+              ta.value = s.notiz || "";
+              nz.appendChild(ta);
+              ta.focus();
+              ta.addEventListener("click", function (e2) {
+                e2.stopPropagation();
+              });
+              // Enter oder Wegtippen speichert, Escape verwirft
+              ta.addEventListener("keydown", function (e2) {
+                if (e2.key === "Enter" && !e2.shiftKey) {
+                  e2.preventDefault();
+                  ta.blur();
+                }
+                if (e2.key === "Escape") {
+                  ta.value = s.notiz || "";
+                  ta.blur();
+                }
+              });
+              ta.addEventListener("blur", function () {
+                s.notiz = ta.value.trim();
                 persist();
                 render();
-              }
+              });
             });
             d.querySelector('[data-x="erfassen"]').addEventListener("click", function (ev) {
               ev.stopPropagation();
@@ -11469,15 +11679,23 @@
             if (weg1)
               weg1.addEventListener("click", function (ev) {
                 ev.stopPropagation();
-                var lb = letzterBesuch(s);
-                if (!confirm("Besuch „" + besuchKurz(lb) + "“ löschen?")) return;
-                s.besuche.pop();
+                var lb = s.besuche.pop();
                 altfelderSpiegeln(s);
                 persist();
                 lerne(spots);
                 render();
                 update();
-                toast("Besuch gelöscht");
+                toast("Besuch „" + besuchKurz(lb) + "“ gelöscht", {
+                  text: "Rückgängig",
+                  fn: function () {
+                    s.besuche.push(lb);
+                    altfelderSpiegeln(s);
+                    persist();
+                    lerne(spots);
+                    render();
+                    update();
+                  },
+                });
               });
             d.querySelector(".nm").textContent = s.name;
             d.querySelector(".mt").innerHTML =
@@ -11500,14 +11718,21 @@
             if (i === gewaehlt) d.classList.add("gewaehlt");
             d.querySelector("button.weg").addEventListener("click", function (ev) {
               ev.stopPropagation();
-              if (confirm("„" + s.name + '" löschen?')) {
-                spots.splice(i, 1);
-                persist();
-                lerne(spots);
-                render();
-                update();
-                toast("Gelöscht: " + s.name);
-              }
+              spots.splice(i, 1);
+              persist();
+              lerne(spots);
+              render();
+              update();
+              toast("Gelöscht: " + s.name, {
+                text: "Rückgängig",
+                fn: function () {
+                  spots.splice(Math.min(i, spots.length), 0, s);
+                  persist();
+                  lerne(spots);
+                  render();
+                  update();
+                },
+              });
             });
             box.appendChild(d);
             var fb = besuchFarbe(letzterBesuch(s));
@@ -11536,7 +11761,7 @@
                 (s.besuche.length ? "<br>" + besucheKurz(s, 2) : "") +
                 '<br><a href="' +
                 navUrl(s) +
-                '" target="_blank" rel="noopener" style="color:#7ea262">Navigation starten</a>',
+                '" target="_blank" rel="noopener" style="color:var(--moos-hell)">Navigation starten</a>',
             );
           });
         }

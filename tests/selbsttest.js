@@ -516,6 +516,38 @@ pruefe("(i) Überblick aus Grundstock ohne Netzabfrage", () => {
   return netzAbfragen === 0 && n > 0;
 });
 
+// (j) Ausschnitt ragt über das Grundstock-Gebiet: Rand = Code 253, grau in jeder Darstellung, nicht in der Statistik
+pruefe("(j) Außerhalb des Grundstocks wird grau, ohne Statistik", () => {
+  const C0 = ausschnitt(),
+    M = A.meta.raster;
+  T.regionAusGrundstock(
+    {
+      getNorth: () => M.latN,
+      getSouth: () => M.latN - M.NY * M.dLat,
+      getWest: () => M.lngW - 20 * M.dLng, // 20 Spalten links außerhalb
+      getEast: () => M.lngW + M.NX * M.dLng,
+    },
+    25,
+  );
+  const C2 = T.rasterCache;
+  C2.saison = "herbst";
+  const ok = ["zwei", "wetter", "standort"].every((modus) => {
+    const R2 = T.zweiRaster(C2, modus, "st", 0),
+      R0 = T.zweiRaster(C0, modus, "st", 0),
+      o = 5 * 4; // Pixel in Spalte 5 der ersten Zeile liegt außerhalb
+    // Gleitkomma: der Rand kann eine Spalte breiter ausfallen
+    return (
+      C2.FS.aussen >= 20 * C2.FY &&
+      C2.FS.aussen <= 21 * C2.FY &&
+      R2.n === R0.n &&
+      R2.rgba[o] === 128 &&
+      R2.rgba[o + 3] === 77
+    );
+  });
+  T.daten.WF = C0.WF;
+  return ok;
+});
+
 t.zeilen.forEach((z) => console.log(z));
 console.log("Ergebnis:", t.ok + "/" + t.n + (t.ok === t.n ? " – grün" : " – ABWEICHUNG"));
 process.exit(t.ok === t.n ? 0 : 2);
