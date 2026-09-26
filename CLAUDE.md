@@ -219,6 +219,11 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
   `.gitignore`; gelesen mit dem npm-Paket `h5wasm`). HYRAS-Temperaturen sind gepackt (`scale_factor` 0,1) – h5wasm
   wendet das nicht selbst an. Keine Höhenkorrektur der Temperatur (HYRAS in Geländehöhe), `bodenF` fehlt, ET0 nach
   Hargreaves. Bericht `werkzeuge/berichte/gbif-stufe2.md`; Reihen und Werte je Meldung nur im Cache.
+- **Nachschau** `werkzeuge/gbif-nachschau.js` (`node gbif-nachschau.js [--offline]`, nutzt `gbif-stufe2.js` als
+  Modul): Bodenfeuchte 0–7 cm je Meldung aus dem Open-Meteo-Archiv (`archive-api.open-meteo.com`, 24 h bis 12 Uhr
+  am Meldetag, 1 Abruf je Meldung, Cache `cache/gbif/nachschau-bodenfeuchte.json`), begrenzender Teil je Meldung
+  (Faktor auf 1 → größter Anstieg, mit `deckel`), Saisonende je halbem Monat. Bericht
+  `werkzeuge/berichte/gbif-nachschau.md`.
 
 ### App: Start, Schicht 2/3 und Überblick aus Grundstock
 - Start (`datenLaden`, Ladeanzeige `#start`, Karte sofort bedienbar): `meta.json` (Netz zuerst) → `grundlage.png`/

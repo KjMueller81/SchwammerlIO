@@ -7,11 +7,15 @@ Angenommen, aber noch nicht ausgeliefert. Beim Start hier eintragen, bei Auslief
 
 | Auftrag | Stand |
 |---|---|
-| M – Nachschau Stufe 2: niedrige Endwerte bei Steinpilzfunden, Saisonende (nur Werkzeug und Bericht) | begonnen |
+| – keine – | |
 
 ## Zuletzt ausgeliefert
 Nur die letzten fünf; ältere Auslieferungen stehen im Git-Verlauf.
 
+- **M – Nachschau Stufe 2 (26.09.2026, ohne App-Version):** `werkzeuge/gbif-nachschau.js` (Bodenfeuchte aus dem
+  Open-Meteo-Archiv, begrenzender Teil je Meldung, Saisonende je halbem Monat) und Bericht
+  [werkzeuge/berichte/gbif-nachschau.md](werkzeuge/berichte/gbif-nachschau.md); Kurzfassung unter „Wartet auf
+  Entscheidung“.
 - **L – Pin-Popup: Unsicher-Hinweis, Tabellenkopf, Arten ohne Chance (v2026-09-26.29):** Fingerprobe-Link nur, wenn
   die Spanne eine Urteilsschwelle (20/40/60) überdeckt und man vor Ort ist (GPS ≤ 10 min, ≤ 300 m), sonst kleines
   graues „Regen unsicher“, sonst nichts; Prognosetabelle mit festen Spalten (Köpfe genau über den Zahlen); Arten,
@@ -25,11 +29,6 @@ Nur die letzten fünf; ältere Auslieferungen stehen im Git-Verlauf.
 - **G – GBIF Stufe 1 (26.09.2026, ohne App-Version):** Werkzeug `werkzeuge/gbif.js` (öffentliche GBIF-API, Zählung
   + Einzelmeldungen, Zwischenspeicher außerhalb des Repos) und Bericht
   [werkzeuge/berichte/gbif-stufe1.md](werkzeuge/berichte/gbif-stufe1.md); Kurzfassung unter „Wartet auf Entscheidung“.
-- **I – Toast, unterer Rand, Bearbeiten-Formular, Felddaten (v2026-09-26.28):** Toast-Knopf rechts oder darunter,
-  nie über dem Text; Home-Bildschirm-App mit `100lvh` bis zum Bildschirmrand, dazu Diagnose-Zeile (innerHeight,
-  visualViewport, safe-area, Unterkanten) zum Ablesen am iPhone; Gebiet-Zeile mit Datum (Kacheln tragen ihr
-  Speicherdatum, ohne Datum lädt „Aktualisieren“ neu); „Bestimmung unsicher“ als Häkchen-Zeile je Fund;
-  Datumsfeld ohne iOS-Mindestbreite; Felddaten 25.9. korrigiert.
 
 ## Offline-Grundkarte (entschieden: Webkarte Bayern)
 
@@ -42,6 +41,16 @@ Nur die letzten fünf; ältere Auslieferungen stehen im Git-Verlauf.
   (`navigator.storage.persist()`); Offline-Umschaltung auf die Webkarte funktioniert.
 
 ## Wartet auf Entscheidung
+- **Nachschau Stufe 2 – Saisonende und Ausschlussregel (Vorschläge, keine Modelländerung).** Bericht:
+  [gbif-nachschau.md](werkzeuge/berichte/gbif-nachschau.md) (26.9.2026).
+  **Artefakt des Tests – ausgeschlossen:** Mit Bodenfeuchte (Open-Meteo-Archiv, 318 Abrufe) sinken die Steinpilzfunde
+  unter 20 nur von 30 auf 28 von 68, AUC bleibt 0,55; die fehlende Bodenfeuchte erklärt die niedrigen Werte nicht.
+  **Hinweis auf das Modell:** Begrenzend bei den 30 Funden unter 20 sind Regenfaktor (11) und Temperaturfaktor (11),
+  dazu der Moor-Deckel (6, Bodenkarte meldet Moor). Die Ausschlussregel Steinpilz (5 T > 17,5 °C, < 5 mm) greift bei
+  7 von 68 Funden (6 davon *B. edulis*) – zu entscheiden: lockern (z. B. Deckel 0,15 → 0,4) oder beibehalten.
+  Saisonende: Steinpilz-Anteil gegenüber Anfang September 1.–15.10. 0,38, 16.–31.10. 0,22 (9 bzw. 4 Funde), Modell
+  Frost × Kälte 0,93; die Kältesumme (Basis 5 °C) ist bis Ende Oktober im Median 0. Zu entscheiden: `KAELTE_BASIS`
+  8–10 °C (Oktober-Median dann 3–26) bzw. Stützstellen so, dass Oktober ≈ 0,4 ergibt – nur 15 Funde ab Oktober.
 - **GBIF Stufe 2 (Probe Steinpilz) – Ergebnis und Vorschläge, keine Modelländerung.** Bericht:
   [gbif-stufe2.md](werkzeuge/berichte/gbif-stufe2.md) (26.9.2026; Stufe 1:
   [gbif-stufe1.md](werkzeuge/berichte/gbif-stufe1.md)).
