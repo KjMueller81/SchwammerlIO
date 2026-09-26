@@ -23,7 +23,7 @@ const i0 = Math.floor((R.latN - (PIN[0] + HALB_LAT)) / R.dLat),
   j1 = Math.ceil((PIN[1] + HALB_LNG - R.lngW) / R.dLng),
   NY = i1 - i0,
   NX = j1 - j0;
-const grund = { baum: [], boden: [], lage: [], hoehe: [], dichte: [] };
+const grund = { baum: [], boden: [], lage: [], hoehe: [], dichte: [], abdeckung: [] };
 for (let i = i0; i < i1; i++)
   for (let j = j0; j < j1; j++) {
     const q = (i * R.NX + j) * 4;
@@ -32,9 +32,12 @@ for (let i = i0; i < i1; i++)
     grund.lage.push(g.data[q + 2]);
     grund.hoehe.push(h.data[q]);
     grund.dichte.push(h.data[q + 1]);
+    grund.abdeckung.push(h.data[q + 2]);
   }
 const metaA = {
   stand: meta.stand,
+  version: meta.version,
+  abdeckung: meta.abdeckung,
   codes: meta.codes,
   raster: Object.assign({}, R, { latN: R.latN - i0 * R.dLat, lngW: R.lngW + j0 * R.dLng, NX, NY }),
 };

@@ -8,7 +8,7 @@ Bewertet Waldstandorte für **Pfifferling (pf)**, **Fichtensteinpilz (st)** und 
 aus Geodaten (Baumart, Boden, Kronendichte, Gelände) und gemessenem Wetter. Nutzer: ein Sammler,
 Bedienung meist am iPhone im Wald, Auswertung am Windows-Rechner.
 
-Stand dieser Datei: v2026-09-26.16. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
+Stand dieser Datei: v2026-09-26.17. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
 
 ---
 
@@ -132,7 +132,12 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
   (`BAUM_FARBEN`, `naechsteFarbe`, `bodenDeuten`, `lageAusHoehen`).
 - Gebiet München ±100 km, Raster 150 m (1333 × 1333, gleiche Gradschritte). Ablage `daten/grundstock/`:
   `grundlage.png` (R Baumart-Code, G Boden-Code, B Lage-Code), `hoehe.png` (R Höhe/12 m, G Kronendichte in 5-%-Stufen,
-  nur im Wald, 255 = unbekannt), `meta.json` (Raster, Stand, Codes, Quellen, Lizenzen, Statistik). ≈ 2,6 MB.
+  nur im Wald, 255 = unbekannt; B Datenabdeckung 1/0), `meta.json` (Raster, Stand, Version, Codes, Quellen,
+  Lizenzen, Statistik). ≈ 2,6 MB. Die App lädt die Bilder mit `?v=<stand>.<version>` (`grundstockSchluessel`) –
+  bei einem neuen Dateiformat `meta.version` erhöhen, sonst bleibt am Gerät der alte Stand im Speicher.
+- Datenabdeckung (ab `version` 2, `meta.abdeckung`): Zelle in Deutschland (Natural Earth 1:10 Mio., gemeinfrei,
+  ≈ 1 km genau) oder Wald laut Baumartenkarte = 1. Außerhalb (Österreich) kennt die Baumartenkarte keinen Wald –
+  ohne Maske sähe das aus wie „kein Wald“.
 - Baumart: Thünen bei 50 m, Wald ab 4 von 9 Teilpunkten, häufigste Art. Boden: LfU bei 30 m (ScaleHint!), Zellmitte,
   Farben per GetFeatureInfo gedeutet (3 Stellen je Farbe, Mehrheit), seltene Farben → nächste bekannte (< 36).
   Höhe: AWS Terrain Tiles z11. Hangrichtung: `lageAusHoehen` mit Nachbarn ±150 m auf 200 m hochgerechnet, keine
@@ -283,7 +288,12 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
 - Überblick ehrlich: Unterwuchs im Überblick und in den Stichproben neutral (`UNTER_FERN` = Pseudoklasse
   `W.unter.mittel`, Mittel aller Klassen, ohne Kraut-/Brombeer-Deckel); der Pin nutzt die echte Eingabe.
   Feinraster-Code `FS` 255 = kein Wald, 254 = Wald mit unbekanntem Boden (grau, nicht in Bestwert/Statistik),
-  253 = außerhalb des Grundstock-Gebiets (heller grau, in jeder Darstellung, nicht in der Statistik).
+  253 = außerhalb des Grundstock-Gebiets, 252 = keine Daten (außerhalb Deutschlands); beide dezent grau
+  schraffiert, in jeder Darstellung, nicht in der Statistik. Tipp: „keine Daten (außerhalb Deutschlands)“.
+  Bild: `ueberblickBild` baut es in **einem** Durchgang (k-fach vergrößert, Zeilen gleich in Web-Mercator, Farben
+  innerhalb gleicher Klasse bilinear geglättet, Kanten hart über die Maske, Schraffur ≈ 10 Bildschirmpixel).
+  Pin-Fall (`pinFall`) schreibt im Grundstock-Weg `zelle` mit Baumart, Boden, Hang, Kronen, Höhe, Standortgüte,
+  Wetterpotenzial, Bewertung und Spanne des Feinpixels.
   `zweiRaster(C, modus, art, min)` rechnet die Darstellung ohne Leinwand (testbar), `zeichneZweiEbenen` malt.
   „Bewertung“: Farbe = erwartete Bewertung je Feinpixel (`bewertungAn` → `endwert` mit der Standortgüte des
   Pixels als `sgVorab`, Regen-/Temperaturfaktor aus dem Wetterfeld `GW[tag].rf/.tf`), Skala `farbeStetig` wie
@@ -332,6 +342,9 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
 
 - **Mercator:** Rasterbilder sind in gleichen Breitengrad-Schritten gerechnet, die Karte ist Web-Mercator.
   Vor `L.imageOverlay` immer `inMercator(...)` anwenden, sonst Nordversatz bis ~900 m.
+- **Nahtlinien:** `inMercator` kopiert Zeile für Zeile per `drawImage` – das ergab im Überblick feine waagrechte
+  Linien über die ganze Breite (Desktop und iPhone). Der Grundstock-Überblick rechnet Mercator deshalb direkt in
+  den Pixeln (`ueberblickBild`); `inMercator` nur noch für den alten Live-Weg.
 - **Rechtecke im Überblick** entstehen, wenn Boden aus der nächsten Stützstelle statt aus der Kartenfarbe
   kommt. Unbekannte Farbe → Formularwert, nicht Nachbar-Stützstelle.
 - **Ortsfestigkeit:** Ein Ort muss unabhängig von Ausschnitt und Pin denselben Wert haben

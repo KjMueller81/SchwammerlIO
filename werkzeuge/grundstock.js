@@ -38,7 +38,9 @@ const BODEN_URL = ebene("boden").url,
   BAUM_URL = ebene("baum").url,
   BAUM_LAYER = "geonode:Dominant_Species_Class",
   TCD_URL = "https://image.discomap.eea.europa.eu/arcgis/rest/services/GioLandPublic/HRL_TreeCoverDensity_2018/ImageServer",
-  TERRARIUM = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/";
+  TERRARIUM = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/",
+  GRENZE_URL =
+    "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_0_countries.geojson";
 
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -237,6 +239,38 @@ async function kacheln(f, max, verarbeite, breite = 2) {
   }
   log(`  Boden bekannt auf ${((100 * bodenWald) / Math.max(1, wald)).toFixed(1)} % der Waldzellen`);
 
+  // ---- Datenabdeckung: Die Baumartenkarte (Thünen) gibt es nur für Deutschland ----
+  // Zelle in Deutschland = Daten vorhanden. Grenze: Natural Earth 1:10 Mio. (gemeinfrei), Genauigkeit ≈ 1 km –
+  // reicht, um Österreich im Überblick als „keine Daten“ zu schraffieren statt als „kein Wald“ leer zu lassen.
+  log("Datenabdeckung (Staatsgrenze) …");
+  const laender = JSON.parse(await hole(GRENZE_URL, { text: true })),
+    de = laender.features.find((f) => f.properties.ADM0_A3 === "DEU").geometry,
+    ringe = (de.type === "Polygon" ? [de.coordinates] : de.coordinates).flat(); // Außen- und Innenringe
+  const ABDECKUNG = new Uint8Array(N);
+  let luecke = 0;
+  for (let i = 0; i < NY; i++) {
+    // Zeile per Scanline füllen: Schnittpunkte aller Ringkanten mit der Zeilenmitte, gerade-ungerade-Regel
+    const lat = zellLat(i),
+      xs = [];
+    for (const r of ringe)
+      for (let k = 0; k < r.length - 1; k++) {
+        const [x1, y1] = r[k],
+          [x2, y2] = r[k + 1];
+        if (y1 <= lat !== y2 <= lat) xs.push(x1 + ((lat - y1) / (y2 - y1)) * (x2 - x1));
+      }
+    xs.sort((a, b) => a - b);
+    for (let m = 0; m + 1 < xs.length; m += 2) {
+      const j0 = Math.max(0, Math.ceil((xs[m] - lngW) / dLng - 0.5)),
+        j1 = Math.min(NX - 1, Math.floor((xs[m + 1] - lngW) / dLng - 0.5));
+      for (let j = j0; j <= j1; j++) ABDECKUNG[i * NX + j] = 1;
+    }
+  }
+  for (let q = 0; q < N; q++) {
+    if (BAUM[q]) ABDECKUNG[q] = 1; // Wald aus der Baumartenkarte = Daten vorhanden (Grenze ist nur ≈ 1 km genau)
+    luecke += 1 - ABDECKUNG[q];
+  }
+  log(`  ohne Daten: ${luecke} Zellen (${((100 * luecke) / N).toFixed(1)} %)`);
+
   // ---- 3. Höhe: AWS-Geländekacheln z11 (~51 m/px), Zellmitte ----
   log("Höhe (AWS Terrain Tiles z11) …");
   const z = 11,
@@ -342,22 +376,22 @@ async function kacheln(f, max, verarbeite, breite = 2) {
   }
   log("Schreiben …");
   const H12 = new Uint8Array(N),
-    D5 = new Uint8Array(N),
-    NULL = new Uint8Array(N);
+    D5 = new Uint8Array(N);
   for (let q = 0; q < N; q++) {
     H12[q] = Math.min(255, Math.round(HOEHE[q] / 12));
     // Kronendichte nur im Wald (der Überblick braucht sie nur dort) – große gleichförmige Flächen packen gut
     D5[q] = !BAUM[q] || DICHTE[q] === 255 ? 255 : Math.round(DICHTE[q] / 5) * 5;
   }
   const g1 = schreibe("grundlage.png", BAUM, BODEN, LAGE),
-    g2 = schreibe("hoehe.png", H12, D5, NULL);
+    g2 = schreibe("hoehe.png", H12, D5, ABDECKUNG);
   const meta = {
-    version: 1,
+    version: 2,
+    abdeckung: true, // hoehe.png B = Datenabdeckung (ab Version 2)
     stand: new Date().toISOString().slice(0, 10),
     raster: { latN, latS, lngW, lngE, NX, NY, dLat, dLng, zelle_m: ZELLE_M, mitte: MITTE, radius_m: RADIUS_M },
     dateien: {
       "grundlage.png": { R: "Baumart-Code (0 = kein Wald)", G: "Boden-Code (0 = unbekannt)", B: "Lage-Code" },
-      "hoehe.png": { R: "Höhe in m = R·12", G: "Kronendichte % in 5er-Stufen (255 = unbekannt)", B: "frei (0)" },
+      "hoehe.png": { R: "Höhe in m = R·12", G: "Kronendichte % in 5er-Stufen (255 = unbekannt)", B: "Datenabdeckung: 1 = in Deutschland (Baumartenkarte vorhanden), 0 = keine Daten" },
     },
     codes: {
       baum: APP.BAUM_FARBEN.map((f, k) => ({ code: k + 1, art: f.art, wert: f.wert })),
@@ -369,6 +403,7 @@ async function kacheln(f, max, verarbeite, breite = 2) {
       { daten: "Boden", quelle: "Bayerisches Landesamt für Umwelt, ÜBK25 (Kartiereinheiten)", lizenz: "CC BY 4.0" },
       { daten: "Höhe", quelle: "AWS Terrain Tiles (Mapzen), u. a. SRTM, EU-DEM (Copernicus)", lizenz: "Namensnennung der Quellen" },
       { daten: "Kronendichte", quelle: "Copernicus HRL Tree Cover Density 2018 (EEA)", lizenz: "frei, Quellenangabe" },
+      { daten: "Datenabdeckung", quelle: "Natural Earth 1:10 Mio., Staatsgrenzen", lizenz: "gemeinfrei" },
     ],
     statistik: {
       waldZellen: wald,
@@ -376,6 +411,7 @@ async function kacheln(f, max, verarbeite, breite = 2) {
       bodenFarbenGedeutet: legende.size,
       punktabfragenBoden: abfragen,
       lageWald: lz,
+      ohneDatenZellen: luecke,
       bytes: { "grundlage.png": g1, "hoehe.png": g2 },
     },
   };

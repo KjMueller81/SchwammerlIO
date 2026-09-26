@@ -548,6 +548,36 @@ pruefe("(j) Außerhalb des Grundstocks wird grau, ohne Statistik", () => {
   return ok;
 });
 
+// (k) Datenlücke (außerhalb Deutschlands): Code 252, Klasse 4 (schraffiert), nicht in der Statistik
+pruefe("(k) Keine Daten: Code 252, schraffiert, ohne Statistik", () => {
+  const C0 = ausschnitt(),
+    M = A.meta.raster,
+    ab = grundA.abdeckung,
+    alt = ab.slice();
+  for (let i = 0; i < M.NY; i++) for (let j = 0; j < 10; j++) ab[i * M.NX + j] = 0; // 10 Spalten ohne Daten
+  T.regionAusGrundstock(
+    {
+      getNorth: () => M.latN,
+      getSouth: () => M.latN - M.NY * M.dLat,
+      getWest: () => M.lngW,
+      getEast: () => M.lngW + M.NX * M.dLng,
+    },
+    25,
+  );
+  const C2 = T.rasterCache;
+  C2.saison = "herbst";
+  const R2 = T.zweiRaster(C2, "zwei", "st", 0),
+    R0 = T.zweiRaster(C0, "zwei", "st", 0);
+  let k4 = 0,
+    waldWeg = 0; // Waldpixel mit bekanntem Boden, die jetzt in der Lücke liegen
+  for (let q = 0; q < R2.klasse.length; q++) {
+    if (R2.klasse[q] === 4) k4++;
+    if (C2.FS.st[q] === 252 && C0.FS.st[q] < 254) waldWeg++;
+  }
+  ab.set(alt);
+  return C2.FS.luecke === 10 * C2.FY && k4 === C2.FS.luecke && R2.n === R0.n - waldWeg;
+});
+
 t.zeilen.forEach((z) => console.log(z));
 console.log("Ergebnis:", t.ok + "/" + t.n + (t.ok === t.n ? " – grün" : " – ABWEICHUNG"));
 process.exit(t.ok === t.n ? 0 : 2);

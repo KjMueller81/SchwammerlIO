@@ -1,6 +1,7 @@
 {
- "version": 1,
- "stand": "2026-09-25",
+ "version": 2,
+ "abdeckung": true,
+ "stand": "2026-09-26",
  "raster": {
   "latN": 49.03528659719727,
   "latS": 47.23911340280273,
@@ -26,7 +27,7 @@
   "hoehe.png": {
    "R": "Höhe in m = R·12",
    "G": "Kronendichte % in 5er-Stufen (255 = unbekannt)",
-   "B": "frei (0)"
+   "B": "Datenabdeckung: 1 = in Deutschland (Baumartenkarte vorhanden), 0 = keine Daten"
   }
  },
  "codes": {
@@ -121,6 +122,11 @@
    "daten": "Kronendichte",
    "quelle": "Copernicus HRL Tree Cover Density 2018 (EEA)",
    "lizenz": "frei, Quellenangabe"
+  },
+  {
+   "daten": "Datenabdeckung",
+   "quelle": "Natural Earth 1:10 Mio., Staatsgrenzen",
+   "lizenz": "gemeinfrei"
   }
  ],
  "statistik": {
@@ -135,9 +141,10 @@
    "ost": 99407,
    "west": 103537
   },
+  "ohneDatenZellen": 305341,
   "bytes": {
    "grundlage.png": 1190550,
-   "hoehe.png": 1459627
+   "hoehe.png": 1460583
   }
  }
 }

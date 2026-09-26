@@ -1942,7 +1942,7 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-26.16";
+        var VERSION = "2026-09-26.17";
         // Radar nur als Kartenebene; in der Bewertung zu unzuverlässig (gelernte Farbskala, leere Bilder)
         var RADAR_IM_MODELL = false;
         var LOG = [];
@@ -2460,6 +2460,62 @@
             var z = C.zellen.find(function (x) {
               return x.i === i && x.j === j;
             });
+            if (!z && C.FS && C.quelle === "grundstock") {
+              // Grundstock-Weg: Werte des Feinpixels an der Pin-Stelle
+              var fy = Math.floor(((C.latN - pos.lat) / (C.latN - C.latS)) * C.FY),
+                fx = Math.floor(((pos.lng - C.lngW) / (C.lngE - C.lngW)) * C.FX);
+              if (fy >= 0 && fx >= 0 && fy < C.FY && fx < C.FX) {
+                var q = fy * C.FX + fx,
+                  tg = C.tagIdx || 0,
+                  code = C.FS.pf[q],
+                  je = function (fn) {
+                    var o = {};
+                    ARTEN.forEach(function (a) {
+                      o[a] = fn(a);
+                    });
+                    return o;
+                  },
+                  wald = code < 252 && code !== 255,
+                  bekannt = wald && code !== 254;
+                fall.zelle = {
+                  quelle: "grundstock",
+                  pixel: { fy: fy, fx: fx, meter: C.zellM },
+                  code: code,
+                  baum: C.FS.baum[q] || null,
+                  bwert: C.FS.bwert[q] || null,
+                  boden: C.FS.boden[q] || null,
+                  hang: C.FS.lage ? C.FS.lage[q] || null : null,
+                  kronen: C.D && C.D[q] <= 100 ? C.D[q] : null,
+                  hoehe: C.H ? Math.round(C.H[q]) : null,
+                  standortguete: bekannt
+                    ? je(function (a) {
+                        return C.FS[a][q];
+                      })
+                    : null,
+                  wetterpotenzial:
+                    hatWetter(C) && code < 252
+                      ? je(function (a) {
+                          return Math.round(potAn(C, tg, a, fy, fx));
+                        })
+                      : null,
+                  bewertung:
+                    bekannt && hatWetter(C)
+                      ? je(function (a) {
+                          return bewertungAn(C, tg, a, q, fy, fx);
+                        })
+                      : null,
+                  spanne:
+                    bekannt && hatWetter(C)
+                      ? je(function (a) {
+                          return [
+                            bewertungAn(C, tg, a, q, fy, fx, "rfMin"),
+                            bewertungAn(C, tg, a, q, fy, fx, "rfMax"),
+                          ];
+                        })
+                      : null,
+                };
+              }
+            }
             if (z)
               fall.zelle = {
                 merkmale: z.v,
@@ -2474,7 +2530,8 @@
               zellen: C.zellen.length,
               zellM: C.zellM,
               fein: C.FS ? C.FX + "x" + C.FY : null,
-              wetterfeld: !!C.GW,
+              wetterfeld: hatWetter(C),
+              quelle: C.quelle || "live",
               tag: C.tagIdx || 0,
             };
           }
@@ -5751,38 +5808,40 @@
                 qT = fyT * CZ.FX + fxT,
                 rPin = pos ? bewerte(readForm()) : null;
               toast(
-                wT.aussen
-                  ? "Außerhalb des Kartengebiets München ±100 km – hier nur Pin-Bewertung."
-                  : !wT.wald
-                    ? "Kein Wald laut Baumartenkarte."
-                    : wT.unbekannt
-                      ? (CZ.FS.baum[qT] || "Wald") + ": Boden unbekannt — hier keine Standortgüte."
-                      : ARTNAME[wT.a] +
-                        ": " +
-                        (wT.prod === null
-                          ? "Wetter nicht verfügbar · Standort " + wT.sg + " %"
-                          : "Bewertung ≈ " +
-                            Math.round(wT.prod) +
-                            (function () {
-                              var tg = CZ.tagIdx || 0,
-                                lo = bewertungAn(CZ, tg, wT.a, qT, fyT, fxT, "rfMin"),
-                                hi = bewertungAn(CZ, tg, wT.a, qT, fyT, fxT, "rfMax");
-                              return hi > lo ? " (Spanne " + lo + "–" + hi + ")" : "";
-                            })() +
-                            " (Wetter " +
-                            Math.round(wT.pot) +
-                            " %, Standort " +
-                            wT.sg +
-                            " %)") +
-                        (rPin ? " · Pin: " + rPin[wT.a] : "") +
-                        " — " +
-                        (CZ.FS.baum[qT] || "Wald") +
-                        ", " +
-                        CZ.FS.boden[qT] +
-                        ", " +
-                        (CZ.FS.lage ? LG[CZ.FS.lage[qT]] : "eben") +
-                        (CZ.D && CZ.D[qT] <= 100 ? ", Kronen " + CZ.D[qT] + " %" : "") +
-                        ", innen, Unterwuchs neutral.",
+                wT.luecke
+                  ? "keine Daten (außerhalb Deutschlands)"
+                  : wT.aussen
+                    ? "Außerhalb des Kartengebiets München ±100 km – hier nur Pin-Bewertung."
+                    : !wT.wald
+                      ? "Kein Wald laut Baumartenkarte."
+                      : wT.unbekannt
+                        ? (CZ.FS.baum[qT] || "Wald") + ": Boden unbekannt — hier keine Standortgüte."
+                        : ARTNAME[wT.a] +
+                          ": " +
+                          (wT.prod === null
+                            ? "Wetter nicht verfügbar · Standort " + wT.sg + " %"
+                            : "Bewertung ≈ " +
+                              Math.round(wT.prod) +
+                              (function () {
+                                var tg = CZ.tagIdx || 0,
+                                  lo = bewertungAn(CZ, tg, wT.a, qT, fyT, fxT, "rfMin"),
+                                  hi = bewertungAn(CZ, tg, wT.a, qT, fyT, fxT, "rfMax");
+                                return hi > lo ? " (Spanne " + lo + "–" + hi + ")" : "";
+                              })() +
+                              " (Wetter " +
+                              Math.round(wT.pot) +
+                              " %, Standort " +
+                              wT.sg +
+                              " %)") +
+                          (rPin ? " · Pin: " + rPin[wT.a] : "") +
+                          " — " +
+                          (CZ.FS.baum[qT] || "Wald") +
+                          ", " +
+                          CZ.FS.boden[qT] +
+                          ", " +
+                          (CZ.FS.lage ? LG[CZ.FS.lage[qT]] : "eben") +
+                          (CZ.D && CZ.D[qT] <= 100 ? ", Kronen " + CZ.D[qT] + " %" : "") +
+                          ", innen, Unterwuchs neutral.",
               );
             }
           } else if (bildOverlay && rasterCache && rasterCache.grob) {
@@ -8011,8 +8070,21 @@
             wald = code !== 255,
             unbekannt = code === 254,
             aussen = code === 253,
+            luecke = code === 252,
             tg = C.tagIdx || 0;
           var arten = art === "pf" || art === "st" || art === "som" ? [art] : ARTEN;
+          if (luecke)
+            return {
+              a: arten[0],
+              sg: 0,
+              pot: null,
+              prod: null,
+              diff: 0,
+              key: 0,
+              wald: false,
+              unbekannt: false,
+              luecke: true,
+            };
           if (aussen)
             // außerhalb des Grundstocks: weder Wald noch Wetter bekannt
             return {
@@ -8111,6 +8183,7 @@
               p90: null,
               rgba: new Uint8ClampedArray(N * 4),
               maske: new Uint8Array(N),
+              klasse: null, // je Pixel: 0 kein Wald, 1 Wald, 2 Boden unbekannt, 3 außerhalb, 4 keine Daten
             };
           if (eff === "wetter" && !hatWetter(C)) return erg; // ohne Wetter kein Wetterbild
           var ST = new Uint8Array(N), // 0 kein Wald, 1 Wald, 2 Wald mit unbekanntem Boden
@@ -8119,14 +8192,15 @@
             PROD = new Float32Array(N),
             DIFF = new Float32Array(N),
             sgs = [];
+          erg.klasse = ST;
           for (var fy = 0; fy < FY; fy++)
             for (var fx = 0; fx < FX; fx++) {
               var q = fy * FX + fx,
                 w = zweiWertAn(C, eff, art, fy, fx);
               POT[q] = w.pot || 0;
               DIFF[q] = w.diff;
-              if (w.aussen) {
-                ST[q] = 3;
+              if (w.aussen || w.luecke) {
+                ST[q] = w.luecke ? 4 : 3;
                 continue;
               }
               if (!w.wald) continue;
@@ -8164,8 +8238,8 @@
             var st = ST[q2],
               farbe,
               alpha;
-            if (st === 3) {
-              farbe = GRAU_UNBEKANNT; // außerhalb des Kartengebiets
+            if (st >= 3) {
+              farbe = GRAU_UNBEKANNT; // außerhalb des Kartengebiets bzw. keine Daten – im Bild schraffiert
               alpha = 0.3;
             } else if (eff === "wetter") {
               if (!st) {
@@ -8208,38 +8282,15 @@
         function zeichneZweiEbenen(C, modus, art, min, deck) {
           var R = zweiRaster(C, modus, art, min),
             FX = C.FX,
-            FY = C.FY,
-            cv = document.createElement("canvas");
+            FY = C.FY;
           C.darstellung = R;
           regionLegende(R);
           if (R.modus === "wetter" && R.ohneWetter) return R; // nichts zeichnen
-          cv.width = FX;
-          cv.height = FY;
-          var cx = cv.getContext("2d"),
-            img = cx.createImageData(FX, FY),
-            maske = document.createElement("canvas");
-          img.data.set(R.rgba);
-          maske.width = FX;
-          maske.height = FY;
-          var mx = maske.getContext("2d"),
-            mImg = mx.createImageData(FX, FY);
-          for (var q = 0; q < FX * FY; q++) mImg.data[q * 4 + 3] = R.maske[q];
-          cx.putImageData(img, 0, 0);
-          mx.putImageData(mImg, 0, 0);
-          var big = document.createElement("canvas");
-          big.width = FX * 2;
-          big.height = FY * 2;
-          var bx = big.getContext("2d");
-          bx.imageSmoothingEnabled = false;
-          bx.drawImage(cv, 0, 0, FX * 2, FY * 2); // Grundfarbe, volle Deckung bis zur Kante
-          bx.imageSmoothingEnabled = true;
-          bx.imageSmoothingQuality = "high";
-          bx.drawImage(cv, 0, 0, FX * 2, FY * 2); // Farben innen geglättet
-          bx.imageSmoothingEnabled = false; // Kanten hart: ungeglättete Maske
-          bx.globalCompositeOperation = "destination-in";
-          bx.drawImage(maske, 0, 0, FX * 2, FY * 2);
-          bx.globalCompositeOperation = "source-over";
-          big = inMercator(big, C.latN, C.latS);
+          // Schraffur in Bildschirm-Pixeln: Bildpixel je Bildschirmpixel beim Zeichnen
+          var pw = Math.abs(
+              map.latLngToContainerPoint([C.latN, C.lngE]).x - map.latLngToContainerPoint([C.latN, C.lngW]).x,
+            ),
+            big = ueberblickBild(R, C, pw);
           var bnd = L.latLngBounds([C.latS, C.lngW], [C.latN, C.lngE]);
           bildOverlay = L.imageOverlay(big.toDataURL("image/png"), bnd, {
             opacity: deck,
@@ -8248,6 +8299,99 @@
           });
           rasterGruppe.addLayer(bildOverlay);
           return R;
+        }
+        // Überblicksbild in einem Durchgang (keine Zeilenstreifen → keine Nahtlinien): k-fach vergrößert,
+        // Zeilen gleich in Web-Mercator, Farben innerhalb gleicher Klasse bilinear geglättet, Kanten hart (Pixel ohne Maske bleiben
+        // leer), außerhalb des Kartengebiets bzw. ohne Daten dezent grau schraffiert.
+        function ueberblickBild(R, C, bildschirmBreite) {
+          var FX = C.FX,
+            FY = C.FY,
+            k = Math.max(2, Math.min(6, Math.floor(2400 / Math.max(FX, FY)))),
+            W = FX * k,
+            H = FY * k,
+            cv = document.createElement("canvas"),
+            f = bildschirmBreite > 0 ? W / bildschirmBreite : 1, // Bildpixel je Bildschirmpixel
+            periode = Math.max(4, Math.round(10 * f)),
+            strich = Math.max(1, Math.round(2 * f));
+          cv.width = W;
+          cv.height = H;
+          var cx = cv.getContext("2d"),
+            img = cx.createImageData(W, H),
+            d = img.data,
+            src = R.rgba,
+            mk = R.maske,
+            kl = R.klasse,
+            yN = mercatorY(C.latN),
+            yS = mercatorY(C.latS),
+            gx0 = new Int32Array(W),
+            gx1 = new Int32Array(W),
+            gtx = new Float32Array(W),
+            gxc = new Int32Array(W);
+          for (var X = 0; X < W; X++) {
+            var u = (X + 0.5) / k,
+              uu = u - 0.5,
+              x0 = Math.floor(uu);
+            gtx[X] = uu - x0;
+            gx0[X] = Math.max(0, x0);
+            gx1[X] = Math.min(FX - 1, x0 + 1);
+            gxc[X] = Math.min(FX - 1, Math.floor(u));
+          }
+          for (var Y = 0; Y < H; Y++) {
+            var lat = mercatorLat(yN + ((Y + 0.5) / H) * (yS - yN)),
+              v = ((C.latN - lat) / (C.latN - C.latS)) * FY,
+              yc = Math.max(0, Math.min(FY - 1, Math.floor(v))),
+              vv = v - 0.5,
+              y0 = Math.floor(vv),
+              ty = vv - y0,
+              r0 = Math.max(0, y0) * FX,
+              r1 = Math.min(FY - 1, y0 + 1) * FX;
+            for (var X2 = 0; X2 < W; X2++) {
+              var qc = yc * FX + gxc[X2],
+                o = (Y * W + X2) * 4;
+              if (!mk[qc]) continue; // hart: Pixel außerhalb der Maske bleibt leer
+              var c = kl[qc];
+              if (c >= 3) {
+                // Schraffur: diagonale Linien, etwa alle 10 Bildschirmpixel beim Zeichnen
+                if ((X2 + Y) % periode < strich) {
+                  d[o] = src[qc * 4];
+                  d[o + 1] = src[qc * 4 + 1];
+                  d[o + 2] = src[qc * 4 + 2];
+                  d[o + 3] = 120;
+                }
+                continue;
+              }
+              var tx = gtx[X2],
+                nb = [r0 + gx0[X2], r0 + gx1[X2], r1 + gx0[X2], r1 + gx1[X2]],
+                wt = [(1 - tx) * (1 - ty), tx * (1 - ty), (1 - tx) * ty, tx * ty],
+                sr = 0,
+                sg = 0,
+                sb = 0,
+                sa = 0,
+                sw = 0;
+              for (var n = 0; n < 4; n++) {
+                var qn = nb[n];
+                if (!mk[qn] || kl[qn] !== c) continue; // nur gleiche Klasse mischen, nie über die Waldkante
+                sr += wt[n] * src[qn * 4];
+                sg += wt[n] * src[qn * 4 + 1];
+                sb += wt[n] * src[qn * 4 + 2];
+                sa += wt[n] * src[qn * 4 + 3];
+                sw += wt[n];
+              }
+              if (sw < 1e-6) {
+                d[o] = src[qc * 4];
+                d[o + 1] = src[qc * 4 + 1];
+                d[o + 2] = src[qc * 4 + 2];
+                d[o + 3] = src[qc * 4 + 3];
+              } else {
+                d[o] = sr / sw;
+                d[o + 1] = sg / sw;
+                d[o + 2] = sb / sw;
+                d[o + 3] = sa / sw;
+              }
+            }
+          }
+          cx.putImageData(img, 0, 0);
+          return cv;
         }
         // Kleine Legende im Region-Feld mit den echten Werten der Skala
         function regionLegende(R) {
@@ -8303,7 +8447,7 @@
           var out = [],
             schritt = Math.max(1, Math.floor((C.FX * C.FY) / 2000));
           for (var q = 0; q < C.FX * C.FY; q += schritt) {
-            if (C.FS.pf[q] >= 253) continue;
+            if (C.FS.pf[q] >= 252) continue;
             var fy = Math.floor(q / C.FX),
               fx = q % C.FX,
               rr = {};
@@ -9770,6 +9914,10 @@
           }
         }
         // Alte Grundstock-Stände aus dem Gerätespeicher entfernen
+        // Versionsschlüssel der Grundstock-Bilder: Stand + Dateiversion (gleicher Tag, neues Format → neu laden)
+        function grundstockSchluessel(meta) {
+          return meta.stand + "." + (meta.version || 1);
+        }
         async function grundstockAufraeumen(stand) {
           try {
             if (!window.caches || !window.isSecureContext) return;
@@ -9946,23 +10094,28 @@
             daten.meta = meta;
             startZeigen("Grundstock …", 0.1);
             var g = await pngKanaele(
-              await (await holeDatei(GRUND_PFAD + "grundlage.png?v=" + meta.stand, "cache-zuerst")).blob(),
+              await (
+                await holeDatei(GRUND_PFAD + "grundlage.png?v=" + grundstockSchluessel(meta), "cache-zuerst")
+              ).blob(),
               R.NX,
               R.NY,
             );
             startZeigen("Grundstock …", 0.25);
             var h = await pngKanaele(
-              await (await holeDatei(GRUND_PFAD + "hoehe.png?v=" + meta.stand, "cache-zuerst")).blob(),
+              await (
+                await holeDatei(GRUND_PFAD + "hoehe.png?v=" + grundstockSchluessel(meta), "cache-zuerst")
+              ).blob(),
               R.NX,
               R.NY,
             );
-            grundstockAufraeumen(meta.stand);
+            grundstockAufraeumen(grundstockSchluessel(meta));
             var grund = {
               baum: new Uint8Array(N),
               boden: new Uint8Array(N),
               lage: new Uint8Array(N),
               hoehe: new Uint8Array(N),
               dichte: new Uint8Array(N),
+              abdeckung: meta.abdeckung ? new Uint8Array(N) : null, // 0 = keine Daten (außerhalb Deutschlands)
             };
             for (var q = 0; q < N; q++) {
               grund.baum[q] = g[q * 4];
@@ -9970,6 +10123,7 @@
               grund.lage[q] = g[q * 4 + 2];
               grund.hoehe[q] = h[q * 4];
               grund.dichte[q] = h[q * 4 + 1];
+              if (grund.abdeckung) grund.abdeckung[q] = h[q * 4 + 2];
             }
             daten.grund = grund;
             grenzeZeigen();
@@ -10127,7 +10281,9 @@
             H = new Float32Array(n),
             D = new Uint8Array(n),
             unbekannt = 0,
-            aussen = 0;
+            aussen = 0,
+            luecke = 0,
+            AB = daten.grund.abdeckung;
           for (var y = 0; y < FY; y++)
             for (var x = 0; x < FX; x++) {
               var gi = i0 + y * s,
@@ -10138,6 +10294,13 @@
                 FS.pf[k] = FS.st[k] = FS.som[k] = 253;
                 D[k] = 255;
                 aussen++;
+                continue;
+              }
+              if (AB && !AB[q]) {
+                FS.pf[k] = FS.st[k] = FS.som[k] = 252; // keine Daten (außerhalb Deutschlands)
+                D[k] = 255;
+                H[k] = daten.grund.hoehe[q] * 12;
+                luecke++;
                 continue;
               }
               var bc = daten.grund.baum[q];
@@ -10158,6 +10321,7 @@
             }
           if (unbekannt) FS.unbekannt = unbekannt;
           if (aussen) FS.aussen = aussen;
+          if (luecke) FS.luecke = luecke;
           var alt = wetterAlterH() > WETTER_MAX_H;
           rasterCache = {
             zellen: [],
