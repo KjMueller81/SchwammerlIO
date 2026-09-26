@@ -1,15 +1,19 @@
 # Status Schwammerl-Karte
 
-Stand: v2026-09-26.25 (26.09.2026)
+Stand: v2026-09-26.26 (26.09.2026)
 
 ## Offene Aufträge
 Angenommen, aber noch nicht ausgeliefert. Beim Start hier eintragen, bei Auslieferung nach „Zuletzt ausgeliefert“.
 
 | Auftrag | Stand |
 |---|---|
-| D – Stellen und Besuche bearbeiten: Stelle und Besuche ändern/löschen mit Rückgängig; Fund „unsicher“ (zählt 0,5, Annahme); Merkmale der Stelle von Hand korrigieren; Datumsänderung bildet den Wetter-Schnappschuss neu; feste Besuchs-ID gegen Dubletten beim Import; drei offene Modellbeobachtungen nach STATUS.md. Nach E. | wartet (Auftragstext folgt) |
+| F – Kleinigkeiten Offline-Speicher und unterer Rand: Stand des Gebiets im Tab „Karten“ (✓-Zeile + „Aktualisieren“), Toast bei 0 neuen Kacheln, Toasts verdecken keine Knöpfe, unterer Rand am iPhone (safe-area nur einmal). | begonnen |
 
 ## Zuletzt ausgeliefert
+- **D – Stellen und Besuche bearbeiten (v2026-09-26.26):** Aufklapper „Bearbeiten“ je Stelle (Name, Merkmale mit
+  Hand-Vermerk ✎, alle Besuche mit Ändern/Löschen/Wetter nachholen), jede Änderung mit „Rückgängig“; Fund
+  „unsicher“ zählt halb (auch in „Besuch erfassen“); Datumsänderung bildet das Wetter an der Stelle neu; feste
+  Besuchs-id, Import erkennt geänderte Besuche per id. „Letzten Besuch löschen“ entfällt.
 - **E – Offline-Befunde vom iPhone (v2026-09-26.25):** Umkreis offline bzw. ohne Baumartenkarte aus dem Grundstock
   (150 m) statt aus dem Formular, Unbekanntes grau, keine Scheinrangliste (Gleichstand → näher am Pin, kaum
   Unterschiede → Hinweis); „Gleich los“ erst ab Urteilsstufe „mittel“, sonst „Diese Woche kaum Aussicht hier.“;
@@ -92,6 +96,12 @@ Angenommen, aber noch nicht ausgeliefert. Beim Start hier eintragen, bei Auslief
   Offline-Umschaltung auf die Webkarte funktioniert.
 
 ## Wartet auf Entscheidung
+- **Offene Modellbeobachtungen** (mit Felddaten prüfen):
+  - Pfifferling fällt nach Frost stärker als Steinpilz (Pin-Werte 38 → 12 gegenüber 48 → 15) – mit Oktober-Funden
+    prüfen.
+  - Kalkstandorte (z. B. Reit im Winkl, Fichte auf Kalk, Steinpilz 64) sind noch ohne Felddaten.
+  - Unterwuchs bisher nur Moos/Heidelbeere besucht, keine Leerfunde in Gras/Kraut erfasst – die Lernfaktoren für
+    Unterwuchs haben daher keinen Vergleich.
 - **Frost- und Kältewerte kalibrieren, sobald Oktober-Besuche vorliegen.** Alle Zahlen sind Annahmen
   (Frost 0 / −3 °C, Start 0,3 / 0,15, Erholung 7 / 10 Tage, Kältesumme Basis 5 °C mit 25 → 0,7, 60 → 0,3,
   100 → 0,1, Sommersteinpilz doppelt). Besuche mit „nichts“ nach Frost und Funde nach Frost sind besonders wertvoll.

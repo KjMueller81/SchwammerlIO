@@ -123,6 +123,12 @@ const EXPORT = [
   "bereichAusGrundstock",
   "umkreisRangfolge",
   "umkreisUnterschiede",
+  "fundGewicht",
+  "besuchWetterNeu",
+  "besuchV",
+  "lerne",
+  "LERN",
+  "stellenImport",
 ];
 // als Getter, damit auch später gesetzte Variablen (rasterCache) aktuell gelesen werden
 const kern = js.replace(
@@ -646,6 +652,116 @@ pruefe("(m) Kältesumme unvollständig erkannt", () => {
     K({ datum0: "2026-09-10", vorAb: "2026-09-01", omDaten: [pt([1, 2, null])] }) === true && // Lücke
     K({ datum0: "2026-09-10", vorAb: "2026-09-01", omDaten: [pt([1, 2, 3])] }) === false
   );
+});
+
+// ---- Stellen und Besuche bearbeiten (Auftrag D) ----
+// (o) unsicherer Fund zählt halb (Annahme, zu kalibrieren)
+pruefe("(o) Unsicherer Zielart-Fund 0,5, unsicherer Begleitfund halbes Zeigergewicht", () => {
+  return (
+    T.besuchWert({ fund: ["st"], unsicher: ["st"] }, "st") === 0.5 &&
+    T.besuchWert({ fund: ["st"], unsicher: [] }, "st") === 1 &&
+    T.besuchWert({ fund: ["marone"] }, "pf") === 0.5 &&
+    T.besuchWert({ fund: ["marone"], unsicher: ["marone"] }, "pf") === 0.25 &&
+    // unsicher nur für den markierten Fund: sicherer Steinpilz bleibt 1, auch wenn die Marone unsicher ist
+    T.besuchWert({ fund: ["st", "marone"], unsicher: ["marone"] }, "st") === 1
+  );
+});
+
+// Wetterreihe für die Besuchs-Tests: Regen 13 mm vor 13 Tagen, 31 mm vor 5 Tagen (wie Schliersee 22.9.)
+function reiheSchliersee() {
+  const tw = new Array(36).fill(0);
+  tw[35 - 13] = 13;
+  tw[35 - 5] = 31;
+  return {
+    tw,
+    et0: tw.map(() => 1.6),
+    tmin: tw.map(() => 9),
+    tmax: tw.map(() => 17),
+    f: { tw: [], et0: [], tmin: [], tmax: [], pp: [] },
+    datum0: "2026-08-18",
+  };
+}
+const SP_V = {
+  baum: "fichte",
+  alter: "mittel",
+  boden: "sauer",
+  unter: ["moos"],
+  lage: "nord",
+  rand: "innen",
+};
+
+// (p) Datum ändern bildet einen neuen Schnappschuss; außerhalb der Reihe → ohne Wetter, nachgetragen
+pruefe("(p) Datum ändern: neuer Wetter-Schnappschuss, außerhalb der Reihe ohne Wetter", () => {
+  const w = reiheSchliersee(),
+    sp = { v: SP_V },
+    b = { ts: Date.now(), fund: ["st"], unter: ["moos"], bestand: "mittel" };
+  T.besuchWetterNeu(b, T.besuchV(sp, b), w, 2, 800, 85);
+  const vor = JSON.stringify(b.wetter);
+  T.besuchWetterNeu(b, T.besuchV(sp, b), w, 12, 800, 85); // Besuch 10 Tage früher: vor dem großen Regen
+  const nach = b.wetter,
+    anders = vor !== JSON.stringify(nach) && JSON.parse(vor).regen7 !== nach.regen7;
+  const b2 = { ts: Date.now(), fund: [], unter: ["moos"], bestand: "mittel" },
+    mit = T.besuchWetterNeu(b2, T.besuchV(sp, b2), w, 40, 800, 85);
+  return (
+    anders && b.bewertung && b.wf && !mit && b2.wetter === null && b2.bewertung === null && b2.nachgetragen
+  );
+});
+
+// (q) Lernen reagiert auf das Umändern eines Funds (Sommersteinpilz → Steinpilz)
+pruefe("(q) Fund umändern (som → st) ändert die Lernwerte", () => {
+  const stelle = (lage, fund) => ({
+    lat: 47.8,
+    lng: 11.7,
+    v: Object.assign({}, SP_V, { lage }),
+    besuche: [{ ts: 1, fund, unter: ["moos"], bestand: "mittel", wf: { pf: 0.8, st: 0.8, som: 0.8 } }],
+  });
+  const liste = [stelle("nord", ["som"]), stelle("sued", []), stelle("ost", []), stelle("west", ["pf"])];
+  T.lerne(liste);
+  const vor = JSON.stringify(T.LERN);
+  liste[0].besuche[0].fund = ["st"];
+  T.lerne(liste);
+  const nach = T.LERN;
+  T.lerne([]); // Lernstand für die übrigen Tests zurücksetzen
+  return vor !== JSON.stringify(nach) && nach.lage.nord.st > 1;
+});
+
+// (r) Import: gleiche id → keine Dublette, die jüngere Bearbeitung gewinnt; alter Export ohne id wie bisher
+pruefe("(r) Import: gleiche Besuchs-id ersetzt, alter Export ohne id wie bisher", () => {
+  const T0 = Date.parse("2026-09-25T12:00:00");
+  const lokal = [
+    {
+      name: "Schliersee",
+      lat: 47.82,
+      lng: 11.74,
+      v: SP_V,
+      besuche: [{ id: "bx1", ts: T0, fund: ["som"], geaendert: 1 }],
+    },
+  ];
+  const gj = (besuche) => ({
+    features: [{ geometry: { coordinates: [11.74, 47.82] }, properties: { name: "Schliersee", besuche } }],
+  });
+  // geänderte Fassung: anderes Datum (> 5 Min.), anderer Fund, jünger bearbeitet
+  T.stellenImport(
+    lokal,
+    gj([{ id: "bx1", ts: T0 - 2 * 864e5, fund: ["st"], unsicher: ["st"], geaendert: 5 }]),
+    () => ({}),
+  );
+  const b1 = lokal[0].besuche;
+  const ok1 = b1.length === 1 && b1[0].fund[0] === "st" && b1[0].unsicher[0] === "st";
+  // ältere Fassung derselben id verliert
+  T.stellenImport(lokal, gj([{ id: "bx1", ts: T0, fund: ["pf"], geaendert: 2 }]), () => ({}));
+  const ok2 = lokal[0].besuche.length === 1 && lokal[0].besuche[0].fund[0] === "st";
+  // alter Export ohne id: gleicher ts ±5 Min. = Dublette, anderer ts = neuer Besuch (bekommt eine id)
+  T.stellenImport(
+    lokal,
+    gj([
+      { ts: T0 - 2 * 864e5 + 60e3, fund: ["st"] },
+      { ts: T0 + 3 * 864e5, fund: [] },
+    ]),
+    () => ({}),
+  );
+  const l3 = lokal[0].besuche;
+  return ok1 && ok2 && l3.length === 2 && !!l3[1].id;
 });
 
 // (n) Umkreis offline aus dem Grundstock: Ebersberger Pin, 1 km, ohne Live-Dienste (Wetter aus dem Tageswetter).

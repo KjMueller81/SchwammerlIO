@@ -453,6 +453,70 @@
         flex: 1;
         margin-top: 6px;
       }
+      /* Bearbeiten im Tab „Stellen“ */
+      .bb .bz-s,
+      .bb .md-kopf {
+        min-height: 40px;
+      }
+      .bb {
+        flex: 1 1 100%;
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid var(--linie);
+      }
+      .bz-voll {
+        grid-column: 1 / -1;
+      }
+      .bz-unsicher {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .md-u {
+        min-height: 40px;
+        padding: 0 12px;
+        font: inherit;
+        font-size: 12.5px;
+        color: var(--papier-2);
+        background: transparent;
+        border: 1px solid var(--linie);
+        border-radius: 7px;
+        cursor: pointer;
+      }
+      .md-u.an {
+        color: var(--humus);
+        background: var(--pfiff);
+        border-color: var(--pfiff);
+      }
+      .bb-besuche {
+        margin-top: 8px;
+      }
+      .bb-besuch {
+        border-top: 1px solid var(--linie);
+        padding: 6px 0;
+      }
+      .bb-kurz {
+        font-size: 12.5px;
+      }
+      .bb-knoepfe {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      .bb-knoepfe button {
+        flex: 1;
+        min-height: 40px;
+        margin-top: 6px;
+      }
+      .spot .mm {
+        font-size: 11.5px;
+        color: var(--papier-2);
+        margin-top: 2px;
+      }
+      .spot .mm .hand {
+        color: var(--pfiff);
+        cursor: help;
+      }
       .gk-balken {
         height: 6px;
         margin-top: 8px;
@@ -679,8 +743,13 @@
         padding: 9px 11px;
         margin-bottom: 8px;
         display: flex;
+        flex-wrap: wrap; /* Bearbeiten-Bereich über die volle Breite darunter */
         gap: 10px;
         align-items: flex-start;
+      }
+      .spot > .b {
+        flex: 1 1 0;
+        min-width: 0;
       }
       .spot .b {
         flex: 1;
@@ -919,24 +988,24 @@
         margin-top: 6px;
         padding-top: 5px;
       }
-      .pinpop .bz-raster {
+      :is(.pinpop, .bb) .bz-raster {
         display: grid;
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
         gap: 6px 8px;
         margin-top: 4px;
       }
-      .pinpop .bz-z {
+      :is(.pinpop, .bb) .bz-z {
         min-width: 0;
       }
-      .pinpop .bz-l {
+      :is(.pinpop, .bb) .bz-l {
         display: block;
         margin: 0 0 2px;
         font-size: 10.5px;
         color: var(--papier-2);
       }
-      .pinpop .bz-s,
-      .pinpop .md-kopf,
-      .pinpop .bz-datum {
+      :is(.pinpop, .bb) .bz-s,
+      :is(.pinpop, .bb) .md-kopf,
+      :is(.pinpop, .bb) .bz-datum {
         display: block;
         position: relative;
         width: 100%;
@@ -950,24 +1019,24 @@
         border: 1px solid var(--moos);
         border-radius: 6px;
       }
-      .pinpop .md-kopf {
+      :is(.pinpop, .bb) .md-kopf {
         cursor: pointer;
         display: flex;
         align-items: center;
         gap: 4px;
       }
-      .pinpop .md-kopf span {
+      :is(.pinpop, .bb) .md-kopf span {
         flex: 1;
         min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
-      .pinpop .md-kopf[aria-expanded="true"] {
+      :is(.pinpop, .bb) .md-kopf[aria-expanded="true"] {
         border-color: var(--moos-hell);
       }
       /* aufgeklappte Liste über die volle Breite, Einträge mit Häkchen, mindestens 40 px hoch */
-      .pinpop .md-liste {
+      :is(.pinpop, .bb) .md-liste {
         grid-column: 1 / -1;
         display: grid;
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -977,7 +1046,7 @@
         border: 1px solid var(--moos-hell);
         border-radius: 6px;
       }
-      .pinpop .md-e {
+      :is(.pinpop, .bb) .md-e {
         display: flex;
         align-items: center;
         gap: 7px;
@@ -992,7 +1061,7 @@
         border-radius: 5px;
         cursor: pointer;
       }
-      .pinpop .md-e::before {
+      :is(.pinpop, .bb) .md-e::before {
         content: "";
         flex: 0 0 16px;
         height: 16px;
@@ -1002,23 +1071,23 @@
         font-size: 12px;
         line-height: 14px;
       }
-      .pinpop .md-e.an::before {
+      :is(.pinpop, .bb) .md-e.an::before {
         content: "✓";
         background: var(--moos);
         color: var(--weiss);
       }
-      .pinpop .md-e:hover,
-      .pinpop .md-e:focus-visible {
+      :is(.pinpop, .bb) .md-e:hover,
+      :is(.pinpop, .bb) .md-e:focus-visible {
         background: var(--humus-2);
         outline: none;
       }
-      .pinpop .md-trenn {
+      :is(.pinpop, .bb) .md-trenn {
         grid-column: 1 / -1;
         border-top: 1px solid var(--linie);
         margin: 3px 0;
       }
       /* Datum: zeigt „heute", die unsichtbare Datumsauswahl liegt darüber und öffnet sich beim Antippen */
-      .pinpop .bz-datum input {
+      :is(.pinpop, .bb) .bz-datum input {
         position: absolute;
         inset: 0;
         width: 100%;
@@ -1027,7 +1096,7 @@
         cursor: pointer;
         border: none;
       }
-      .pinpop .bz-z small {
+      :is(.pinpop, .bb) .bz-z small {
         display: block;
         font-size: 10.5px;
         color: var(--pfiff);
@@ -2187,7 +2256,7 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-26.25";
+        var VERSION = "2026-09-26.26";
         // Radar nur als Kartenebene; in der Bewertung zu unzuverlässig (gelernte Farbskala, leere Bilder)
         var RADAR_IM_MODELL = false;
         var LOG = [];
@@ -4057,7 +4126,7 @@
         }
         // Fundwert eines Besuchs für Art a: Zielart = 1, sonst stärkstes BEGLEIT-Gewicht, sonst 0
         function besuchWert(b, a) {
-          return fundGewicht(b.fund, a);
+          return fundGewicht(b.fund, a, b.unsicher);
         }
         // Merkmalswerte, unter denen ein Besuch gelernt wird (Unterwuchs/Bestand vom Besuch, Rest von der Stelle)
         function besuchMerkmale(b, sp, k) {
@@ -5153,20 +5222,26 @@
           pfeffer: { name: "Pfefferröhrling", zeigt: { st: 0.35 } },
           semmel: { name: "Semmelstoppelpilz", zeigt: { pf: 0.35 } },
         };
-        function fundGewicht(fund, a) {
-          // 1 = Zielart selbst gefunden, sonst stärkster Begleitzeiger, 0 = nichts
+        // Unsicher bestimmter Fund (b.unsicher = Liste der Fund-Schlüssel) zählt halb – Annahme, zu kalibrieren
+        var UNSICHER_FAKTOR = 0.5;
+        function fundGewicht(fund, a, unsicher) {
+          // 1 = Zielart selbst gefunden, sonst stärkster Begleitzeiger, 0 = nichts; unsicher: × UNSICHER_FAKTOR
           if (!Array.isArray(fund)) return 0;
-          if (fund.indexOf(a) >= 0) return 1;
+          var u = function (f) {
+            return unsicher && unsicher.indexOf(f) >= 0 ? UNSICHER_FAKTOR : 1;
+          };
+          if (fund.indexOf(a) >= 0) return u(a);
           var g = 0;
           fund.forEach(function (f) {
-            if (BEGLEIT[f] && BEGLEIT[f].zeigt[a]) g = Math.max(g, BEGLEIT[f].zeigt[a]);
+            if (BEGLEIT[f] && BEGLEIT[f].zeigt[a]) g = Math.max(g, BEGLEIT[f].zeigt[a] * u(f));
           });
           return g;
         }
         // ---- Besuche: jede Stelle hat stelle.besuche = [Besuch, …] ----
         // Besuch: { ts, fund: [] (leer = nichts gefunden), alter: jung|mittel|alt|gemischt|null,
         //   finger: trocken|maessig|feucht|null, unter: [], bestand, bewertung: {pf,st,som}|null,
-        //   wetter: {regen7, regen26, streu, tageSeitRegen, temp20}|null, wf: {pf,st,som}|null, nachgetragen }
+        //   wetter: {regen7, regen26, streu, tageSeitRegen, temp20}|null, wf: {pf,st,som}|null, nachgetragen,
+        //   id (fest, für Import), geaendert (Zeitstempel der letzten Bearbeitung), unsicher: [Fund-Schlüssel] }
         // Die alten Felder fund/besucht/finger/fundAlter bleiben an der Stelle stehen (Rückwärtslesbarkeit).
         var FUNDKURZ = {
           pf: "Pfifferling",
@@ -5181,8 +5256,18 @@
         };
         var FINGERKURZ = { trocken: "trocken", maessig: "mäßig", feucht: "feucht" };
         // Alte Stelle (fund/besucht/finger/fundAlter) einmalig in einen ersten Besuch umwandeln
+        function neueBesuchId() {
+          return "b" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+        }
+        // Feste Besuchs-ID nachtragen (idempotent, auch für alte Besuche)
+        function besuchIds(sp) {
+          sp.besuche.forEach(function (b) {
+            if (b && !b.id) b.id = neueBesuchId();
+          });
+          return sp;
+        }
         function stelleNormal(sp) {
-          if (Array.isArray(sp.besuche)) return sp;
+          if (Array.isArray(sp.besuche)) return besuchIds(sp);
           sp.besuche = [];
           if (Array.isArray(sp.fund))
             sp.besuche.push({
@@ -5198,7 +5283,7 @@
               nachgetragen: false,
               umgewandelt: true,
             });
-          return sp;
+          return besuchIds(sp);
         }
         function letzterBesuch(sp) {
           var l = sp.besuche || [];
@@ -5210,7 +5295,7 @@
           s += b.fund.length
             ? b.fund
                 .map(function (f) {
-                  return FUNDKURZ[f] || f;
+                  return (FUNDKURZ[f] || f) + (b.unsicher && b.unsicher.indexOf(f) >= 0 ? "?" : "");
                 })
                 .join(", ") + (b.alter ? " (" + b.alter + ")" : "")
             : "nichts";
@@ -5228,16 +5313,27 @@
             return cssFarbe("--pfiff");
           return b.fund.length ? cssFarbe("--stein") : cssFarbe("--grau-leer");
         }
-        // Besuche zusammenführen; gleicher Zeitstempel ±5 Min. gilt als Dublette. Liefert die Zahl neuer Besuche.
+        // Besuche zusammenführen: zuerst per id (gleiche id → die jüngere Bearbeitung „geaendert“ gewinnt),
+        // erst ohne id-Treffer gilt gleicher Zeitstempel ±5 Min. als Dublette. Liefert die Zahl neuer Besuche.
         function besucheZusammenfuehren(ziel, neu) {
           var n = 0;
           (neu || []).forEach(function (b) {
             if (!b || typeof b.ts !== "number") return;
+            if (!Array.isArray(b.fund)) b.fund = [];
+            var gleich = b.id
+              ? ziel.findIndex(function (x) {
+                  return x.id === b.id;
+                })
+              : -1;
+            if (gleich >= 0) {
+              if ((b.geaendert || 0) > (ziel[gleich].geaendert || 0)) ziel[gleich] = b;
+              return;
+            }
             var dub = ziel.some(function (x) {
               return Math.abs(x.ts - b.ts) <= 5 * 60e3;
             });
             if (dub) return;
-            if (!Array.isArray(b.fund)) b.fund = [];
+            if (!b.id) b.id = neueBesuchId();
             ziel.push(b);
             n++;
           });
@@ -5309,6 +5405,33 @@
             tageSeitRegen: seit,
             temp20: t20,
           };
+        }
+        // Wetter-Schnappschuss, Bewertung und Wetterfaktor eines Besuchs neu bilden. w = Wetter der Stelle (ungekürzt,
+        // letzter Wert = heute), tage = Abstand des Besuchs zu heute. Ohne Wetter für den Tag: alles null,
+        // nachgetragen (zählt beim Lernen halb). v = Merkmale der Stelle mit Unterwuchs/Bestand des Besuchs.
+        function besuchWetterNeu(b, v, w, tage, hoehe, dichte) {
+          var wT = w ? wetterBisTag(w, tage) : null;
+          b.nachgetragen = tage > 0;
+          if (!wT) {
+            b.wetter = null;
+            b.bewertung = null;
+            b.wf = null;
+            b.nachgetragen = true;
+            return false;
+          }
+          b.wetter = wetterSchnappschuss(wT, v, hoehe, dichte);
+          var r = bewerte(v, wT, hoehe, undefined, dichte);
+          b.bewertung = { pf: r.pf, st: r.st, som: r.som };
+          b.wf = wetterFaktoren(v, wT, hoehe);
+          return true;
+        }
+        // Merkmale, unter denen ein Besuch bewertet wird: Stelle + Unterwuchs/Bestand des Besuchs
+        function besuchV(sp, b) {
+          var v = JSON.parse(JSON.stringify(sp.v || {}));
+          if (b.unter && b.unter.length) v.unter = b.unter.slice();
+          if (b.bestand) v.alter = b.bestand;
+          v.saison = v.saison || (new Date(b.ts).getMonth() >= 8 ? "herbst" : "sommer");
+          return v;
         }
         // GeoJSON-Export: alte Felder + besuche vollständig
         function stellenGeojson(liste) {
@@ -5839,6 +5962,7 @@
             fund: [],
             nichts: false,
             alter: null,
+            unsicher: [], // Fund-Schlüssel mit unsicherer Bestimmung
             offen: null, // aufgeklapptes Mehrfach-Dropdown: fund | unter | null
             datum: datumIso(new Date()),
           };
@@ -5862,88 +5986,182 @@
             ["kraut", "Kraut"],
             ["brom", "Brombeere"],
           ];
+        // ---- Bausteine der Besuchs-Formulare: Popup „Besuch erfassen“ und „Bearbeiten“ (Tab „Stellen“) ----
+        // fn = Name des Handlers (window[fn](g, wert)), auf = Handler zum Auf-/Zuklappen der Mehrfach-Dropdowns.
         // stopPropagation in allen onclick: der Inhalt wird beim Tippen neu gezeichnet; ohne Stopp hielte die
         // Karte das (dann gelöste) Element für einen Kartenklick und schlösse das Popup bzw. setzte einen Pin
-        function besuchBlockHtml(v) {
-          var e = entwurf || entwurfFuerPin();
-          if (!e) return "";
-          var zelle = function (titel, inhalt, fuer) {
-            return (
-              '<div class="bz-z"><label class="bz-l"' +
-              (fuer ? ' for="' + fuer + '"' : "") +
-              ">" +
-              titel +
-              "</label>" +
-              inhalt +
-              "</div>"
-            );
+        var BZ_ALTER = [
+            ["", "–"],
+            ["jung", "jung"],
+            ["mittel", "mittel"],
+            ["alt", "alt"],
+            ["gemischt", "gemischt"],
+          ],
+          BZ_FINGER = [
+            ["", "–"],
+            ["trocken", "trocken"],
+            ["maessig", "mäßig"],
+            ["feucht", "feucht"],
+          ],
+          BZ_BESTAND = [
+            ["hoch", "Alt &gt;25 m"],
+            ["mittel", "15–25 m"],
+            ["dickung", "Dickung"],
+            ["jung", "Kultur"],
+          ];
+        function bzZelle(titel, inhalt, fuer, voll) {
+          return (
+            '<div class="bz-z' +
+            (voll ? " bz-voll" : "") +
+            '"><label class="bz-l"' +
+            (fuer ? ' for="' + fuer + '"' : "") +
+            ">" +
+            titel +
+            "</label>" +
+            inhalt +
+            "</div>"
+          );
+        }
+        function bzAuswahl(id, fn, g, paare, wert) {
+          return (
+            '<select id="' +
+            id +
+            '" class="bz-s" onclick="event.stopPropagation()"' +
+            ' onchange="event.stopPropagation();window.' +
+            fn +
+            "('" +
+            g +
+            "', this.value)\">" +
+            paare
+              .map(function (x) {
+                return (
+                  '<option value="' +
+                  x[0] +
+                  '"' +
+                  (x[0] === (wert || "") ? " selected" : "") +
+                  ">" +
+                  x[1] +
+                  "</option>"
+                );
+              })
+              .join("") +
+            "</select>"
+          );
+        }
+        // Mehrfach-Dropdown: zugeklappt eine Zeile mit der Auswahl als Text, aufgeklappt Liste mit Häkchen
+        function bzMdKopf(auf, g, text, offen) {
+          return (
+            '<button type="button" class="md-kopf" data-md="' +
+            g +
+            '" aria-haspopup="listbox" aria-expanded="' +
+            !!offen +
+            '" onclick="event.stopPropagation();window.' +
+            auf +
+            "('" +
+            g +
+            "')\"><span>" +
+            (text || "–") +
+            "</span>▾</button>"
+          );
+        }
+        function bzMdListe(fn, g, eintraege) {
+          return (
+            '<div class="md-liste" role="listbox" aria-multiselectable="true" data-md="' +
+            g +
+            '">' +
+            eintraege
+              .map(function (x) {
+                if (x === "-") return '<div class="md-trenn" role="separator"></div>';
+                return (
+                  '<button type="button" role="option" class="md-e' +
+                  (x[2] ? " an" : "") +
+                  '" aria-selected="' +
+                  x[2] +
+                  '" data-w="' +
+                  x[0] +
+                  '" onclick="event.stopPropagation();window.' +
+                  fn +
+                  "('" +
+                  g +
+                  "','" +
+                  x[0] +
+                  "')\">" +
+                  x[1] +
+                  "</button>"
+                );
+              })
+              .join("") +
+            "</div>"
+          );
+        }
+        // Fund-Einträge und Unterwuchs als Listen für bzMdListe
+        function bzFundEintraege(fund, nichts) {
+          var e = function (w) {
+            return [w, FUNDKURZ[w], fund.indexOf(w) >= 0];
           };
-          var auswahl = function (id, g, paare, wert) {
-            return (
-              '<select id="' +
-              id +
-              '" class="bz-s" onclick="event.stopPropagation()"' +
-              " onchange=\"event.stopPropagation();window.__bz('" +
-              g +
-              "', this.value)\">" +
-              paare
-                .map(function (x) {
-                  return (
-                    '<option value="' +
-                    x[0] +
-                    '"' +
-                    (x[0] === (wert || "") ? " selected" : "") +
-                    ">" +
-                    x[1] +
-                    "</option>"
-                  );
+          return [["nichts", "Nichts", nichts]].concat(BZ_PILZE.map(e), ["-"], BZ_ZEIGER.map(e));
+        }
+        function bzUnterText(ul) {
+          return BZ_UNTER.filter(function (x) {
+            return ul.indexOf(x[0]) >= 0;
+          })
+            .map(function (x) {
+              return x[1];
+            })
+            .join(", ");
+        }
+        function bzFundText(fund, nichts) {
+          return nichts
+            ? "Nichts"
+            : fund
+                .map(function (w) {
+                  return FUNDKURZ[w] || w;
                 })
-                .join("") +
-              "</select>"
-            );
-          };
-          // Mehrfach-Dropdown: zugeklappt eine Zeile mit der Auswahl als Text, aufgeklappt Liste mit Häkchen
-          var mdKopf = function (g, text) {
-            return (
-              '<button type="button" class="md-kopf" data-md="' +
-              g +
-              '" aria-haspopup="listbox" aria-expanded="' +
-              (e.offen === g) +
-              '" onclick="event.stopPropagation();window.__mdAuf(\'' +
-              g +
-              "')\"><span>" +
-              (text || "–") +
-              "</span>▾</button>"
-            );
-          };
-          var mdListe = function (g, eintraege) {
-            return (
-              '<div class="md-liste" role="listbox" aria-multiselectable="true" data-md="' +
-              g +
-              '">' +
-              eintraege
-                .map(function (x) {
-                  if (x === "-") return '<div class="md-trenn" role="separator"></div>';
+                .join(", ");
+        }
+        // „unsicher“ je gewähltem Fund: Umschaltknöpfe über die volle Breite (≥ 40 px)
+        function bzUnsicher(fn, fund, unsicher) {
+          if (!fund.length) return "";
+          return bzZelle(
+            "Bestimmung unsicher?",
+            '<div class="bz-unsicher">' +
+              fund
+                .map(function (w) {
+                  var an = unsicher.indexOf(w) >= 0;
                   return (
-                    '<button type="button" role="option" class="md-e' +
-                    (x[2] ? " an" : "") +
-                    '" aria-selected="' +
-                    x[2] +
-                    '" data-w="' +
-                    x[0] +
-                    '" onclick="event.stopPropagation();window.__bz(\'' +
-                    g +
-                    "','" +
-                    x[0] +
+                    '<button type="button" class="md-u' +
+                    (an ? " an" : "") +
+                    '" aria-pressed="' +
+                    an +
+                    '" onclick="event.stopPropagation();window.' +
+                    fn +
+                    "('unsicher','" +
+                    w +
                     "')\">" +
-                    x[1] +
+                    (FUNDKURZ[w] || w) +
+                    (an ? " ?" : "") +
                     "</button>"
                   );
                 })
                 .join("") +
-              "</div>"
-            );
-          };
+              "</div>",
+            null,
+            true,
+          );
+        }
+        function besuchBlockHtml(v) {
+          var e = entwurf || entwurfFuerPin();
+          if (!e) return "";
+          var zelle = bzZelle,
+            auswahl = function (id, g, paare, wert) {
+              return bzAuswahl(id, "__bz", g, paare, wert);
+            },
+            mdKopf = function (g, text) {
+              return bzMdKopf("__mdAuf", g, text, e.offen === g);
+            },
+            mdListe = function (g, eintraege) {
+              return bzMdListe("__bz", g, eintraege);
+            };
           var hatFund = function (w) {
             return e.fund.indexOf(w) >= 0;
           };
@@ -5991,6 +6209,7 @@
                 "bz-alter",
               )
             : '<div class="bz-z"></div>';
+          h += bzUnsicher("__bz", e.fund, e.unsicher || []);
           if (e.offen === "fund")
             h += mdListe(
               "fund",
@@ -6090,10 +6309,10 @@
         // Liste schließen ohne Neuzeichnen: ein Tipp außerhalb soll sein Ziel nicht verschieben lassen
         function mdZu() {
           if (entwurf) entwurf.offen = null;
-          document.querySelectorAll(".pinpop .md-liste").forEach(function (el) {
+          document.querySelectorAll(":is(.pinpop, .bb) .md-liste").forEach(function (el) {
             el.remove();
           });
-          document.querySelectorAll(".pinpop .md-kopf").forEach(function (b) {
+          document.querySelectorAll(":is(.pinpop, .bb) .md-kopf").forEach(function (b) {
             b.setAttribute("aria-expanded", "false");
           });
           // Höhe und Lage des Popups an den kürzeren Inhalt anpassen (Leaflet-intern, ohne Neuzeichnen)
@@ -6133,16 +6352,29 @@
               if (e.nichts) {
                 e.fund = [];
                 e.alter = null;
+                e.unsicher = [];
               }
             } else {
               var i = e.fund.indexOf(w);
-              if (i >= 0) e.fund.splice(i, 1);
-              else e.fund.push(w);
+              if (i >= 0) {
+                e.fund.splice(i, 1);
+                e.unsicher = (e.unsicher || []).filter(function (x) {
+                  return x !== w;
+                });
+              } else e.fund.push(w);
               e.nichts = false;
               if (!e.fund.length) e.alter = null;
             }
             aktualisierePin("");
             bzFokus('.md-e[data-w="' + w + '"]');
+            return;
+          }
+          if (g === "unsicher") {
+            e.unsicher = e.unsicher || [];
+            var k = e.unsicher.indexOf(w);
+            if (k >= 0) e.unsicher.splice(k, 1);
+            else e.unsicher.push(w);
+            aktualisierePin("");
             return;
           }
           if (g === "alterWahl") e.alter = w || null;
@@ -6201,6 +6433,12 @@
             ts: tage === 0 ? Date.now() : new Date(+p[0], +p[1] - 1, +p[2], 12).getTime(),
             fund: e.nichts ? [] : e.fund.slice(),
             alter: e.nichts ? null : e.alter,
+            unsicher: e.nichts
+              ? []
+              : (e.unsicher || []).filter(function (x) {
+                  return e.fund.indexOf(x) >= 0;
+                }),
+            id: neueBesuchId(),
             finger: fingerprobe,
             unter: unterListe(v.unter).slice(),
             bestand: v.alter,
@@ -6245,8 +6483,9 @@
             return x.ts - y.ts;
           });
           sp.v = sp.v || v;
-          sp.v.unter = b.unter.slice();
-          sp.v.alter = b.bestand;
+          // Unterwuchs/Bestand der Stelle folgen dem Besuch – außer von Hand korrigierte Merkmale (sp.hand)
+          if (!(sp.hand && sp.hand.unter)) sp.v.unter = b.unter.slice();
+          if (!(sp.hand && sp.hand.alter)) sp.v.alter = b.bestand;
           altfelderSpiegeln(sp);
           if (b.nachgetragen) fingerprobe = null; // Tastbefund eines früheren Tags gilt nicht für heute
           persist();
@@ -13222,6 +13461,433 @@
             "&travelmode=driving"
           );
         }
+        // ================= Stellen und Besuche bearbeiten (Tab „Stellen“) =================
+        // Aufklapper „Bearbeiten“ je Stelle: oben die Merkmale der Stelle, darunter alle Besuche (neueste oben) mit
+        // „Ändern“ / „Löschen“. Änderungen sammeln sich in einem Entwurf (bb); Enter, Wegtippen oder
+        // „Übernehmen“ speichert, Escape oder „Verwerfen“ verwirft. Jede Änderung und Löschung sofort mit „Rückgängig“.
+        var bb = null, // { sp, stelle: {name, v}, b: Entwurf des Besuchs | null, offen: Dropdown | null }
+          MERKMAL_NAME = {
+            baum: "Baumart",
+            boden: "Boden",
+            lage: "Lage",
+            rand: "Struktur",
+            alter: "Bestand",
+            unter: "Unterwuchs",
+          },
+          MERKMAL_FORM = {
+            baum: "f-baum",
+            boden: "f-boden",
+            lage: "f-lage",
+            rand: "f-rand",
+            alter: "f-alter",
+          };
+        function kopie(x) {
+          return JSON.parse(JSON.stringify(x));
+        }
+        // Optionen der Merkmal-Auswahl aus dem Formular „Merkmale & Wetter anpassen“ (keine zweite Liste pflegen)
+        function merkmalOptionen(k) {
+          return Array.prototype.map.call($(MERKMAL_FORM[k]).options, function (o) {
+            return [o.value, o.textContent.trim()];
+          });
+        }
+        // Kurzform für Liste und Toasts (LT/LB/LG/LR/LA), sonst die Beschriftung aus dem Formular
+        function merkmalText(k, wert) {
+          if (k === "unter") return bzUnterText(unterListe(wert));
+          var kurz = { baum: LT, boden: LB, lage: LG, rand: LR, alter: LA }[k];
+          if (kurz && kurz[wert]) return kurz[wert];
+          var o = merkmalOptionen(k).find(function (x) {
+            return x[0] === wert;
+          });
+          return o ? o[1] : wert || "–";
+        }
+        function bbOeffnen(sp) {
+          stelleNormal(sp);
+          sp.v = sp.v || readForm();
+          bb = {
+            sp: sp,
+            stelle: { name: sp.name, v: kopie(sp.v) },
+            b: null,
+            offen: null,
+          };
+        }
+        function bbBesuchEntwurf(b) {
+          return {
+            id: b.id,
+            datum: datumIso(new Date(b.ts)),
+            fund: b.fund.slice(),
+            nichts: !b.fund.length,
+            alter: b.alter || null,
+            unsicher: (b.unsicher || []).slice(),
+            finger: b.finger || null,
+            unter: unterListe(b.unter && b.unter.length ? b.unter : bb.sp.v.unter).slice(),
+            bestand: b.bestand || bb.sp.v.alter || "mittel",
+          };
+        }
+        function bbBesuch() {
+          return bb && bb.b
+            ? bb.sp.besuche.find(function (x) {
+                return x.id === bb.b.id;
+              })
+            : null;
+        }
+        // Gibt es ungespeicherte Änderungen? (gilt für „Neu laden“ wie ein offener Besuchsentwurf)
+        function bbGeaendert() {
+          if (!bb) return false;
+          var sp = bb.sp,
+            st = bb.stelle;
+          if (st.name.trim() !== sp.name) return true;
+          if (JSON.stringify(st.v) !== JSON.stringify(sp.v)) return true;
+          var b = bbBesuch();
+          return !!(b && JSON.stringify(bb.b) !== JSON.stringify(bbBesuchEntwurf(b)));
+        }
+        function bbHtml() {
+          var sp = bb.sp,
+            st = bb.stelle,
+            h = "",
+            md = function (g, text) {
+              return bzMdKopf("__bbMd", g, text, bb.offen === g);
+            };
+          // a) Stelle
+          h += '<div class="bz-raster">';
+          h += bzZelle(
+            "Name",
+            '<input type="text" id="bb-name" class="bz-s" maxlength="80" value="' +
+              st.name.replace(/&/g, "&amp;").replace(/"/g, "&quot;") +
+              '">',
+            "bb-name",
+            true,
+          );
+          ["baum", "boden", "lage", "rand", "alter"].forEach(function (k) {
+            h += bzZelle(
+              MERKMAL_NAME[k] + (sp.hand && sp.hand[k] ? " ✎" : ""),
+              bzAuswahl("bb-" + k, "__bb", "v-" + k, merkmalOptionen(k), st.v[k]),
+              "bb-" + k,
+            );
+          });
+          h += bzZelle(
+            MERKMAL_NAME.unter + (sp.hand && sp.hand.unter ? " ✎" : ""),
+            md("s-unter", bzUnterText(unterListe(st.v.unter))),
+          );
+          if (bb.offen === "s-unter")
+            h += bzMdListe(
+              "__bb",
+              "s-unter",
+              BZ_UNTER.map(function (x) {
+                return [x[0], x[1], unterListe(st.v.unter).indexOf(x[0]) >= 0];
+              }),
+            );
+          h += "</div>";
+          // b) Besuche, neueste oben
+          h += '<div class="bb-besuche">';
+          sp.besuche
+            .slice()
+            .reverse()
+            .forEach(function (b) {
+              var tage = tageZurueck(datumIso(new Date(b.ts))),
+                nachholen = !b.wetter && b.nachgetragen && tage <= 35 && !istOffline();
+              h +=
+                '<div class="bb-besuch"><div class="bb-kurz">' +
+                besuchKurz(b).replace(/</g, "&lt;") +
+                (!b.wetter && b.nachgetragen ? " · ohne Wetter" : "") +
+                '</div><div class="bb-knoepfe">' +
+                '<button type="button" class="act ghost" data-bb="aendern" data-id="' +
+                b.id +
+                '">' +
+                (bb.b && bb.b.id === b.id ? "Zuklappen" : "Ändern") +
+                "</button>" +
+                '<button type="button" class="act ghost" data-bb="weg" data-id="' +
+                b.id +
+                '">Löschen</button>' +
+                (nachholen
+                  ? '<button type="button" class="act ghost" data-bb="nachholen" data-id="' +
+                    b.id +
+                    '">Wetter nachholen</button>'
+                  : "") +
+                "</div>";
+              if (bb.b && bb.b.id === b.id) h += bbBesuchHtml();
+              h += "</div>";
+            });
+          if (!sp.besuche.length) h += '<div class="note">Noch kein Besuch.</div>';
+          h += "</div>";
+          h +=
+            '<div class="bb-knoepfe"><button type="button" class="act" data-bb="ok">Übernehmen</button>' +
+            '<button type="button" class="act ghost" data-bb="verwerfen">Verwerfen</button></div>';
+          return h;
+        }
+        // Felder wie in „Besuch erfassen“ (dieselben Bausteine)
+        function bbBesuchHtml() {
+          var e = bb.b,
+            heute = datumIso(new Date()),
+            h = '<div class="bz-raster bb-form">';
+          h += bzZelle(
+            "Datum",
+            '<input type="date" id="bb-datum" class="bz-s" value="' +
+              e.datum +
+              '" max="' +
+              heute +
+              '" onchange="event.stopPropagation();window.__bb(\'datum\', this.value)">',
+            "bb-datum",
+          );
+          h += bzZelle(
+            "Fund",
+            bzMdKopf("__bbMd", "b-fund", bzFundText(e.fund, e.nichts), bb.offen === "b-fund"),
+          );
+          if (bb.offen === "b-fund") h += bzMdListe("__bb", "b-fund", bzFundEintraege(e.fund, e.nichts));
+          h += bzUnsicher("__bb", e.fund, e.unsicher);
+          h += e.fund.length
+            ? bzZelle("Alter", bzAuswahl("bb-alter", "__bb", "b-alter", BZ_ALTER, e.alter), "bb-alter")
+            : '<div class="bz-z"></div>';
+          h += bzZelle(
+            "Boden (Finger)",
+            bzAuswahl("bb-finger", "__bb", "b-finger", BZ_FINGER, e.finger),
+            "bb-finger",
+          );
+          h += bzZelle(
+            "Unterwuchs",
+            bzMdKopf("__bbMd", "b-unter", bzUnterText(e.unter), bb.offen === "b-unter"),
+          );
+          h += bzZelle(
+            "Bestand",
+            bzAuswahl("bb-bestand", "__bb", "b-bestand", BZ_BESTAND, e.bestand),
+            "bb-bestand",
+          );
+          if (bb.offen === "b-unter")
+            h += bzMdListe(
+              "__bb",
+              "b-unter",
+              BZ_UNTER.map(function (x) {
+                return [x[0], x[1], e.unter.indexOf(x[0]) >= 0];
+              }),
+            );
+          return h + "</div>";
+        }
+        function bbZeichnen() {
+          var el = $("bb-panel");
+          if (!el || !bb) return;
+          var oben = el.scrollTop;
+          el.innerHTML = bbHtml();
+          el.scrollTop = oben;
+          var name = $("bb-name");
+          name.addEventListener("input", function () {
+            bb.stelle.name = name.value;
+          });
+        }
+        window.__bbMd = function (g) {
+          if (!bb) return;
+          bb.offen = bb.offen === g ? null : g;
+          bbZeichnen();
+        };
+        window.__bb = function (g, w) {
+          if (!bb) return;
+          var e = bb.b,
+            toggle = function (liste, x) {
+              var i = liste.indexOf(x);
+              if (i >= 0) liste.splice(i, 1);
+              else liste.push(x);
+              return liste;
+            };
+          if (g.indexOf("v-") === 0) bb.stelle.v[g.slice(2)] = w;
+          else if (g === "s-unter") {
+            var ul = unterListe(bb.stelle.v.unter).slice();
+            if (!(ul.length === 1 && ul[0] === w)) bb.stelle.v.unter = toggle(ul, w); // mind. eine Klasse
+          } else if (!e) return;
+          else if (g === "datum") e.datum = w;
+          else if (g === "b-fund") {
+            if (w === "nichts") {
+              e.nichts = !e.nichts;
+              if (e.nichts) {
+                e.fund = [];
+                e.alter = null;
+                e.unsicher = [];
+              }
+            } else {
+              toggle(e.fund, w);
+              e.nichts = false;
+              e.unsicher = e.unsicher.filter(function (x) {
+                return e.fund.indexOf(x) >= 0;
+              });
+              if (!e.fund.length) e.alter = null;
+            }
+          } else if (g === "unsicher") toggle(e.unsicher, w);
+          else if (g === "b-alter") e.alter = w || null;
+          else if (g === "b-finger") e.finger = w || null;
+          else if (g === "b-bestand") e.bestand = w;
+          else if (g === "b-unter") {
+            if (!(e.unter.length === 1 && e.unter[0] === w)) toggle(e.unter, w);
+          }
+          bbZeichnen();
+        };
+        // Wetter an der Stelle über denselben Weg wie am Pin (Grundstock-Höhe/-Dichte, holeWetter mit
+        // Tageswetter/Live-Rückfall). Offline gibt es kein neues Wetter (später „Wetter nachholen“).
+        async function stelleWetter(sp) {
+          var ll = L.latLng(sp.lat, sp.lng),
+            g = grundstockAmPunkt(ll),
+            out = { w: null, hoehe: g ? g.hoehe : null, dichte: g && g.dichte !== null ? g.dichte : 85 };
+          if (istOffline()) return out;
+          try {
+            out.w = await holeWetterCached(ll, out.hoehe);
+          } catch (e) {}
+          return out;
+        }
+        // Rückgängig: tiefe Kopie der Stelle vorher an dieselbe Stelle der Liste zurücklegen
+        function stelleGeaendert(sp, vorher, text) {
+          altfelderSpiegeln(sp);
+          persist();
+          lerne(spots);
+          render();
+          update();
+          toast(text, {
+            text: "Rückgängig",
+            fn: function () {
+              var i = spots.indexOf(sp);
+              if (i < 0) return;
+              spots[i] = vorher;
+              if (bb && bb.sp === sp) bb = null;
+              persist();
+              lerne(spots);
+              render();
+              update();
+            },
+          });
+        }
+        async function bbSpeichern() {
+          if (!bb || !bbGeaendert()) return false;
+          var sp = bb.sp,
+            st = bb.stelle,
+            vorher = kopie(sp),
+            was = [],
+            hinweis = "";
+          // a) Stelle: Name, Merkmale (Hand-Korrektur vermerken, Originalwerte einmalig sichern)
+          if (st.name.trim() && st.name.trim() !== sp.name) {
+            sp.name = st.name.trim();
+            was.push("Name");
+          }
+          ["baum", "boden", "lage", "rand", "alter", "unter"].forEach(function (k) {
+            if (JSON.stringify(st.v[k]) === JSON.stringify(sp.v[k])) return;
+            if (!sp.vGeo) sp.vGeo = kopie(sp.v);
+            sp.v[k] = kopie(st.v[k]);
+            sp.hand = sp.hand || {};
+            sp.hand[k] = true;
+            was.push(MERKMAL_NAME[k] + " → " + merkmalText(k, st.v[k]));
+          });
+          // b) Besuch
+          var b = bbBesuch(),
+            e = bb.b;
+          if (b && JSON.stringify(e) !== JSON.stringify(bbBesuchEntwurf(b))) {
+            var alt = bbBesuchEntwurf(b),
+              tage = tageZurueck(e.datum);
+            if (isNaN(tage) || tage < 0) {
+              toast("Datum liegt in der Zukunft.");
+              return false;
+            }
+            var p = e.datum.split("-"),
+              datumNeu = e.datum !== alt.datum,
+              umstandNeu = JSON.stringify(e.unter) !== JSON.stringify(alt.unter) || e.bestand !== alt.bestand;
+            if (datumNeu) b.ts = tage === 0 ? Date.now() : new Date(+p[0], +p[1] - 1, +p[2], 12).getTime();
+            b.fund = e.nichts ? [] : e.fund.slice();
+            b.alter = b.fund.length ? e.alter : null;
+            b.unsicher = e.unsicher.slice();
+            b.finger = e.finger;
+            b.unter = e.unter.slice();
+            b.bestand = e.bestand;
+            b.geaendert = Date.now();
+            if (datumNeu || (umstandNeu && b.wetter)) {
+              var sw = await stelleWetter(sp),
+                mit = besuchWetterNeu(
+                  b,
+                  besuchV(sp, b),
+                  sw.w,
+                  tageZurueck(datumIso(new Date(b.ts))),
+                  sw.hoehe,
+                  sw.dichte,
+                );
+              if (!mit) hinweis = " · ohne Wetter";
+            }
+            sp.besuche.sort(function (x, y) {
+              return x.ts - y.ts;
+            });
+            was.push("Besuch " + besuchKurz(b));
+          }
+          bb.stelle = { name: sp.name, v: kopie(sp.v) };
+          bb.b = null;
+          bb.offen = null;
+          stelleGeaendert(sp, vorher, "Geändert: " + was.join(", ") + hinweis);
+          return true;
+        }
+        function bbVerwerfen() {
+          if (!bb) return;
+          bb.stelle = { name: bb.sp.name, v: kopie(bb.sp.v) };
+          bb.b = null;
+          bb.offen = null;
+          bbZeichnen();
+        }
+        async function bbKlick(aktion, id) {
+          var sp = bb.sp,
+            b = sp.besuche.find(function (x) {
+              return x.id === id;
+            });
+          if (aktion === "ok") {
+            if (!(await bbSpeichern())) toast("Nichts geändert.");
+          } else if (aktion === "verwerfen") bbVerwerfen();
+          else if (aktion === "aendern" && b) {
+            if (bb.b && bb.b.id === id) {
+              if (!(await bbSpeichern())) {
+                bb.b = null;
+                bbZeichnen();
+              }
+              return;
+            }
+            if (bbGeaendert()) await bbSpeichern();
+            bb.b = bbBesuchEntwurf(b);
+            bb.offen = null;
+            bbZeichnen();
+          } else if (aktion === "weg" && b) {
+            var vorher = kopie(sp);
+            sp.besuche = sp.besuche.filter(function (x) {
+              return x.id !== id;
+            });
+            if (bb.b && bb.b.id === id) bb.b = null;
+            stelleGeaendert(sp, vorher, "Besuch „" + besuchKurz(b) + "“ gelöscht");
+          } else if (aktion === "nachholen" && b) {
+            var vorher2 = kopie(sp),
+              sw = await stelleWetter(sp);
+            if (
+              !besuchWetterNeu(
+                b,
+                besuchV(sp, b),
+                sw.w,
+                tageZurueck(datumIso(new Date(b.ts))),
+                sw.hoehe,
+                sw.dichte,
+              )
+            ) {
+              toast("Wetter für diesen Tag noch nicht verfügbar.");
+              return;
+            }
+            b.geaendert = Date.now();
+            stelleGeaendert(sp, vorher2, "Wetter nachgeholt: " + besuchKurz(b));
+          }
+        }
+        // Wegtippen speichert: ein Tipp außerhalb des offenen Bearbeiten-Bereichs (nicht auf den Toast)
+        document.addEventListener(
+          "click",
+          function (ev) {
+            if (!bb || !ev.target.closest) return;
+            if (ev.target.closest("#bb-panel, #toast, [data-x='bearb']")) return;
+            if (bbGeaendert()) bbSpeichern();
+          },
+          true,
+        );
+        document.addEventListener("keydown", function (ev) {
+          if (!bb || !ev.target.closest || !ev.target.closest("#bb-panel")) return;
+          if (ev.key === "Escape") {
+            ev.preventDefault();
+            bbVerwerfen();
+          } else if (ev.key === "Enter" && ev.target.tagName !== "BUTTON") {
+            ev.preventDefault();
+            bbSpeichern();
+          }
+        });
         function render() {
           var box = $("list");
           box.innerHTML = "";
@@ -13267,12 +13933,55 @@
             var d = document.createElement("div");
             d.className = "spot";
             d.innerHTML =
-              '<div class="b"><div class="nm"></div><div class="mt"></div><a class="nav" target="_blank" rel="noopener">Navigation</a>' +
+              '<div class="b"><div class="nm"></div><div class="mt"></div><div class="mm"></div>' +
+              '<a class="nav" target="_blank" rel="noopener">Navigation</a>' +
               '<div class="besuche"></div>' +
               '<div class="fund"><button data-x="erfassen">Besuch erfassen</button>' +
-              (s.besuche.length ? '<button data-x="letzten-weg">Letzten Besuch löschen</button>' : "") +
+              '<button data-x="bearb" aria-expanded="' +
+              !!(bb && bb.sp === s) +
+              '">' +
+              (bb && bb.sp === s ? "Bearbeiten ▴" : "Bearbeiten ▾") +
+              "</button>" +
               "</div>" +
               '<div class="notiz"></div></div><button class="weg">Löschen</button>';
+            // Merkmale der Stelle; ✎ = von Hand korrigiert, Tooltip mit dem ursprünglichen Wert
+            var mm = d.querySelector(".mm");
+            s.v = s.v || {};
+            ["baum", "boden", "lage", "rand", "alter", "unter"].forEach(function (k, n) {
+              if (n) mm.appendChild(document.createTextNode(" · "));
+              mm.appendChild(document.createTextNode(merkmalText(k, s.v[k])));
+              if (s.hand && s.hand[k]) {
+                var z = document.createElement("span");
+                z.className = "hand";
+                z.textContent = " ✎";
+                z.title = "von Hand korrigiert, ursprünglich: " + (s.vGeo ? merkmalText(k, s.vGeo[k]) : "?");
+                mm.appendChild(z);
+              }
+            });
+            // Aufklapper „Bearbeiten“
+            d.querySelector('[data-x="bearb"]').addEventListener("click", async function (ev) {
+              ev.stopPropagation();
+              if (bb && bb.sp === s) {
+                await bbSpeichern(); // Zuklappen speichert offene Änderungen
+                bb = null;
+                render();
+                return;
+              }
+              if (bb && bbGeaendert()) await bbSpeichern();
+              bbOeffnen(s);
+              render();
+            });
+            if (bb && bb.sp === s) {
+              var panel = document.createElement("div");
+              panel.className = "bb";
+              panel.id = "bb-panel";
+              panel.addEventListener("click", function (ev) {
+                ev.stopPropagation();
+                var t = ev.target.closest("[data-bb]");
+                if (t) bbKlick(t.dataset.bb, t.dataset.id);
+              });
+              d.appendChild(panel);
+            }
             d.querySelector(".besuche").textContent = s.besuche.length
               ? besucheKurz(s) + (s.besuche.length > 3 ? " (" + s.besuche.length + " Besuche)" : "")
               : "Noch kein Besuch";
@@ -13318,28 +14027,6 @@
               map.setView([s.lat, s.lng], Math.max(map.getZoom(), 15));
               setzePunkt(L.latLng(s.lat, s.lng)); // Popup mit „Besuch erfassen" an der Stelle
             });
-            var weg1 = d.querySelector('[data-x="letzten-weg"]');
-            if (weg1)
-              weg1.addEventListener("click", function (ev) {
-                ev.stopPropagation();
-                var lb = s.besuche.pop();
-                altfelderSpiegeln(s);
-                persist();
-                lerne(spots);
-                render();
-                update();
-                toast("Besuch „" + besuchKurz(lb) + "“ gelöscht", {
-                  text: "Rückgängig",
-                  fn: function () {
-                    s.besuche.push(lb);
-                    altfelderSpiegeln(s);
-                    persist();
-                    lerne(spots);
-                    render();
-                    update();
-                  },
-                });
-              });
             d.querySelector(".nm").textContent = s.name;
             d.querySelector(".mt").innerHTML =
               ARTEN.map(function (a) {
@@ -13378,6 +14065,7 @@
               });
             });
             box.appendChild(d);
+            if (bb && bb.sp === s) bbZeichnen();
             var fb = besuchFarbe(letzterBesuch(s));
             var mk = L.circleMarker([s.lat, s.lng], {
               radius: 6,
@@ -13410,15 +14098,16 @@
         }
         // Wetterfaktor je Art zum Zeitpunkt (Regen × Temperatur), damit das Lernen Besuche bei Trockenheit schwächer gewichtet
         // wt: optional eine auf einen früheren Tag gekürzte Wetterreihe (nachgetragener Besuch)
-        function wetterFaktoren(v, wt) {
+        function wetterFaktoren(v, wt, hoehe) {
           var out = {},
-            w = wt === undefined ? wetter : wt;
+            w = wt === undefined ? wetter : wt,
+            hoeheW = hoehe === undefined ? hoehePunkt : hoehe;
           ARTEN.forEach(function (a) {
             var tf = w ? tempFaktor(a, w.tmin, w.tmax).f : 1;
             var rf = w
-              ? regenFaktorEnsemble(a, v, w, hoehePunkt).rf
+              ? regenFaktorEnsemble(a, v, w, hoeheW).rf
               : reglerHand
-                ? regenFaktorArt(a, v, null, hoehePunkt)
+                ? regenFaktorArt(a, v, null, hoeheW)
                 : 0.7;
             out[a] = Math.round(rf * tf * 100) / 100;
           });
@@ -13485,8 +14174,8 @@
             .catch(function () {});
         }
         function neuLaden() {
-          if (entwurf && (entwurf.fund.length || entwurf.nichts)) {
-            toast("Erst den Besuch speichern – dann neu laden.");
+          if ((entwurf && (entwurf.fund.length || entwurf.nichts)) || bbGeaendert()) {
+            toast("Erst den Besuch bzw. die Änderung speichern – dann neu laden.");
             return;
           }
           location.reload();

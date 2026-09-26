@@ -8,7 +8,7 @@ Bewertet Waldstandorte für **Pfifferling (pf)**, **Fichtensteinpilz (st)** und 
 aus Geodaten (Baumart, Boden, Kronendichte, Gelände) und gemessenem Wetter. Nutzer: ein Sammler,
 Bedienung meist am iPhone im Wald, Auswertung am Windows-Rechner.
 
-Stand dieser Datei: v2026-09-26.25. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
+Stand dieser Datei: v2026-09-26.26. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
 
 ---
 
@@ -410,6 +410,23 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
 - GeoJSON: `stellenGeojson` (alte Felder + `besuche`), `stellenImport` (Stellen < 25 m zusammenführen,
   Besuche mit gleichem Zeitstempel ±5 Min. = Dublette; alte Exporte ohne `besuche` über `stelleNormal`).
 - Markerfarbe nach letztem Besuch (`besuchFarbe`): gold Zielart, braun nur Zeiger, grau nichts, grün unbesucht.
+- Besuch zusätzlich (v2026-09-26.26): `id` (fest, lazy in `stelleNormal` über `besuchIds`, idempotent),
+  `geaendert` (Zeitstempel der letzten Bearbeitung), `unsicher` (Liste der Fund-Schlüssel mit unsicherer
+  Bestimmung). `fundGewicht(fund, a, unsicher)`: unsicherer Zielart-Fund 0,5, unsicherer Begleitfund halbes
+  Zeigergewicht (`UNSICHER_FAKTOR`, Annahme, zu kalibrieren); `besuchKurz` zeigt „?“. Import
+  (`besucheZusammenfuehren`): zuerst gleiche `id` → jüngeres `geaendert` gewinnt, erst ohne id-Treffer die
+  ts-±5-Min.-Regel; neue Besuche ohne id bekommen eine.
+- Stelle zusätzlich: `hand` = { Merkmal: true } für von Hand korrigierte Merkmale (nichts überschreibt sie; auch
+  „Besuch speichern“ setzt `v.unter`/`v.alter` nur ohne Hand-Vermerk), `vGeo` = Merkmale vor der ersten Korrektur
+  (einmalig gesichert). Die Stellenliste zeigt die Merkmale mit „✎“ (Tooltip: ursprünglicher Wert).
+- Bearbeiten (Tab „Stellen“, Aufklapper „Bearbeiten“, `bb`): oben Name und Merkmale (Auswahl aus den Formular-
+  optionen, Unterwuchs als Mehrfach-Dropdown), darunter alle Besuche (neueste oben) mit „Ändern“, „Löschen“ und
+  ggf. „Wetter nachholen“. Besuch ändern mit denselben Bausteinen wie „Besuch erfassen“ (`bzZelle`, `bzAuswahl`,
+  `bzMdKopf`, `bzMdListe`, `bzUnsicher`). Übernehmen/Enter/Wegtippen speichert, Verwerfen/Escape verwirft; jede
+  Änderung und Löschung sofort mit „Rückgängig“ (tiefe Kopie der Stelle, `stelleGeaendert`). Datum geändert →
+  `besuchWetterNeu` mit dem Wetter an der Stelle (`stelleWetter`: Grundstock-Höhe/-Dichte, `holeWetterCached`);
+  offline oder außerhalb der Reihe → ohne Wetter, nachgetragen, später „Wetter nachholen“. Unterwuchs/Bestand
+  geändert und Wetter vorhanden → Bewertung/wf neu. „Neu laden“ wartet, solange das Bearbeiten ungespeichert ist.
 
 ---
 
