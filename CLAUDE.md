@@ -492,7 +492,7 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
   frühere Fassung: 5-Tage-Mittel > 17,5 °C bei < 1 mm/Tag → kein Fund. Preprint, nicht begutachtet.
 - Pfifferling (Saskatchewan): Wärmesumme > 5 °C + kumuliert 50–100 mm.
 - Pilz4You (Potsdam 1988–2019): Steinpilzsaison 3–5 Dekaden zusammenhängend, 120-Tage-Mittel von
-  Temperatur/Bodenfeuchte/Niederschlag wichtig – noch nicht umgesetzt (siehe offene Punkte).
+  Temperatur/Bodenfeuchte/Niederschlag wichtig – noch nicht umgesetzt (siehe STATUS.md, Backlog).
 - Martínez-Peña et al. 2012: Steinpilzertrag am höchsten in mittelalten Beständen.
 - Messunsicherheit des Stationsregens: Die Interpolation aus DWD-Stationen (1/(d²+2), 30 km) weicht am Ort
   typisch ±15–20 % ab (konvektive Schauer, Stationsabstand 7–15 km); daher das Regen-Ensemble ×0,85/1/1,15.
@@ -520,12 +520,7 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
 
 ## Offene Punkte
 
-- Tiefe Bodenfeuchte (Open-Meteo `soil_moisture_27_to_81cm`) als Langzeitgedächtnis – erst als Anzeige
-  im Rechenweg, später evtl. als Faktor.
-- Validierung der Zeitkurven mit mehr Funden inkl. Fruchtkörperalter.
-- Baumartenkarte ist von 2018 (Käferflächen fehlen) – Plausibilisierung per Luftbild.
-- Frost- und Kältewerte kalibrieren, sobald Oktober-Besuche vorliegen.
-- Aufteilung in `modell.js` / `daten.js` / `index.html` mit Tests (Node) – erst wenn die Datei stabil ist.
+Offene Punkte: siehe `STATUS.md`, Abschnitt „Backlog“ (und „Wartet auf Entscheidung“).
 
 ---
 
