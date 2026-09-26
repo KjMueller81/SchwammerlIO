@@ -12,6 +12,8 @@ Angenommen, aber noch nicht ausgeliefert. Beim Start hier eintragen, bei Auslief
 ## Zuletzt ausgeliefert
 Nur die letzten fünf; ältere Auslieferungen stehen im Git-Verlauf.
 
+- **J – Backlog: Schutzgebiete und Wildruhezonen (26.09.2026, nur Doku):** Backlog-Punkt mit Quellen (LfU
+  Schutzgebiete, Wildschutzgebiete der Landratsämter, DAV-Schongebiete), Umsetzungsvorschlag und Rechtshinweis.
 - **G – GBIF Stufe 1 (26.09.2026, ohne App-Version):** Werkzeug `werkzeuge/gbif.js` (öffentliche GBIF-API, Zählung
   + Einzelmeldungen, Zwischenspeicher außerhalb des Repos) und Bericht
   [werkzeuge/berichte/gbif-stufe1.md](werkzeuge/berichte/gbif-stufe1.md); Kurzfassung unter „Wartet auf Entscheidung“.
@@ -26,10 +28,6 @@ Nur die letzten fünf; ältere Auslieferungen stehen im Git-Verlauf.
   Kacheln · 21 MB · Stand 26.9.“ mit „Aktualisieren“ (fehlende Kacheln; älter als 180 Tage: alle neu), sonst der
   grüne Knopf mit „(x % gespeichert)“; Toast bei 0 neuen Kacheln „… war schon vollständig gespeichert.“; Toasts
   oben über der Karte statt über der Schublade; unterer Rand am iPhone: sicherer Bereich genau einmal.
-- **D – Stellen und Besuche bearbeiten (v2026-09-26.26):** Aufklapper „Bearbeiten“ je Stelle (Name, Merkmale mit
-  Hand-Vermerk ✎, alle Besuche mit Ändern/Löschen/Wetter nachholen), jede Änderung mit „Rückgängig“; Fund
-  „unsicher“ zählt halb (auch in „Besuch erfassen“); Datumsänderung bildet das Wetter an der Stelle neu; feste
-  Besuchs-id, Import erkennt geänderte Besuche per id. „Letzten Besuch löschen“ entfällt.
 
 ## Offline-Grundkarte (entschieden: Webkarte Bayern)
 
@@ -85,6 +83,28 @@ Offene Punkte ohne Termin (aus CLAUDE.md hierher verschoben, 26.9.).
 - **GBIF-Rückrechnung (Stufe 1 erledigt, Stufe 2 offen):** Pilzmeldungen (GBIF, ab 2015) im Gebiet gegen die
   Endformel prüfen, Hintergrund = alle Pilzmeldungen derselben Zelle und Woche (Vorbild Kinoko,
   github.com/frederikbeimgraben/Kinoko). Prüft Trennschärfe, Regenverzögerung, Frost, Kältesumme.
+- **Schutzgebiete und Wildruhezonen anzeigen:** Stellen, an denen nicht oder nur eingeschränkt gesammelt bzw.
+  betreten werden darf, erkennbar machen – als Hinweis, nicht als Verbot aus der App heraus (Regeln stehen in der
+  jeweiligen Verordnung).
+  - Quelle 1 (offen): LfU Bayern, Schutzgebiete des Naturschutzes – Download (Shapefile, EPSG:25832/4258) bzw.
+    WFS/WMS, CC BY 4.0, Quellenvermerk „Datenquelle: Bayerisches Landesamt für Umwelt, www.lfu.bayern.de“,
+    Stand 1.3.2024. Enthält Naturschutzgebiete, Nationalparke, Landschaftsschutzgebiete, geschützte
+    Landschaftsbestandteile, Naturdenkmale, Biosphärenreservate, Naturparke; nicht enthalten: FFH, Vogelschutz,
+    Wildschutzgebiete. Für die App zunächst nur Naturschutzgebiete und Nationalparke (Zonen der Nationalparke
+    Bayerischer Wald und Berchtesgaden von den Nationalparkverwaltungen, falls offen verfügbar).
+  - Quelle 2 (zu klären): Wildschutzgebiete (amtlich, Betretungsverbot mit Zeitraum, z. B. Wildschutzgebiet
+    Rotwand, Landkreis Miesbach, 1.12.–14.7.). Festgesetzt durch die Landratsämter; offener Gesamtdatensatz nicht
+    gefunden – prüfen, ob BayernAtlas/Geoportal Bayern einen Dienst anbietet, sonst die Gebiete im Arbeitsgebiet
+    einzeln mit Zeitraum erfassen.
+  - Quelle 3 (zu klären): Wald-Wild-Schongebiete des DAV (freiwillig, v. a. Winter/Frühjahr, in alpenvereinaktiv
+    sichtbar) – Nutzungsrechte klären, sonst weglassen.
+  - Umsetzung (Vorschlag): eigene Kartenebene (Umriss, dezent schraffiert); im Pin-Popup und bei „Beste Stellen im
+    Umkreis“ ein Hinweis „liegt im Naturschutzgebiet ‚Name‘ – Verordnung beachten“ bzw. „Wildschutzgebiet ‚Name‘:
+    Betreten 1.12.–14.7. verboten“ (nur im Zeitraum rot); Stellen nicht ausblenden oder abwerten. Offline:
+    vereinfachte Umrisse als kleines GeoJSON bzw. als Kanal im Grundstock, Stand und Quelle im Datenstand.
+  - Hinweis Recht: Steinpilz und Pfifferling sind nach BArtSchV „besonders geschützt“ – Sammeln nur in geringer
+    Menge für den Eigenbedarf; in Naturschutzgebieten und Nationalparken gilt die jeweilige Verordnung (oft
+    Wegegebot, teils Sammelverbot).
 - **Pfeil zur Stelle:** Richtung und Entfernung zu einer gespeicherten Stelle, offline über GPS und Kompass.
 
 ## Hinweise
