@@ -77,8 +77,11 @@ Offene Punkte ohne Termin (aus CLAUDE.md hierher verschoben, 26.9.).
   ganz Bayern ≈ 3,3 × heute → Grundstock ≈ 8–9 MB, Wetterfeld ≈ 12 MB / ≈ 10 s Desktop, Open-Meteo ≈ 4 000
   Abrufe/Tag – gefährdet das Tageslimit (≈ 10 000, geteilte GitHub-Adresse). Bis dahin außerhalb der Live-Weg
   (gleiche Endformel, nicht offline, Kalibrierung nur aus Oberbayern).
-- **Live-Weg außerhalb des Gebiets:** Überblick auf den Kreis beschneiden (bisher Rechteck), Flächen ohne Daten
-  (z. B. Tschechien) schraffieren wie im Grundstock-Weg.
+- **Überblick auf den Kreis beschneiden (Live- und Grundstock-Weg):** Beide Wege zeichnen den Überblick als
+  Rechteck um den Umkreis (Befund 26.9.: 100-km-Kreis um Augsburg bzw. Landshut, Tegernsee/Chiemgau außerhalb des
+  Kreises eingefärbt). Soll: in beiden Wegen auf den Kreis beschneiden oder außerhalb deutlich abdunkeln; Statistik
+  und Stichproben nur innerhalb des Kreises. Im Live-Weg zusätzlich Flächen ohne Daten (z. B. Tschechien)
+  schraffieren wie im Grundstock-Weg.
 - **GBIF-Rückrechnung (Stufe 1 erledigt, Stufe 2 offen):** Pilzmeldungen (GBIF, ab 2015) im Gebiet gegen die
   Endformel prüfen, Hintergrund = alle Pilzmeldungen derselben Zelle und Woche (Vorbild Kinoko,
   github.com/frederikbeimgraben/Kinoko). Prüft Trennschärfe, Regenverzögerung, Frost, Kältesumme.
