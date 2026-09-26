@@ -395,6 +395,20 @@
         opacity: 0.55;
         cursor: default;
       }
+      .gk-balken {
+        height: 6px;
+        margin-top: 8px;
+        border-radius: 3px;
+        background: var(--knopf);
+        overflow: hidden;
+      }
+      .gk-balken i {
+        display: block;
+        height: 100%;
+        width: 0;
+        background: var(--moos-hell);
+        transition: width 0.3s ease;
+      }
       button.ghost {
         background: transparent;
         color: var(--papier-2);
@@ -1463,6 +1477,13 @@
         opacity: 0.5;
         cursor: default;
       }
+      /* Handy: der Quellenvermerk der Offline-Webkarte ist lang – kleiner setzen, damit er weniger Karte deckt */
+      @media (max-width: 899px) {
+        .leaflet-control-attribution {
+          font-size: 9.5px;
+          line-height: 1.3;
+        }
+      }
       /* Handy/Tablet: Knopf „Region" liegt über der Kartenebene und würde das Popup verdecken */
       @media (max-width: 899px) {
         #map.popup-offen .region-knopf {
@@ -1655,6 +1676,18 @@
             </div>
           </div>
 
+          <h2>Offline-Karte</h2>
+          <div class="gk" id="gk-box">
+            <div class="note" id="gk-info">Noch keine Offline-Karte gespeichert.</div>
+            <button class="act" id="gk-gebiet">Gebiet offline speichern (ca. 100 MB, WLAN empfohlen)</button>
+            <div class="gk-fort" style="display: none">
+              <div class="gk-balken"><i></i></div>
+              <div class="note gk-text"></div>
+              <button class="act ghost gk-stopp">Abbrechen</button>
+            </div>
+            <button class="act ghost" id="gk-weg">Offline-Karte löschen</button>
+          </div>
+
           <details class="grp" id="diag-box">
             <summary>Diagnose</summary>
             <div class="note" id="diagnose">Luftbild DOP20: wartet</div>
@@ -1756,6 +1789,14 @@
           </div>
           <div id="u-list"></div>
           <button class="act ghost" id="u-save" style="display: none">Alle fünf speichern</button>
+          <div class="gk" id="gk-punkt">
+            <button class="act ghost" id="gk-umg">Umgebung speichern (15 km)</button>
+            <div class="gk-fort" style="display: none">
+              <div class="gk-balken"><i></i></div>
+              <div class="note gk-text"></div>
+              <button class="act ghost gk-stopp">Abbrechen</button>
+            </div>
+          </div>
 
           <details class="grp">
             <summary>Merkmale &amp; Wetter anpassen</summary>
@@ -2031,6 +2072,7 @@
                 ? " — Wetter vom " + standKurz(daten.wetter.stand)
                 : "");
           if (off) $("fehler").style.display = "none"; // kein rotes Band ohne Netz
+          if (typeof grundkarteWahl === "function" && typeof gk !== "undefined") grundkarteWahl();
           if (typeof regionStandZeigen === "function") regionStandZeigen();
         }
         function zeigeDienste() {
@@ -2050,7 +2092,7 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-26.19";
+        var VERSION = "2026-09-26.20";
         // Radar nur als Kartenebene; in der Bewertung zu unzuverlässig (gelernte Farbskala, leere Bilder)
         var RADAR_IM_MODELL = false;
         var LOG = [];
@@ -2230,7 +2272,8 @@
           keepBuffer: MOBIL ? 1 : 2,
           detectRetina: false,
         };
-        L.tileLayer(
+        // Online-Grundkarte; offline ersetzt sie die gespeicherte Webkarte Bayern (grundkarteWahl)
+        var osmEbene = L.tileLayer(
           "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
           Object.assign({ maxZoom: 19, attribution: "© OpenStreetMap" }, KACHEL),
         ).addTo(map);
@@ -10001,6 +10044,348 @@
             });
           });
         }
+        // ================= Offline-Grundkarte: Webkarte Bayern (WMTS Geobasisdaten Bayern, CC BY 4.0) ============
+        // Nur auf Knopfdruck gespeichert, online bleibt OSM die Grundkarte; offline ersetzt die gespeicherte Webkarte
+        // OSM. Ablage im Cache „schwammerl-grundkarte-v1“, Schlüssel immer über Server 1 (keine Dreifachablage).
+        // Schonend: höchstens 4 Abrufe parallel, Pause zwischen den Paketen, Gespeichertes wird übersprungen.
+        var GK_CACHE = "schwammerl-grundkarte-v1",
+          GK_URL = "https://wmtsod{s}.bayernwolke.de/wmts/by_webkarte/smerc/",
+          GK_KB = 72, // gemessener Mittelwert je Kachel (kB), nur für die Größenangabe vorab
+          GK_UMGEBUNG_KM = 15,
+          // Quellenvermerk laut „Nutzungshinweise WMTS Geobasisdaten Bayern“ (Stand 27.10.2023), Layer Webkarte
+          GK_ZUSCHREIBUNG =
+            'Geobasisdaten: Bayerische Vermessungsverwaltung – <a href="https://www.geodaten.bayern.de" ' +
+            'target="_blank" rel="noopener">www.geodaten.bayern.de</a>, CC BY 4.0 · © Datenquellen: Bayerische ' +
+            "Vermessungsverwaltung, GeoBasis-DE / BKG 2023 – Daten verändert",
+          gk = { lauf: null, stand: gkStandLesen(), persist: null, cache: null };
+        function gkStandLesen() {
+          try {
+            return JSON.parse(localStorage.getItem("schwammerl:grundkarte")) || { n: 0, bytes: 0 };
+          } catch (e) {
+            return { n: 0, bytes: 0 };
+          }
+        }
+        function gkStandSchreiben() {
+          try {
+            localStorage.setItem("schwammerl:grundkarte", JSON.stringify(gk.stand));
+          } catch (e) {}
+        }
+        function gkSchluessel(z, x, y) {
+          return GK_URL.replace("{s}", "1") + z + "/" + x + "/" + y;
+        }
+        function gkCache() {
+          if (!gk.cache) gk.cache = caches.open(GK_CACHE);
+          return gk.cache;
+        }
+        function mbText(bytes) {
+          return bytes < 1e6 ? Math.round(bytes / 1e3) + " kB" : Math.round(bytes / 1e6) + " MB";
+        }
+        function kachelXY(lat, lng, z) {
+          var n = Math.pow(2, z),
+            r = (lat * Math.PI) / 180;
+          return {
+            x: Math.floor(((lng + 180) / 360) * n),
+            y: Math.floor(((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * n),
+          };
+        }
+        function kachelMitte(x, y, z) {
+          var n = Math.pow(2, z),
+            t = Math.PI - (2 * Math.PI * (y + 0.5)) / n;
+          return L.latLng(
+            (180 / Math.PI) * Math.atan(0.5 * (Math.exp(t) - Math.exp(-t))),
+            ((x + 0.5) / n) * 360 - 180,
+          );
+        }
+        // Stufe „Gebiet“: Grundstock-Gebiet München ±100 km, Zoom 0–12
+        function gkGebietKacheln() {
+          var R = (daten.meta && daten.meta.raster) || {
+              latN: 49.0353,
+              latS: 47.2391,
+              lngW: 10.2298,
+              lngE: 12.9214,
+            },
+            out = [];
+          for (var z = 0; z <= 12; z++) {
+            var a = kachelXY(R.latN, R.lngW, z),
+              b = kachelXY(R.latS, R.lngE, z);
+            for (var x = a.x; x <= b.x; x++) for (var y = a.y; y <= b.y; y++) out.push([z, x, y]);
+          }
+          return out;
+        }
+        // Stufe „Umgebung“: Kreis um Pin/GPS, Zoom 13–14 (Kachelmitte näher als r + halbe Diagonale)
+        function gkUmgebungKacheln(ll, rKm) {
+          var out = [],
+            r = rKm * 1000;
+          for (var z = 13; z <= 14; z++) {
+            var kante = (40075016 * Math.cos((ll.lat * Math.PI) / 180)) / Math.pow(2, z),
+              dLat = r / 111320,
+              dLng = r / (111320 * Math.cos((ll.lat * Math.PI) / 180)),
+              a = kachelXY(ll.lat + dLat, ll.lng - dLng, z),
+              b = kachelXY(ll.lat - dLat, ll.lng + dLng, z);
+            for (var x = a.x; x <= b.x; x++)
+              for (var y = a.y; y <= b.y; y++)
+                if (map.distance(ll, kachelMitte(x, y, z)) <= r + kante * 0.71) out.push([z, x, y]);
+          }
+          return out;
+        }
+        async function gkFehlend(liste) {
+          var c = await gkCache(),
+            fehlt = [];
+          for (var i = 0; i < liste.length; i++)
+            if (!(await c.match(gkSchluessel(liste[i][0], liste[i][1], liste[i][2])))) fehlt.push(liste[i]);
+          return fehlt;
+        }
+        // Dauerhaften Speicher erbitten (iPhone: greift laut WebKit v. a. als Home-Bildschirm-App)
+        function gkPersistenz(anfragen) {
+          if (!navigator.storage || !navigator.storage.persisted) {
+            gk.persist = "nicht unterstützt";
+            gkAnzeigen();
+            return;
+          }
+          navigator.storage
+            .persisted()
+            .then(function (p) {
+              return p || !anfragen || !navigator.storage.persist ? p : navigator.storage.persist();
+            })
+            .then(function (p) {
+              gk.persist = p ? "ja" : "nein";
+              gkAnzeigen();
+            })
+            .catch(function () {
+              gk.persist = "unbekannt";
+              gkAnzeigen();
+            });
+        }
+        async function gkLaden(liste, titel) {
+          if (gk.lauf) return;
+          var c = await gkCache(),
+            lauf = (gk.lauf = {
+              titel: titel,
+              abbruch: false,
+              fertig: 0,
+              neu: 0,
+              bytes: 0,
+              fehler: 0,
+              n: liste.length,
+            });
+          lauf.t0 = Date.now();
+          gkPersistenz(true);
+          gkAnzeigen();
+          for (var i = 0; i < liste.length && !lauf.abbruch; i += 4) {
+            var geladen = false;
+            await Promise.all(
+              liste.slice(i, i + 4).map(async function (k) {
+                try {
+                  var key = gkSchluessel(k[0], k[1], k[2]);
+                  if (!(await c.match(key))) {
+                    geladen = true;
+                    var r = await fetch(GK_URL.replace("{s}", 1 + ((k[1] + k[2]) % 3)) + k.join("/"));
+                    if (!r.ok) throw new Error("HTTP " + r.status);
+                    var blob = await r.blob();
+                    await c.put(
+                      key,
+                      new Response(blob, { headers: { "Content-Type": blob.type || "image/png" } }),
+                    );
+                    lauf.neu++;
+                    lauf.bytes += blob.size;
+                    gk.stand.n++;
+                    gk.stand.bytes += blob.size;
+                  }
+                } catch (e) {
+                  lauf.fehler++;
+                }
+                lauf.fertig++;
+              }),
+            );
+            gkStandSchreiben();
+            gkAnzeigen();
+            if (geladen) await pause(120); // schonend: kleine Pause zwischen den Paketen
+          }
+          gk.lauf = null;
+          gkStandSchreiben();
+          toast(
+            lauf.abbruch
+              ? "Abgebrochen – bisher gespeicherte Kacheln bleiben."
+              : titel +
+                  " gespeichert: " +
+                  lauf.neu +
+                  " Kacheln neu (" +
+                  mbText(lauf.bytes) +
+                  ")" +
+                  (lauf.fehler ? ", " + lauf.fehler + " fehlgeschlagen" : ""),
+          );
+          gkAnzeigen();
+          grundkarteWahl();
+        }
+        function gkAnzeigen() {
+          var l = gk.lauf,
+            info = $("gk-info");
+          if (info)
+            info.textContent =
+              (gk.stand.n
+                ? "Gespeichert: " +
+                  gk.stand.n.toLocaleString("de-DE") +
+                  " Kacheln · " +
+                  mbText(gk.stand.bytes)
+                : "Noch keine Offline-Karte gespeichert.") +
+              (gk.persist ? " · Speicher dauerhaft: " + gk.persist : "");
+          document.querySelectorAll(".gk-fort").forEach(function (el) {
+            el.style.display = l ? "block" : "none";
+            if (!l) return;
+            var p = l.n ? l.fertig / l.n : 1,
+              s = (Date.now() - l.t0) / 1000,
+              rest = p > 0.03 ? (s * (1 - p)) / p : null;
+            el.querySelector(".gk-balken i").style.width = Math.round(p * 100) + "%";
+            el.querySelector(".gk-text").textContent =
+              l.titel +
+              ": " +
+              l.fertig.toLocaleString("de-DE") +
+              " / " +
+              l.n.toLocaleString("de-DE") +
+              " Kacheln · " +
+              mbText(l.bytes) +
+              (rest !== null
+                ? " · noch ~" + (rest < 90 ? Math.round(rest) + " s" : Math.round(rest / 60) + " min")
+                : "");
+          });
+          ["gk-gebiet", "gk-umg", "gk-weg"].forEach(function (id) {
+            if ($(id)) $(id).disabled = !!l;
+          });
+        }
+        // Offline-Kachelebene: liest nur aus dem Speicher; fehlt eine Kachel, nimmt sie die nächstgröbere
+        // (bis 6 Stufen) vergrößert, sonst bleibt der helle Hintergrund
+        var GkEbene = L.TileLayer.extend({
+          createTile: function (coords, done) {
+            var cv = document.createElement("canvas");
+            cv.width = cv.height = 256;
+            gkKachelZeichnen(cv, coords.z, coords.x, coords.y).then(
+              function () {
+                done(null, cv);
+              },
+              function () {
+                done(null, cv);
+              },
+            );
+            return cv;
+          },
+        });
+        async function gkKachelZeichnen(cv, z, x, y) {
+          var c = await gkCache();
+          for (var d = 0; d <= 6 && z - d >= 0; d++) {
+            var f = Math.pow(2, d),
+              px = Math.floor(x / f),
+              py = Math.floor(y / f),
+              r = await c.match(gkSchluessel(z - d, px, py));
+            if (!r) continue;
+            var bm = await createImageBitmap(await r.blob()),
+              s = 256 / f,
+              cx = cv.getContext("2d");
+            cx.imageSmoothingEnabled = true;
+            cx.drawImage(bm, (x - px * f) * s, (y - py * f) * s, s, s, 0, 0, 256, 256);
+            return true;
+          }
+          return false;
+        }
+        var gkEbene = new GkEbene("", { maxZoom: 19, attribution: GK_ZUSCHREIBUNG });
+        // Offline und etwas gespeichert → Webkarte statt OSM; online (oder nichts gespeichert) → OSM
+        function grundkarteWahl() {
+          var off = istOffline() && gk.stand.n > 0;
+          if (off && !map.hasLayer(gkEbene)) {
+            map.removeLayer(osmEbene);
+            gkEbene.addTo(map);
+            gkEbene.bringToBack();
+          } else if (!off && map.hasLayer(gkEbene)) {
+            map.removeLayer(gkEbene);
+            osmEbene.addTo(map);
+            osmEbene.bringToBack();
+          }
+        }
+        // Start: gespeicherten Stand mit dem Cache abgleichen (Browser kann ihn geräumt haben)
+        async function gkInit() {
+          try {
+            if (!window.caches || !window.isSecureContext) return;
+            var n = (await (await gkCache()).keys()).length;
+            if (n !== gk.stand.n) {
+              gk.stand.bytes = gk.stand.n ? Math.round((gk.stand.bytes / gk.stand.n) * n) : n * GK_KB * 1000;
+              gk.stand.n = n;
+              gkStandSchreiben();
+            }
+          } catch (e) {}
+          gkPersistenz(false);
+          gkAnzeigen();
+          grundkarteWahl();
+        }
+        $("gk-gebiet").addEventListener("click", function () {
+          gkLaden(gkGebietKacheln(), "Gebiet");
+        });
+        // Umgebung: erster Tipp nennt die Größe, zweiter lädt (Bestätigung im Knopf selbst)
+        var gkUmgebungListe = null,
+          gkUmgebungTimer = null;
+        $("gk-umg").addEventListener("click", async function () {
+          var btn = this,
+            ll = pos || standortLL;
+          if (gkUmgebungListe) {
+            clearTimeout(gkUmgebungTimer);
+            var liste = gkUmgebungListe;
+            gkUmgebungListe = null;
+            btn.textContent = "Umgebung speichern (" + GK_UMGEBUNG_KM + " km)";
+            gkLaden(liste, "Umgebung");
+            return;
+          }
+          if (!ll) {
+            toast("Erst einen Pin setzen oder den GPS-Standort holen.");
+            return;
+          }
+          btn.textContent = "Prüfe …";
+          var fehlt = await gkFehlend(gkUmgebungKacheln(ll, GK_UMGEBUNG_KM));
+          if (!fehlt.length) {
+            btn.textContent = "Umgebung speichern (" + GK_UMGEBUNG_KM + " km)";
+            toast("Umgebung ist schon vollständig gespeichert.");
+            return;
+          }
+          gkUmgebungListe = fehlt;
+          btn.textContent =
+            "Jetzt laden: " +
+            fehlt.length +
+            " Kacheln, ca. " +
+            mbText(fehlt.length * GK_KB * 1000) +
+            " (Zoom 13–14)";
+          gkUmgebungTimer = setTimeout(function () {
+            gkUmgebungListe = null;
+            btn.textContent = "Umgebung speichern (" + GK_UMGEBUNG_KM + " km)";
+          }, 15000);
+        });
+        document.querySelectorAll(".gk-stopp").forEach(function (b) {
+          b.addEventListener("click", function () {
+            if (gk.lauf) gk.lauf.abbruch = true;
+          });
+        });
+        // Löschen: erster Tipp fragt im Knopf nach, zweiter löscht
+        var gkWegTimer = null;
+        $("gk-weg").addEventListener("click", async function () {
+          var btn = this;
+          if (!btn.dataset.sicher) {
+            btn.dataset.sicher = "1";
+            btn.textContent = "Wirklich löschen? (" + mbText(gk.stand.bytes) + ")";
+            gkWegTimer = setTimeout(function () {
+              delete btn.dataset.sicher;
+              btn.textContent = "Offline-Karte löschen";
+            }, 6000);
+            return;
+          }
+          clearTimeout(gkWegTimer);
+          delete btn.dataset.sicher;
+          btn.textContent = "Offline-Karte löschen";
+          try {
+            await caches.delete(GK_CACHE);
+          } catch (e) {}
+          gk.cache = null;
+          gk.stand = { n: 0, bytes: 0 };
+          gkStandSchreiben();
+          gkAnzeigen();
+          grundkarteWahl();
+          toast("Offline-Karte gelöscht");
+        });
         // ================= Grundstock + Tageswetter laden (Ladeanzeige), Schicht 2/3 im Web Worker =================
         var WETTER_URL = "https://raw.githubusercontent.com/KjMueller81/SchwammerlIO/wetterdaten/wetter.json",
           GRUND_PFAD = "daten/grundstock/",
@@ -12140,6 +12525,7 @@
         update();
         load();
         datenLaden();
+        gkInit();
         // Offline-Betrieb: App, Leaflet und angesehene Kartenkacheln über den Service Worker (sw.js)
         if ("serviceWorker" in navigator && window.isSecureContext)
           navigator.serviceWorker.register("sw.js").catch(function (e) {
