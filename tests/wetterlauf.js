@@ -15,7 +15,8 @@ function folge(liste) {
   W.NETZ.fetch = async () => {
     const x = liste[Math.min(i++, liste.length - 1)];
     if (x === "netz") throw Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNRESET" } });
-    if (x === "zeit") throw Object.assign(new Error("The operation was aborted due to timeout"), { name: "TimeoutError" });
+    if (x === "zeit")
+      throw Object.assign(new Error("The operation was aborted due to timeout"), { name: "TimeoutError" });
     const status = typeof x === "number" ? x : x.status,
       body = typeof x === "number" ? (x === 200 ? "{}" : '{"error":true,"reason":"HTTP ' + x + '"}') : x.body;
     return { ok: status >= 200 && status < 300, status, text: async () => body };
@@ -98,7 +99,12 @@ const faelle = [
         await still(() => W.omAnfrage([[48, 11]]));
         return false;
       } catch (e) {
-        return e instanceof W.Limit && n() === 2 && gewartet.join() === String(W.NETZ.limitPause) && W.fehlerCode(e) === 3;
+        return (
+          e instanceof W.Limit &&
+          n() === 2 &&
+          gewartet.join() === String(W.NETZ.limitPause) &&
+          W.fehlerCode(e) === 3
+        );
       }
     },
   ],
