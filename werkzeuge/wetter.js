@@ -9,7 +9,11 @@
 // Kältesumme ab 1. September: Ab Oktober reicht die 36-Tage-Reihe nicht mehr zurück. Dafür schreibt der Lauf je
 // Wetterpunkt „vor“ = Tagesmittel (Modellhöhe) vom 1.9. bis zum Tag vor der Reihe, fortgeschrieben aus dem
 // vorherigen wetter.json (Zweig wetterdaten) – ohne zusätzliche Open-Meteo-Abrufe.
-// Exitcode 0 = geschrieben, 3 = Open-Meteo-Limit erschöpft (alte Datei bleibt), 1 = sonstiger Fehler.
+// Kurze Ausfälle: Jede Anfrage wird bei Netzfehler, Zeitüberschreitung oder HTTP 5xx bis zu 3-mal wiederholt
+// (Pausen 5 / 20 / 60 s, `anfrage`). Einzelne Bright-Sky-Stationen ohne Antwort → weiterrechnen mit ::warning::;
+// Abbruch erst, wenn weniger als die Hälfte der Stationen des letzten Laufs antwortet.
+// Exitcode 0 = geschrieben, 3 = Open-Meteo-Limit erschöpft (alte Datei bleibt), 1 = sonstiger Fehler (::error:: mit
+// Dienst, URL ohne Parameterwerte, HTTP-Status und Versuch; der letzte Stand auf wetterdaten bleibt).
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -26,6 +30,67 @@ const pause = (ms) => new Promise((r) => setTimeout(r, ms));
 const r1 = (x) => (x === null || x === undefined ? null : Math.round(x * 10) / 10);
 let omAbrufe = 0,
   bsAbrufe = 0;
+
+// ---------------- Anfragen mit Wiederholung ----------------
+// NETZ ist austauschbar (Test: tests/wetterlauf.js simuliert Antwortfolgen ohne Netz und ohne Wartezeit)
+const NETZ = {
+  fetch: (url, opt) => fetch(url, opt),
+  pause,
+  pausen: [5000, 20000, 60000], // Wartezeit vor dem 2., 3. und 4. Versuch
+  limitPause: 5 * 60 * 1000, // Open-Meteo 429: einmal 5 Minuten warten (geteilte GitHub-Adressen), dann Limit
+  zeitlimit: 60000, // je Anfrage
+};
+class Limit extends Error {}
+// Fehler eines Dienstes nach allen Versuchen (oder sofort bei 4xx): Dienst, URL ohne Parameterwerte, Status, Versuch
+class DienstFehler extends Error {
+  constructor(dienst, url, status, versuch, grund) {
+    super(dienst + ": " + grund + " (" + urlOhneWerte(url) + ", HTTP " + (status || "–") + ", Versuch " + versuch + ")");
+    Object.assign(this, { dienst, status, versuch });
+  }
+}
+const urlOhneWerte = (u) => String(u).replace(/=[^&]*/g, "=…");
+// Antwort { status, j (JSON oder null), text }. erlaubt: Status, die ohne Fehler zurückkommen (z. B. 404 bei Bright Sky).
+// 429 bzw. ein Limittext in der Antwort → Limit (Open-Meteo-Vorhersage: vorher einmal limitPause warten).
+async function anfrage(dienst, url, opt) {
+  opt = opt || {};
+  const versuche = NETZ.pausen.length + 1;
+  let limitGewartet = false;
+  for (let versuch = 1; ; versuch++) {
+    let status = 0,
+      text = "",
+      grund;
+    try {
+      const r = await NETZ.fetch(url, { signal: AbortSignal.timeout(NETZ.zeitlimit) });
+      status = r.status;
+      text = await r.text();
+      let j = null;
+      try {
+        j = JSON.parse(text);
+      } catch (e) {}
+      if (r.ok || (opt.erlaubt && opt.erlaubt.includes(status))) return { status, j, text };
+      grund = (j && j.reason) || "HTTP " + status;
+      if (status === 429 || /limit exceeded/i.test(grund)) {
+        if (opt.limitWarten && !limitGewartet) {
+          limitGewartet = true;
+          log(`  ${dienst}: ${grund} – neuer Versuch in ${NETZ.limitPause / 60000} Minuten (geteilte GitHub-Adressen)`);
+          await NETZ.pause(NETZ.limitPause);
+          versuch--; // zählt nicht als Wiederholung
+          continue;
+        }
+        throw new Limit(grund);
+      }
+      if (status < 500) throw new DienstFehler(dienst, url, status, versuch, grund); // andere 4xx: sofort
+    } catch (e) {
+      if (e instanceof Limit || e instanceof DienstFehler) throw e;
+      grund = e.name === "TimeoutError" ? "Zeitüberschreitung" : "Netzfehler (" + (e.cause && e.cause.code || e.message) + ")";
+    }
+    if (versuch >= versuche) throw new DienstFehler(dienst, url, status, versuch, grund);
+    const warte = NETZ.pausen[versuch - 1];
+    log(`  ${dienst}: ${grund} – Versuch ${versuch + 1} in ${warte / 1000} s`);
+    await NETZ.pause(warte);
+  }
+}
+const fehlerCode = (e) => (e instanceof Limit ? 3 : 1);
 
 function tagPlus(iso, n) {
   const d = new Date(iso + "T12:00:00Z");
@@ -77,13 +142,8 @@ async function vorlaufNachholen(om, punkte, vorAb, datum0) {
         "&end_date=" +
         bis +
         "&daily=temperature_2m_mean&timezone=Europe%2FBerlin";
-    const r = await fetch(url),
-      j = await r.json().catch(() => null);
-    if (!r.ok || !j) {
-      const grund = (j && j.reason) || "HTTP " + r.status;
-      if (r.status === 429) throw new Limit(grund);
-      throw new Error(grund);
-    }
+    const { j } = await anfrage("Open-Meteo-Archiv", url);
+    if (!j) throw new Error("Open-Meteo-Archiv: Antwort ohne JSON");
     omAbrufe += ks.length * Math.max(1, n / 14);
     (Array.isArray(j) ? j : [j]).forEach((a, q) => {
       const p = om[ks[q]],
@@ -130,7 +190,6 @@ async function pool(aufgaben, breite) {
 const isoTag = (d) => d.toISOString().slice(0, 10);
 
 // ---------------- Open-Meteo ----------------
-class Limit extends Error {}
 async function omAnfrage(punkte) {
   const url =
     "https://api.open-meteo.com/v1/forecast?latitude=" +
@@ -140,20 +199,10 @@ async function omAnfrage(punkte) {
     "&daily=precipitation_sum,temperature_2m_max,temperature_2m_min,et0_fao_evapotranspiration," +
     "precipitation_probability_max&hourly=soil_moisture_0_to_7cm&past_days=35&forecast_days=8" +
     "&timezone=Europe%2FBerlin";
-  for (let versuch = 0; versuch < 2; versuch++) {
-    const r = await fetch(url);
-    const j = await r.json().catch(() => null);
-    if (r.ok && j) {
-      omAbrufe += punkte.length * (43 / 14); // Zählregel: je Ort, Zeitraum/14 Tage
-      return Array.isArray(j) ? j : [j];
-    }
-    const grund = (j && j.reason) || "HTTP " + r.status;
-    if (r.status !== 429 && r.status < 500) throw new Error(grund);
-    if (versuch === 0) {
-      log(`  Open-Meteo: ${grund} – neuer Versuch in 5 Minuten (geteilte GitHub-Adressen)`);
-      await pause(5 * 60 * 1000);
-    } else throw new Limit(grund);
-  }
+  const { j } = await anfrage("Open-Meteo", url, { limitWarten: true });
+  if (!j) throw new DienstFehler("Open-Meteo", url, 200, 1, "Antwort ohne JSON");
+  omAbrufe += punkte.length * (43 / 14); // Zählregel: je Ort, Zeitraum/14 Tage
+  return Array.isArray(j) ? j : [j];
 }
 function omAuswerten(j, jetztStunde) {
   const d = j.daily,
@@ -188,14 +237,15 @@ function omAuswerten(j, jetztStunde) {
 
 // ---------------- Bright Sky: Stationsnetz wie in der App ----------------
 const stationsCache = {},
-  ohneDaten = {};
+  ohneDaten = {},
+  ohneAntwort = {}; // Stationen, die auch nach den Wiederholungen nicht antworten (Teilausfall)
 async function stationsNetz(lat, lng, radiusKm) {
   bsAbrufe++;
-  const r = await fetch(
+  const { j } = await anfrage(
+    "Bright Sky",
     `https://api.brightsky.dev/sources?lat=${lat.toFixed(4)}&lon=${lng.toFixed(4)}&max_dist=${Math.round((radiusKm + 20) * 1000)}`,
   );
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok || !j.sources) throw new Error("Stationsliste " + r.status);
+  if (!j || !j.sources) throw new Error("Bright Sky: Stationsliste ohne Inhalt");
   const maxSt = Math.max(14, Math.min(60, Math.round(radiusKm / 4)));
   const st = j.sources
     .filter((x) => x.observation_type === "historical" && x.lat && x.lon && !ohneDaten[x.id])
@@ -206,15 +256,24 @@ async function stationsNetz(lat, lng, radiusKm) {
     st.map((x) => async () => {
       if (!stationsCache[x.id]) {
         bsAbrufe++;
-        const rr = await fetch(
-          `https://api.brightsky.dev/weather?source_id=${x.id}&date=${isoTag(von)}&last_date=${isoTag(new Date())}&tz=Europe/Berlin&units=dwd`,
-        );
+        let rr;
+        try {
+          rr = await anfrage(
+            "Bright Sky",
+            `https://api.brightsky.dev/weather?source_id=${x.id}&date=${isoTag(von)}&last_date=${isoTag(new Date())}&tz=Europe/Berlin&units=dwd`,
+            { erlaubt: [404] },
+          );
+        } catch (e) {
+          // nach allen Versuchen (auch 429 von Bright Sky): weiterrechnen wie bei 404, am Ende melden
+          ohneAntwort[x.id] = true;
+          return null;
+        }
         if (rr.status === 404) {
           ohneDaten[x.id] = true;
           return null;
         }
-        const d = await rr.json().catch(() => ({}));
-        if (!rr.ok || !d.weather) return null;
+        const d = rr.j || {};
+        if (!d.weather) return null;
         const tage = {};
         d.weather.forEach((h) => {
           const k = h.timestamp.slice(0, 10);
@@ -237,6 +296,14 @@ async function main() {
   const jetzt = new Date(),
     berlinStunde = +new Intl.DateTimeFormat("de-DE", { hour: "numeric", hour12: false, timeZone: "Europe/Berlin" }).format(jetzt);
 
+  // 0. Vorheriger Stand (Kältesummen-Vorlauf, Stationszahl für die Teilausfall-Grenze); fehlt er, geht es ohne
+  let alt = null;
+  try {
+    alt = (await anfrage("wetter.json (Vorstand)", WETTER_URL)).j;
+  } catch (e) {
+    log("  Vorstand nicht lesbar:", e.message);
+  }
+
   // 1. Open-Meteo 0,2°
   const OM = gitter(OM_SCHRITT, 0.1),
     omPunkte = [];
@@ -253,9 +320,8 @@ async function main() {
     if (e instanceof Limit) {
       log(`Open-Meteo-Limit erschöpft (${e.message}) – letzter Stand bleibt, nichts geschrieben.`);
       log(`Open-Meteo-Abrufe dieses Laufs (geschätzt): ${Math.round(omAbrufe)}`);
-      process.exit(3);
     }
-    throw e;
+    throw e; // Exitcode über fehlerCode: Limit → 3, sonst 1
   }
   log(`  Open-Meteo-Abrufe (geschätzt nach Zählregel): ${Math.round(omAbrufe)}`);
 
@@ -269,6 +335,7 @@ async function main() {
   log(`Bright Sky: ${felder.length} Suchfelder …`);
   const netz = [],
     ids = {};
+  let felderAus = 0;
   for (const [la, lo] of felder) {
     try {
       (await stationsNetz(la, lo, 20)).forEach((x) => {
@@ -279,10 +346,28 @@ async function main() {
         }
       });
     } catch (e) {
+      felderAus++; // auch ein Bright-Sky-Limit: weiterrechnen, die Halbe-Stationen-Grenze fängt Großausfälle
       log("  Suchfeld", la.toFixed(2), lo.toFixed(2), e.message);
     }
   }
   log(`  ${netz.length} Stationen mit Daten, ${Object.keys(ohneDaten).length} ohne Daten übersprungen`);
+  // Teilausfall: einzelne Stationen/Suchfelder ohne Antwort → weiterrechnen und melden; abbrechen erst, wenn
+  // weniger als die Hälfte der Stationen des letzten Laufs antwortet (dann bliebe der Regen zu lückenhaft)
+  const nAus = Object.keys(ohneAntwort).length;
+  if (nAus || felderAus)
+    console.log(
+      `::warning::Bright Sky: ${nAus} Stationen und ${felderAus} Suchfelder ohne Antwort (nach Wiederholung) – ` +
+        `weitergerechnet mit ${netz.length} Stationen`,
+    );
+  const vorher = alt && typeof alt.stationen === "number" ? alt.stationen : null;
+  if (vorher && netz.length < vorher / 2)
+    throw new DienstFehler(
+      "Bright Sky",
+      "https://api.brightsky.dev/weather?source_id=x",
+      0,
+      NETZ.pausen.length + 1,
+      `nur ${netz.length} von zuletzt ${vorher} Stationen antworten`,
+    );
 
   // 3. Stationsregen auf 0,05° interpolieren (Tage 1–35 zurück; heute bleibt Modell wie in der App)
   const RG = gitter(REGEN_SCHRITT, 0),
@@ -326,11 +411,6 @@ async function main() {
     vorAb = heute >= sept && datum0 > sept ? sept : null;
   om.forEach((p) => delete p.t0);
   if (vorAb) {
-    let alt = null;
-    try {
-      const r = await fetch(WETTER_URL, { cache: "no-store" });
-      if (r.ok) alt = await r.json();
-    } catch (e) {}
     let fehlt = vorlaufBauen(om, OM, datum0, vorAb, alt);
     log(`Kältesumme-Vorlauf ab ${vorAb}: ${tageZwischen(vorAb, datum0)} Tage je Punkt` +
       (fehlt ? `, ${fehlt} Werte fehlen (kein passender Vorstand)` : ""));
@@ -378,7 +458,9 @@ async function main() {
 }
 if (require.main === module)
   main().catch((e) => {
+    const code = fehlerCode(e);
+    if (code === 1) console.log(`::error::Wetterlauf abgebrochen – ${e.message}`);
     console.error("FEHLER:", e.message);
-    process.exit(1);
+    process.exit(code);
   });
-module.exports = { vorlaufBauen, vorlaufNachholen, tagPlus };
+module.exports = { vorlaufBauen, vorlaufNachholen, tagPlus, anfrage, NETZ, Limit, DienstFehler, fehlerCode, omAnfrage };

@@ -12,6 +12,11 @@ Angenommen, aber noch nicht ausgeliefert. Beim Start hier eintragen, bei Auslief
 ## Zuletzt ausgeliefert
 Nur die letzten fünf; ältere Auslieferungen stehen im Git-Verlauf.
 
+- **R – Wetterlauf robuster (8.10.2026, ohne App-Version):** `werkzeuge/wetter.js` wiederholt jede Anfrage bei
+  Netzfehler, Zeitüberschreitung oder 5xx bis zu 3-mal (5 / 20 / 60 s); Bright-Sky-Teilausfall → weiterrechnen mit
+  `::warning::`, Abbruch erst unter der Hälfte der Stationen des letzten Laufs; Abbruch mit `::error::` (Dienst, URL
+  ohne Werte, Status, Versuch). Test `node tests/wetterlauf.js` (7 Fälle). Vermutete Ursache des Abbruchs vom 8.10.:
+  ein Netzfehler (`fetch failed`) wurde bisher nirgends abgefangen und endete als Exitcode 1 (Log nicht eingesehen).
 - **O – Modell nach GBIF-Nachschau (v2026-09-26.31):** Moor-Deckel nur noch für Pfifferling/Sommersteinpilz,
   Warm-trocken-Deckel Steinpilz 0,15 → 0,4, Kältesumme Basis 10 °C mit steilerer Kurve; Selbsttest-Sollwerte von vier
   Fällen und drei Regeln gewollt verschoben; Nachschau um Moor-Zuordnung, Temperaturkurve und Vorher/Nachher ergänzt.
@@ -29,9 +34,6 @@ Nur die letzten fünf; ältere Auslieferungen stehen im Git-Verlauf.
   graues „Regen unsicher“, sonst nichts; Prognosetabelle mit festen Spalten (Köpfe genau über den Zahlen); Arten,
   die heute und an allen Prognosetagen unter 20 liegen, fehlen in Kopfzeile und Tabelle (gewählte Art im
   Region-Feld bleibt, sonst mindestens die beste). Tests (s)–(w).
-- **K – GBIF Stufe 2, Probe Steinpilz (26.09.2026, ohne App-Version):** `werkzeuge/gbif-stufe2.js` (HYRAS 1 km,
-  Endformel aus index.html, AUC/Bootstrap/Blöcke) und Bericht
-  [werkzeuge/berichte/gbif-stufe2.md](werkzeuge/berichte/gbif-stufe2.md); Kurzfassung unter „Wartet auf Entscheidung“.
 
 ## Offline-Grundkarte (entschieden: Webkarte Bayern)
 

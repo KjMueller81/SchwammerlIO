@@ -200,6 +200,14 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
 - Verbrauch je Lauf: Open-Meteo ≈ 630 Abrufe (≈ 1 250/Tag), Bright Sky ≈ 800 Anfragen, Laufzeit ≈ 30 s + Einrichtung.
 - Open-Meteo-Limit (GitHub-Adressen sind geteilt): eine Wiederholung nach 5 min, sonst Exitcode 3 → Warnung im Log,
   der alte Stand auf `wetterdaten` bleibt. Geplante Läufe schaltet GitHub nach 60 Tagen ohne Repo-Aktivität ab.
+- Kurze Ausfälle (seit 8.10.2026, Lauf 37817404416 brach mit Exitcode 1 ab): alle Anfragen (Open-Meteo, Archiv,
+  Bright Sky, Vorstand `wetter.json`) laufen über `anfrage` – Netzfehler, Zeitüberschreitung (60 s) und HTTP 5xx bis
+  zu 3-mal wiederholt (Pausen 5 / 20 / 60 s), 429 bzw. Limittext = `Limit` (Open-Meteo-Vorhersage vorher einmal
+  5 min warten), andere 4xx sofort `DienstFehler`. Bright Sky: Stationen bzw. Suchfelder ohne Antwort (auch 429) →
+  weiterrechnen wie bei 404, `::warning::` mit der Zahl; Abbruch erst, wenn weniger als die Hälfte der Stationen des
+  letzten Laufs (`stationen` im Vorstand) antwortet. Abbruch: `::error::` mit Dienst, URL ohne Parameterwerte,
+  HTTP-Status und Versuch, Exitcode 1 (`fehlerCode`: Limit → 3), der letzte Stand auf `wetterdaten` bleibt.
+  Test ohne Netz: `node tests/wetterlauf.js` (simulierte Antwortfolgen über `NETZ.fetch`/`NETZ.pause`).
 
 ### GBIF-Werkzeug (Prüfdaten, nicht Teil der App)
 - `werkzeuge/gbif.js` (Node 24, nur Standardbibliothek): `cd werkzeuge && node gbif.js` (≈ 4 min beim ersten Lauf,
