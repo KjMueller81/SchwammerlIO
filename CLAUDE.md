@@ -8,7 +8,7 @@ Bewertet Waldstandorte für **Pfifferling (pf)**, **Fichtensteinpilz (st)** und 
 aus Geodaten (Baumart, Boden, Kronendichte, Gelände) und gemessenem Wetter. Nutzer: ein Sammler,
 Bedienung meist am iPhone im Wald, Auswertung am Windows-Rechner.
 
-Stand dieser Datei: v2026-09-26.31. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
+Stand dieser Datei: v2026-09-26.32. Die Entwicklung bis v2026-09-26.4 lief in einem claude.ai-Chat.
 
 ---
 
@@ -208,6 +208,9 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
   letzten Laufs (`stationen` im Vorstand) antwortet. Abbruch: `::error::` mit Dienst, URL ohne Parameterwerte,
   HTTP-Status und Versuch, Exitcode 1 (`fehlerCode`: Limit → 3), der letzte Stand auf `wetterdaten` bleibt.
   Test ohne Netz: `node tests/wetterlauf.js` (simulierte Antwortfolgen über `NETZ.fetch`/`NETZ.pause`).
+- Bright-Sky-Totalausfall (`BS`, seit 11.10.2026): nach 20 Fehlschlägen in Folge (jeweils nach allen Wiederholungen)
+  keine weiteren Anfragen, sofort `::error::` + Exitcode 1 – sonst liefe der Job ins 20-Minuten-Limit. Die
+  Suchfeld-Schleife steht in `stationsSammeln` (testbar).
 
 ### GBIF-Werkzeug (Prüfdaten, nicht Teil der App)
 - `werkzeuge/gbif.js` (Node 24, nur Standardbibliothek): `cd werkzeuge && node gbif.js` (≈ 4 min beim ersten Lauf,
@@ -510,7 +513,27 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
   „Rückgängig“ mit tiefer Kopie aller Stellen). Offline: Aktion ausgegraut mit Hinweis.
 - `wetterBisTag` gibt `datum0`, `vor`, `vorAb` weiter und setzt `bodenF` für frühere Tage auf null (vorher hielt die
   gekürzte Reihe den Besuchstag für heute – Kältesumme mit falschem Datum – und nahm die heutige Bodenfeuchte).
-- Lernen: Ein nachgetragener Besuch ohne Schnappschuss zählt halb; bekommt er beim Nachrechnen Wetter, zählt er voll.
+- Lernen: Ein Besuch ohne Wetter-Schnappschuss (nachgetragen **oder** z. B. offline gespeichert, `wetter = null`)
+  zählt halb – Bewertung/wf sind dann Platzhalter (seit v2026-09-26.32, vorher nur nachgetragene); bekommt er beim
+  Nachrechnen Wetter, zählt er voll. Liste und Bearbeiten zeigen „ohne Wetter – nachholen“, „Wetter nachholen“
+  steht bei jedem solchen Besuch (Live-Reihe bzw. Archiv).
+- Abgleich zwischen Geräten (v2026-09-26.32, `besucheZusammenfuehren(ziel, neu, sp)`): gleich = gleiche id oder –
+  ohne id-Gleichheit – Zeitstempel ±5 Min. an derselben bzw. zusammengeführten Stelle (< 25 m). Es gewinnt das
+  jüngere `geaendert` (fehlt = 0), bei Gleichstand die Zielfassung; danach führen beide die lexikografisch kleinere
+  id (nach Hin-und-zurück überall dieselbe). Besuche ohne id (alt, umgewandelt) bekommen eine deterministische id
+  aus Zeitstempel und gerundeter Position (`besuchIdAus`, ≈ 100 m) statt einer zufälligen – früher trug derselbe alte
+  Besuch auf jedem Gerät eine andere id, Korrekturen gingen beim Abgleich verloren. Import-Toast „Besuche: n neu,
+  m aktualisiert, k unverändert“.
+- Leere Doppel-Stellen (`leereDoppelEntfernen`): ohne Besuche und ohne Notiz, < 25 m von einer anderen Stelle →
+  beim Laden und nach jedem Import entfernt, Toast mit „Rückgängig“ (`stellenZurueck`). Herkunft: der alte Knopf
+  „Stelle speichern“ (bis 25.9., `prompt` „Stelle n“) legte neben der Fund-Stelle eine leere an; Exporte trugen sie
+  weiter. `stellenImport` selbst führt < 25 m zusammen (nur in die erste passende Stelle).
+- Besuche zusammenfassen (gleicher Tag, ≤ 60 Min., `ZUSAMMEN_MIN`): „Besuch speichern“ an einer Stelle mit so einem
+  Besuch fügt den Fund hinzu (`besuchZumZusammenfassen`, `besucheVereinen`: Funde vereinigt, Alter bei Unterschied
+  „gemischt“, Fingerprobe/Unterwuchs/Bestand und Wetter vom neueren, Zeitstempel und id vom älteren); Toast „Zum
+  Besuch von 13:04 hinzugefügt“ mit „Rückgängig“ und „Als eigener Besuch“ (`toast` nimmt eine Liste von Knöpfen).
+  Bestehende Paare: im Bearbeiten-Bereich „Mit vorherigem zusammenführen“; bei „Alle Besuche nachrechnen“ als
+  Vorschlag (Häkchen-Zeilen, `besuchPaare`), zusammengeführt mit „Übernehmen“.
 
 ---
 
@@ -606,6 +629,17 @@ Die Rechnung ist in fünf Schichten getrennt. Die Endformel bleibt **eine** Funk
 - 25.9. 1 km nördlich davon (≈ 47.832 N, 11.751 E), Fichte/sauer/Nordhang/innen, Unterwuchs Moos + Heidelbeere:
   Marone mittel; ein alter Fichtensteinpilz (zuerst als Sommersteinpilz erfasst, am 26.9. in der App korrigiert,
   Bestimmung sicher).
+- 30.9. Chiemgau (≈ 47.81 N, 12.45 E), Fichte/sauer/Nordhang/innen, Moos, Bestand 15–25 m, Fingerprobe mäßig:
+  viele Maronen und Flockenstielige Hexenröhrlinge, mehrere Fichtensteinpilze (mittel). Schnappschuss: Regen 26 T
+  77 mm, 7 T 5 mm, 6 Tage seit Regen ≥ 5 mm, Streu 10,8 mm, 20-Tage-Mittel 14,5 °C. App am Fundtag
+  (v2026-09-26.31): Steinpilz 57, Pfifferling 54. Mit Archivwetter + Stationsregen (wie „Alle Besuche nachrechnen“,
+  11.10.) nachgerechnet: Steinpilz 56 (40–66), Pfifferling 57; Regen 26 T 77,5 mm, 7 T 5,4 mm, 6 Tage, Streu 9,5 mm,
+  20-Tage-Mittel 15,1 °C → als Kalibrierungsfall geeignet (Merkmale aus dem Besuch; an der gerundeten Koordinate
+  meldet der Grundstock keinen Wald). Noch nicht in SELBSTTEST.
+- 4.10. Schliersee (≈ 47.82 N, 11.74 E), 17–18 Tage nach dem letzten Regen ≥ 5 mm, Streu 0–6 mm, Finger
+  trocken–mäßig: 5 Stellen mit Fichtensteinpilzen, fast alle alt, einer jung (App 13); Maronen, Hexenröhrling,
+  Fliegenpilze. App Steinpilz 13–27. Drei Steinpilz-Stellen liegen laut Grundstock auf ‚moor‘ (Fichte,
+  Moos/Heidelbeere/Nadel) – vermutlich Fehlzuordnung der Bodenkarte.
 - Pilz-Ticker Bayern (passion-pilze-sammeln.com) als unabhängiger Abgleich, gleiche Einordnung.
 - Stellen als GeoJSON im Browser gespeichert, Export/Import im Tab „Stellen“.
 

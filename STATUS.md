@@ -1,6 +1,6 @@
 # Status Schwammerl-Karte
 
-Stand: v2026-09-26.31 (26.09.2026)
+Stand: v2026-09-26.32 (11.10.2026)
 
 ## Offene Aufträge
 Angenommen, aber noch nicht ausgeliefert. Beim Start hier eintragen, bei Auslieferung nach „Zuletzt ausgeliefert“.
@@ -12,6 +12,12 @@ Angenommen, aber noch nicht ausgeliefert. Beim Start hier eintragen, bei Auslief
 ## Zuletzt ausgeliefert
 Nur die letzten fünf; ältere Auslieferungen stehen im Git-Verlauf.
 
+- **Q – Abgleich zwischen Geräten (v2026-09-26.32):** Import erkennt gleiche Besuche per id oder ts ±5 Min., die
+  jüngere Bearbeitung gewinnt, beide führen danach die kleinere id; Besuche ohne id bekommen eine deterministische id;
+  Toast „n neu, m aktualisiert, k unverändert“. Leere Doppel-Stellen werden beim Laden/Import entfernt (Rückgängig).
+  Besuche derselben Stelle am selben Tag ≤ 60 Min. werden zusammengefasst (beim Speichern, im Bearbeiten-Bereich,
+  als Vorschlag beim Nachrechnen). Besuche ohne Wetter: „ohne Wetter – nachholen“, im Lernen halbes Gewicht.
+  Wetterlauf: Abbruch nach 20 Bright-Sky-Fehlschlägen in Folge. Felddaten 30.9./4.10. in CLAUDE.md.
 - **R – Wetterlauf robuster (8.10.2026, ohne App-Version):** `werkzeuge/wetter.js` wiederholt jede Anfrage bei
   Netzfehler, Zeitüberschreitung oder 5xx bis zu 3-mal (5 / 20 / 60 s); Bright-Sky-Teilausfall → weiterrechnen mit
   `::warning::`, Abbruch erst unter der Hälfte der Stationen des letzten Laufs; Abbruch mit `::error::` (Dienst, URL
@@ -29,11 +35,6 @@ Nur die letzten fünf; ältere Auslieferungen stehen im Git-Verlauf.
   Open-Meteo-Archiv, begrenzender Teil je Meldung, Saisonende je halbem Monat) und Bericht
   [werkzeuge/berichte/gbif-nachschau.md](werkzeuge/berichte/gbif-nachschau.md); Kurzfassung unter „Wartet auf
   Entscheidung“.
-- **L – Pin-Popup: Unsicher-Hinweis, Tabellenkopf, Arten ohne Chance (v2026-09-26.29):** Fingerprobe-Link nur, wenn
-  die Spanne eine Urteilsschwelle (20/40/60) überdeckt und man vor Ort ist (GPS ≤ 10 min, ≤ 300 m), sonst kleines
-  graues „Regen unsicher“, sonst nichts; Prognosetabelle mit festen Spalten (Köpfe genau über den Zahlen); Arten,
-  die heute und an allen Prognosetagen unter 20 liegen, fehlen in Kopfzeile und Tabelle (gewählte Art im
-  Region-Feld bleibt, sonst mindestens die beste). Tests (s)–(w).
 
 ## Offline-Grundkarte (entschieden: Webkarte Bayern)
 
@@ -46,6 +47,9 @@ Nur die letzten fünf; ältere Auslieferungen stehen im Git-Verlauf.
   (`navigator.storage.persist()`); Offline-Umschaltung auf die Webkarte funktioniert.
 
 ## Wartet auf Entscheidung
+- **Fruchtkörperalter im Lernen:** Alte Funde spiegeln die Bedingungen von etwa 1–2 Wochen davor (4.10.: alte
+  Steinpilze nach 17 Tagen Trockenheit). Vorschlag: alte Funde mit dem Schnappschuss von 7 Tagen früher lernen oder
+  halb gewichten – zu entscheiden mit den Oktober-Besuchen.
 - **Nachschau Stufe 2 – A–C entschieden und umgesetzt (v2026-09-26.31, Auftrag O), D offen.** Bericht:
   [gbif-nachschau.md](werkzeuge/berichte/gbif-nachschau.md) (26.9.2026).
   **Umgesetzt:** Moor-Deckel st entfernt, Warm-trocken-Deckel 0,4, Kältesumme Basis 10 °C (Kurve 15/30/60/100 →
@@ -89,6 +93,11 @@ Nur die letzten fünf; ältere Auslieferungen stehen im Git-Verlauf.
 ## Backlog
 Offene Punkte ohne Termin (aus CLAUDE.md hierher verschoben, 26.9.).
 
+- **Menge beim Fund:** je Fundart „einzeln / einige (2–5) / viele (> 5)“, zunächst nur speichern und anzeigen, erst
+  nach Kalibrierung gewichten (Anlass 30.9.: ein voller Korb zählt wie ein einzelner Pilz).
+- **Automatischer Abgleich zwischen Geräten:** bis auf Weiteres Export/Import; später prüfen, ob über eine private
+  Datei (z. B. GitHub Gist, Token nur im Gerätespeicher, nie im Repo) oder einen geteilten Ordner; Konflikte per id
+  und `geaendert` (Regel wie beim Import).
 - **Langzeitgedächtnis im Modell:** tiefe Bodenfeuchte (Open-Meteo `soil_moisture_27_to_81cm`) erst als Anzeige im
   Rechenweg, später evtl. als Faktor; dazu das 120-Tage-Mittel von Temperatur, Bodenfeuchte und Niederschlag
   (Pilz4You, Potsdam 1988–2019).
@@ -137,8 +146,11 @@ Offene Punkte ohne Termin (aus CLAUDE.md hierher verschoben, 26.9.).
 - Offline-Test iPhone 26.9.: Grundkarte und Pin ok.
 
 ## Nächste Schritte
-- Nach dem Update einmal „Alle Besuche nachrechnen“ (Tab „Stellen“) und übernehmen (Modell v…31) – die Besuche vom
-  8.9. fallen sonst bald aus jeder Live-Reihe.
+- **Drei Geräte zusammenführen (ab v…32):** 1. alle Geräte auf die aktuelle Version (Kopf zeigt v…32, sonst
+  „Neu laden“); 2. das iPhone ist Hauptgerät; 3. am PC 1 (September-Korrekturen) und am PC 2 (30.9.) je
+  „Als GeoJSON exportieren“ und die Dateien am iPhone importieren; 4. am iPhone „Alle Besuche nachrechnen“ →
+  Vorschläge zum Zusammenführen ankreuzen → „Übernehmen“; 5. vom iPhone exportieren und auf beiden PCs importieren
+  (danach führen alle Geräte dieselben ids).
 - Am iPhone: Toast, unteren Rand, Unsicher-Schalter und Datumsfeld (v…28) sowie Pin-Popup (v…29: Tabellenkopf,
   Fingerprobe-Link vor Ort) prüfen; bei Streifen unten die Diagnose-Zeile (Tab „Karten“ → Diagnose, „Ansicht: …“)
   in allen drei Schubladen-Stufen ablesen und schicken.

@@ -239,12 +239,32 @@ function omAuswerten(j, jetztStunde) {
 const stationsCache = {},
   ohneDaten = {},
   ohneAntwort = {}; // Stationen, die auch nach den Wiederholungen nicht antworten (Teilausfall)
+// Totalausfall: nach BS_GRENZE Fehlschlägen in Folge (jeweils nach allen Wiederholungen) nicht weiter abfragen, sondern
+// mit ::error:: und Exitcode 1 enden – sonst liefe der Job ins 20-Minuten-Limit und bräche ohne klare Meldung ab
+const BS = { grenze: 20, inFolge: 0, abbruch: null };
+function bsErgebnis(ok, url) {
+  if (ok) BS.inFolge = 0;
+  else if (++BS.inFolge >= BS.grenze && !BS.abbruch)
+    BS.abbruch = new DienstFehler(
+      "Bright Sky",
+      url,
+      0,
+      NETZ.pausen.length + 1,
+      `Totalausfall: ${BS.inFolge} Anfragen in Folge ohne Antwort`,
+    );
+}
 async function stationsNetz(lat, lng, radiusKm) {
+  if (BS.abbruch) throw BS.abbruch;
   bsAbrufe++;
-  const { j } = await anfrage(
-    "Bright Sky",
-    `https://api.brightsky.dev/sources?lat=${lat.toFixed(4)}&lon=${lng.toFixed(4)}&max_dist=${Math.round((radiusKm + 20) * 1000)}`,
-  );
+  const urlQ = `https://api.brightsky.dev/sources?lat=${lat.toFixed(4)}&lon=${lng.toFixed(4)}&max_dist=${Math.round((radiusKm + 20) * 1000)}`;
+  let j;
+  try {
+    ({ j } = await anfrage("Bright Sky", urlQ));
+    bsErgebnis(true);
+  } catch (e) {
+    bsErgebnis(false, urlQ);
+    throw e;
+  }
   if (!j || !j.sources) throw new Error("Bright Sky: Stationsliste ohne Inhalt");
   const maxSt = Math.max(14, Math.min(60, Math.round(radiusKm / 4)));
   const st = j.sources
@@ -255,16 +275,16 @@ async function stationsNetz(lat, lng, radiusKm) {
   const erg = await pool(
     st.map((x) => async () => {
       if (!stationsCache[x.id]) {
+        if (BS.abbruch) return null; // Totalausfall erkannt: keine weiteren Anfragen
         bsAbrufe++;
+        const urlW = `https://api.brightsky.dev/weather?source_id=${x.id}&date=${isoTag(von)}&last_date=${isoTag(new Date())}&tz=Europe/Berlin&units=dwd`;
         let rr;
         try {
-          rr = await anfrage(
-            "Bright Sky",
-            `https://api.brightsky.dev/weather?source_id=${x.id}&date=${isoTag(von)}&last_date=${isoTag(new Date())}&tz=Europe/Berlin&units=dwd`,
-            { erlaubt: [404] },
-          );
+          rr = await anfrage("Bright Sky", urlW, { erlaubt: [404] });
+          bsErgebnis(true);
         } catch (e) {
           // nach allen Versuchen (auch 429 von Bright Sky): weiterrechnen wie bei 404, am Ende melden
+          bsErgebnis(false, urlW);
           ohneAntwort[x.id] = true;
           return null;
         }
@@ -289,7 +309,30 @@ async function stationsNetz(lat, lng, radiusKm) {
     }),
     4,
   );
+  if (BS.abbruch) throw BS.abbruch;
   return erg.filter(Boolean).slice(0, maxSt);
+}
+// Stationsnetz über alle Suchfelder; Teilausfall → weiter, Totalausfall (BS.grenze in Folge) → DienstFehler
+async function stationsSammeln(felder) {
+  const netz = [],
+    ids = {};
+  let felderAus = 0;
+  for (const [la, lo] of felder) {
+    try {
+      (await stationsNetz(la, lo, 20)).forEach((x) => {
+        const k = x.lat + "," + x.lon;
+        if (!ids[k]) {
+          ids[k] = true;
+          netz.push(x);
+        }
+      });
+    } catch (e) {
+      if (BS.abbruch) throw BS.abbruch;
+      felderAus++; // auch ein Bright-Sky-Limit: weiterrechnen, die Halbe-Stationen-Grenze fängt Großausfälle
+      log("  Suchfeld", la.toFixed(2), lo.toFixed(2), e.message);
+    }
+  }
+  return { netz, felderAus };
 }
 
 async function main() {
@@ -333,23 +376,7 @@ async function main() {
   for (let la = R.latS - rand + dLat / 2; la < R.latN + rand; la += dLat)
     for (let lo = R.lngW - rand * 1.5 + dLng / 2; lo < R.lngE + rand * 1.5; lo += dLng) felder.push([la, lo]);
   log(`Bright Sky: ${felder.length} Suchfelder …`);
-  const netz = [],
-    ids = {};
-  let felderAus = 0;
-  for (const [la, lo] of felder) {
-    try {
-      (await stationsNetz(la, lo, 20)).forEach((x) => {
-        const k = x.lat + "," + x.lon;
-        if (!ids[k]) {
-          ids[k] = true;
-          netz.push(x);
-        }
-      });
-    } catch (e) {
-      felderAus++; // auch ein Bright-Sky-Limit: weiterrechnen, die Halbe-Stationen-Grenze fängt Großausfälle
-      log("  Suchfeld", la.toFixed(2), lo.toFixed(2), e.message);
-    }
-  }
+  const { netz, felderAus } = await stationsSammeln(felder);
   log(`  ${netz.length} Stationen mit Daten, ${Object.keys(ohneDaten).length} ohne Daten übersprungen`);
   // Teilausfall: einzelne Stationen/Suchfelder ohne Antwort → weiterrechnen und melden; abbrechen erst, wenn
   // weniger als die Hälfte der Stationen des letzten Laufs antwortet (dann bliebe der Regen zu lückenhaft)
@@ -463,4 +490,16 @@ if (require.main === module)
     console.error("FEHLER:", e.message);
     process.exit(code);
   });
-module.exports = { vorlaufBauen, vorlaufNachholen, tagPlus, anfrage, NETZ, Limit, DienstFehler, fehlerCode, omAnfrage };
+module.exports = {
+  vorlaufBauen,
+  vorlaufNachholen,
+  tagPlus,
+  anfrage,
+  NETZ,
+  Limit,
+  DienstFehler,
+  fehlerCode,
+  omAnfrage,
+  stationsSammeln,
+  BS,
+};

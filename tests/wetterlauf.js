@@ -120,6 +120,22 @@ const faelle = [
       }
     },
   ],
+  [
+    "Bright Sky Totalausfall: nach 20 Fehlschlägen in Folge Abbruch (Exitcode 1), keine weiteren Anfragen",
+    async () => {
+      const n = folge([503]); // jede Anfrage scheitert, auch nach den Wiederholungen
+      const felder = Array.from({ length: 30 }, (_, k) => [48 + k * 0.01, 11]);
+      try {
+        await still(() => W.stationsSammeln(felder));
+        return false;
+      } catch (e) {
+        // 20 Suchfelder × 4 Versuche = 80 Anfragen, die übrigen 10 Felder werden nicht mehr abgefragt
+        return (
+          e instanceof W.DienstFehler && /Totalausfall/.test(e.message) && W.fehlerCode(e) === 1 && n() === 80
+        );
+      }
+    },
+  ],
 ];
 
 (async () => {

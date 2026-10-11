@@ -139,6 +139,10 @@ const EXPORT = [
   "besucheNachrechnen",
   "versionAlt",
   "MODELL_STAND",
+  "leereDoppelEntfernen",
+  "besuchZumZusammenfassen",
+  "besucheVereinen",
+  "besuchGewicht",
 ];
 // als Getter, damit auch später gesetzte Variablen (rasterCache) aktuell gelesen werden
 const kern = js.replace(
@@ -997,6 +1001,98 @@ pruefe("(x) Besuch vor 60 Tagen mit Archiv-Reihe → Schnappschuss, wf neu, b.mo
     !T.versionAlt(T.MODELL_STAND)
   );
 });
+// ---- Abgleich zwischen Geräten, Doppel, Zusammenfassen (Auftrag Q) ----
+const QP = { lat: 47.832, lng: 11.751 };
+const gjAus = (liste) => T.stellenGeojson(liste);
+pruefe(
+  "(Q1) Zwei Geräte, verschiedene ids: neuere Fassung „st“ gewinnt, gemeinsame id; Rück-Import ändert nichts",
+  () => {
+    const T0 = Date.parse("2026-09-25T12:00:00");
+    // Gerät A (Ziel): alte Fassung „som“, ohne geaendert; Gerät B: korrigiert „st“ mit geaendert, eigene id
+    const geraetA = [
+      { name: "A", lat: QP.lat, lng: QP.lng, v: SP_V, besuche: [{ id: "bA9", ts: T0, fund: ["som"] }] },
+    ];
+    const geraetB = [
+      {
+        name: "B",
+        lat: QP.lat,
+        lng: QP.lng,
+        v: SP_V,
+        besuche: [{ id: "b1x", ts: T0 + 60e3, fund: ["st"], geaendert: 1000 }],
+      },
+    ];
+    const e1 = T.stellenImport(geraetA, gjAus(geraetB), () => SP_V),
+      a1 = geraetA[0].besuche;
+    const ok1 =
+      a1.length === 1 &&
+      a1[0].fund[0] === "st" &&
+      a1[0].id === "b1x" &&
+      e1.aktualisiert === 1 &&
+      e1.besuche === 0;
+    // Rück-Import der eigenen Fassung: nichts ändert sich
+    const vorher = JSON.stringify(geraetA[0].besuche),
+      e2 = T.stellenImport(geraetA, gjAus(geraetA), () => SP_V),
+      ok2 = JSON.stringify(geraetA[0].besuche) === vorher && e2.gleich === 1 && e2.aktualisiert === 0;
+    // A → B: B behält „st“ und übernimmt die gemeinsame id
+    T.stellenImport(geraetB, gjAus(geraetA), () => SP_V);
+    const ok3 =
+      geraetB[0].besuche.length === 1 &&
+      geraetB[0].besuche[0].id === "b1x" &&
+      geraetB[0].besuche[0].fund[0] === "st";
+    // alte Besuche ohne id bekommen auf jedem Gerät dieselbe (deterministische) id
+    const alt1 = T.stelleNormal({ lat: QP.lat, lng: QP.lng, fund: ["st"], besucht: T0 }),
+      alt2 = T.stelleNormal({ lat: QP.lat, lng: QP.lng, fund: ["st"], besucht: T0 });
+    return ok1 && ok2 && ok3 && alt1.besuche[0].id === alt2.besuche[0].id;
+  },
+);
+pruefe("(Q2) Leere Doppel-Stelle < 25 m wird entfernt, Stelle mit Notiz bleibt", () => {
+  const voll = { name: "Steinpilz", lat: QP.lat, lng: QP.lng, besuche: [{ id: "x", ts: 1, fund: ["st"] }] },
+    leer = { name: "Stelle 12", lat: QP.lat + 0.0001, lng: QP.lng, besuche: [] },
+    notiz = { name: "Notiz", lat: QP.lat + 0.00005, lng: QP.lng, besuche: [], notiz: "Forststraße" },
+    fern = { name: "Stelle 3", lat: QP.lat + 0.01, lng: QP.lng, besuche: [] },
+    liste = [voll, leer, notiz, fern],
+    weg = T.leereDoppelEntfernen(liste);
+  return (
+    weg.length === 1 &&
+    weg[0] === leer &&
+    liste.length === 3 &&
+    liste.indexOf(notiz) >= 0 &&
+    liste.indexOf(fern) >= 0
+  );
+});
+pruefe("(Q3) Zweiter Fund 9 Min. später an derselben Stelle → ein Besuch mit beiden Funden", () => {
+  const T1 = Date.parse("2026-10-04T13:04:00"),
+    sp = {
+      lat: QP.lat,
+      lng: QP.lng,
+      besuche: [{ id: "h1", ts: T1, fund: ["hexflock"], alter: "alt", finger: "trocken" }],
+    },
+    neu = { id: "s1", ts: T1 + 9 * 60e3, fund: ["st"], alter: "jung", finger: "maessig", unter: ["moos"] },
+    zu = T.besuchZumZusammenfassen(sp, neu.ts);
+  if (!zu) return false;
+  sp.besuche[sp.besuche.indexOf(zu)] = T.besucheVereinen(zu, neu);
+  const b = sp.besuche[0];
+  return (
+    sp.besuche.length === 1 &&
+    b.fund.join() === "hexflock,st" &&
+    b.alter === "gemischt" &&
+    b.finger === "maessig" &&
+    b.ts === T1 &&
+    b.id === "h1" &&
+    T.besuchZumZusammenfassen(sp, T1 + 61 * 60e3) === null && // über 60 Min. → eigener Besuch
+    T.besuchZumZusammenfassen(sp, T1 + 864e5) === null // anderer Tag
+  );
+});
+pruefe("(Q4) Besuch ohne Wetter zählt im Lernen halb", () => {
+  const sp = { v: SP_V },
+    ohne = { fund: [], wf: { st: 0.8 }, wetter: null, nachgetragen: false },
+    mit = Object.assign({}, ohne, { wetter: { regen7: 5 } });
+  return (
+    Math.abs(T.besuchGewicht(ohne, sp, "st") - 0.4) < 1e-9 &&
+    Math.abs(T.besuchGewicht(mit, sp, "st") - 0.8) < 1e-9
+  );
+});
+
 const asynchronN = [
   // (y) ohne Netz: holen liefert null → Besuch unverändert, keine Änderung
   (async () => {
@@ -1025,8 +1121,8 @@ const asynchronN = [
         lat: 47.8,
         lng: 11.7,
         v: Object.assign({}, SP_V, { lage }),
-        // nicht nachgetragen: sonst zählt der neue Schnappschuss mit (nachgetragen ohne Wetter = halbes Gewicht)
-        besuche: [besuchAlt(id, fund, false)],
+        // mit Schnappschuss: ohne Wetter zählt ein Besuch halb (Auftrag Q) – hier soll sich nur wf ändern
+        besuche: [Object.assign(besuchAlt(id, fund, false), { wetter: { regen7: 5 } })],
       });
       const liste = [
         stelle("nord", ["st"], "z1"),

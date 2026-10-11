@@ -1363,6 +1363,9 @@
         min-width: 0;
         line-height: 1.35;
       }
+      .toast-knopf + .toast-knopf {
+        margin-left: 0;
+      }
       .toast-knopf {
         flex: 0 0 auto;
         margin-left: auto;
@@ -2239,17 +2242,18 @@
           tx.className = "toast-text";
           tx.textContent = msg;
           t.appendChild(tx);
-          if (aktion) {
+          // aktion: { text, fn } oder Liste davon (z. B. „Rückgängig“ + „Als eigener Besuch“)
+          (Array.isArray(aktion) ? aktion : aktion ? [aktion] : []).forEach(function (a) {
             var b = document.createElement("button");
             b.className = "toast-knopf";
-            b.textContent = aktion.text;
+            b.textContent = a.text;
             b.onclick = function (ev) {
               ev.stopPropagation();
               t.style.display = "none";
-              aktion.fn();
+              a.fn();
             };
             t.appendChild(b);
-          }
+          });
           t.style.display = "flex";
           clearTimeout(toastT);
           toastT = setTimeout(
@@ -2377,7 +2381,7 @@
           el.textContent = t.join(" · ") || "Noch keine Datenabfrage.";
         }
         // ---- Protokoll ----
-        var VERSION = "2026-09-26.31";
+        var VERSION = "2026-09-26.32";
         // Radar nur als Kartenebene; in der Bewertung zu unzuverlässig (gelernte Farbskala, leere Bilder)
         var RADAR_IM_MODELL = false;
         var LOG = [];
@@ -4296,8 +4300,9 @@
                       : 1
                 : 0.7; // alte Einträge: aus mm ableiten
           var g = besuchWert(b, a) > 0 ? 1 : Math.max(0.1, wf);
-          // nachgetragen ohne Wetter-Schnappschuss: Umstände unbekannt → halbes Gewicht
-          return b.nachgetragen && !b.wetter ? g * 0.5 : g;
+          // ohne Wetter-Schnappschuss (nachgetragen oder z. B. offline gespeichert): Bewertung/wf sind Platzhalter,
+          // die Umstände unbekannt → halbes Gewicht, bis das Wetter nachgeholt ist
+          return !b.wetter ? g * 0.5 : g;
         }
         // Fundwert eines Besuchs für Art a: Zielart = 1, sonst stärkstes BEGLEIT-Gewicht, sonst 0
         function besuchWert(b, a) {
@@ -5506,10 +5511,21 @@
         function neueBesuchId() {
           return "b" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
         }
+        // Besuche ohne id (alte, umgewandelte): id deterministisch aus Zeitstempel und gerundeter Position (≈ 100 m) –
+        // so vergeben alle Geräte demselben alten Besuch dieselbe id (früher zufällig → Abgleich fand sie nicht)
+        function besuchIdAus(ts, lat, lng) {
+          return (
+            "v" +
+            Math.round(ts || 0).toString(36) +
+            "-" +
+            Math.round((lat || 0) * 1000).toString(36) +
+            Math.round((lng || 0) * 1000).toString(36)
+          );
+        }
         // Feste Besuchs-ID nachtragen (idempotent, auch für alte Besuche)
         function besuchIds(sp) {
           sp.besuche.forEach(function (b) {
-            if (b && !b.id) b.id = neueBesuchId();
+            if (b && !b.id) b.id = besuchIdAus(b.ts, sp.lat, sp.lng);
           });
           return sp;
         }
@@ -5560,34 +5576,133 @@
             return cssFarbe("--pfiff");
           return b.fund.length ? cssFarbe("--stein") : cssFarbe("--grau-leer");
         }
-        // Besuche zusammenführen: zuerst per id (gleiche id → die jüngere Bearbeitung „geaendert“ gewinnt),
-        // erst ohne id-Treffer gilt gleicher Zeitstempel ±5 Min. als Dublette. Liefert die Zahl neuer Besuche.
-        function besucheZusammenfuehren(ziel, neu) {
-          var n = 0;
-          (neu || []).forEach(function (b) {
-            if (!b || typeof b.ts !== "number") return;
+        // Abgleich zwischen Geräten: Gleich ist ein Besuch mit gleicher id oder – ohne id-Gleichheit – mit gleichem
+        // Zeitstempel ±5 Min. (an derselben bzw. einer zusammengeführten Stelle). Dann gewinnt die jüngere Bearbeitung
+        // („geaendert“, fehlt = 0), bei Gleichstand die Zielfassung; in beiden Fällen gilt danach die lexikografisch
+        // kleinere id – nach einem Hin-und-zurück-Abgleich führen alle Geräte dieselbe. sp: Stelle für neue ids.
+        // Liefert { neu, aktualisiert, gleich }.
+        function besucheZusammenfuehren(ziel, neu, sp) {
+          var z = { neu: 0, aktualisiert: 0, gleich: 0 };
+          (neu || []).forEach(function (b0) {
+            if (!b0 || typeof b0.ts !== "number") return;
+            var b = kopie(b0);
             if (!Array.isArray(b.fund)) b.fund = [];
-            var gleich = b.id
+            var i = b.id
               ? ziel.findIndex(function (x) {
                   return x.id === b.id;
                 })
               : -1;
-            if (gleich >= 0) {
-              if ((b.geaendert || 0) > (ziel[gleich].geaendert || 0)) ziel[gleich] = b;
+            if (i < 0)
+              i = ziel.findIndex(function (x) {
+                return Math.abs(x.ts - b.ts) <= 5 * 60e3;
+              });
+            if (i >= 0) {
+              var m = ziel[i],
+                id = [m.id, b.id].filter(Boolean).sort()[0];
+              if ((b.geaendert || 0) > (m.geaendert || 0)) {
+                b.id = id;
+                ziel[i] = b;
+                z.aktualisiert++;
+              } else {
+                m.id = id;
+                z.gleich++;
+              }
               return;
             }
-            var dub = ziel.some(function (x) {
-              return Math.abs(x.ts - b.ts) <= 5 * 60e3;
-            });
-            if (dub) return;
-            if (!b.id) b.id = neueBesuchId();
+            if (!b.id) b.id = sp ? besuchIdAus(b.ts, sp.lat, sp.lng) : neueBesuchId();
             ziel.push(b);
-            n++;
+            z.neu++;
           });
           ziel.sort(function (x, y) {
             return x.ts - y.ts;
           });
-          return n;
+          return z;
+        }
+        // Leere Doppel-Stellen: ohne Besuche und ohne Notiz, < 25 m von einer anderen Stelle. Erbe des alten Knopfs
+        // „Stelle speichern“ (bis 25.9., `prompt` „Stelle n“), der neben der Fund-Stelle eine leere anlegte; Exporte
+        // trugen sie weiter. Entfernt sie aus liste und liefert die entfernten Stellen.
+        function leereDoppelEntfernen(liste) {
+          var leer = function (sp) {
+              return !(sp.besuche && sp.besuche.length) && !(sp.notiz && String(sp.notiz).trim());
+            },
+            behalten = liste.filter(function (sp) {
+              return !leer(sp);
+            }),
+            weg = [];
+          liste.filter(leer).forEach(function (sp) {
+            var nah = behalten.some(function (x) {
+              return kmSchnell(x.lat, x.lng, sp.lat, sp.lng) * 1000 < 25;
+            });
+            (nah ? weg : behalten).push(sp);
+          });
+          for (var i = liste.length - 1; i >= 0; i--) if (weg.indexOf(liste[i]) >= 0) liste.splice(i, 1);
+          return weg;
+        }
+        // ---- Besuche derselben Stelle zusammenfassen (gleicher Tag, höchstens 60 Minuten auseinander) ----
+        var ZUSAMMEN_MIN = 60;
+        function zusammenGleich(a, b) {
+          return (
+            datumIso(new Date(a.ts)) === datumIso(new Date(b.ts)) &&
+            Math.abs(a.ts - b.ts) <= ZUSAMMEN_MIN * 60000
+          );
+        }
+        // Besuch der Stelle, zu dem ein neuer Besuch mit Zeitstempel ts gehört (der zeitlich nächste), sonst null
+        function besuchZumZusammenfassen(sp, ts) {
+          var kand = (sp.besuche || []).filter(function (b) {
+            return zusammenGleich(b, { ts: ts });
+          });
+          kand.sort(function (x, y) {
+            return Math.abs(x.ts - ts) - Math.abs(y.ts - ts);
+          });
+          return kand[0] || null;
+        }
+        // Zwei Besuche → einer (Kopie): Funde vereinigt, Alter bei Unterschied „gemischt“, Fingerprobe/Unterwuchs/Bestand
+        // und – falls vorhanden – Wetter/Bewertung vom neueren; Zeitstempel und id vom älteren
+        function besucheVereinen(a, b) {
+          var alt = a.ts <= b.ts ? a : b,
+            neu = alt === a ? b : a,
+            m = kopie(alt);
+          m.fund = (alt.fund || []).slice();
+          (neu.fund || []).forEach(function (f) {
+            if (m.fund.indexOf(f) < 0) m.fund.push(f);
+          });
+          m.unsicher = (alt.unsicher || []).concat(neu.unsicher || []).filter(function (f, i, l) {
+            return l.indexOf(f) === i && m.fund.indexOf(f) >= 0;
+          });
+          m.alter = !m.fund.length
+            ? null
+            : alt.alter && neu.alter && alt.alter !== neu.alter
+              ? "gemischt"
+              : neu.alter || alt.alter || null;
+          if (neu.finger) m.finger = neu.finger;
+          if (neu.unter && neu.unter.length) m.unter = neu.unter.slice();
+          if (neu.bestand) m.bestand = neu.bestand;
+          if (neu.wetter) {
+            m.wetter = neu.wetter;
+            m.bewertung = neu.bewertung;
+            m.wf = neu.wf;
+            m.wetterQuelle = neu.wetterQuelle;
+            m.modell = neu.modell;
+          }
+          m.nachgetragen = !!(alt.nachgetragen && neu.nachgetragen);
+          m.geaendert = Date.now();
+          return m;
+        }
+        // Paare zum Zusammenführen (Vorschlag beim Nachrechnen)
+        function besuchPaare(liste) {
+          var out = [];
+          liste.forEach(function (sp) {
+            var l = (sp.besuche || []).slice().sort(function (x, y) {
+              return x.ts - y.ts;
+            });
+            for (var i = 1; i < l.length; i++)
+              if (zusammenGleich(l[i - 1], l[i])) out.push({ sp: sp, a: l[i - 1], b: l[i], an: false });
+          });
+          return out;
+        }
+        function uhrzeit(ts) {
+          var d = new Date(ts);
+          return d.getHours() + ":" + String(d.getMinutes()).padStart(2, "0");
         }
         // Lokales Datum JJJJ-MM-TT und Abstand zu heute in Tagen
         function datumIso(d) {
@@ -5770,7 +5885,12 @@
         // Alte Exporte ohne besuche werden über stelleNormal umgewandelt.
         function stellenImport(liste, gj, vorgabeV) {
           var neu = 0,
-            nb = 0;
+            z = { neu: 0, aktualisiert: 0, gleich: 0 },
+            plus = function (x) {
+              z.neu += x.neu;
+              z.aktualisiert += x.aktualisiert;
+              z.gleich += x.gleich;
+            };
           (gj.features || []).forEach(function (ft) {
             var c = ft.geometry && ft.geometry.coordinates,
               pr = ft.properties || {};
@@ -5794,12 +5914,12 @@
             };
             if (Array.isArray(pr.besuche)) imp.besuche = [];
             stelleNormal(imp);
-            if (Array.isArray(pr.besuche)) besucheZusammenfuehren(imp.besuche, pr.besuche);
+            if (Array.isArray(pr.besuche)) besucheZusammenfuehren(imp.besuche, pr.besuche, imp);
             var dub = liste.find(function (sp) {
               return kmSchnell(sp.lat, sp.lng, c[1], c[0]) * 1000 < 25;
             });
             if (dub) {
-              nb += besucheZusammenfuehren(stelleNormal(dub).besuche, imp.besuche);
+              plus(besucheZusammenfuehren(stelleNormal(dub).besuche, imp.besuche, dub));
               if (Array.isArray(pr.fund)) {
                 dub.fund = Array.isArray(dub.fund) ? dub.fund : [];
                 pr.fund.forEach(function (a) {
@@ -5813,9 +5933,9 @@
             }
             liste.push(imp);
             neu++;
-            nb += imp.besuche.length;
+            z.neu += imp.besuche.length;
           });
-          return { stellen: neu, besuche: nb };
+          return { stellen: neu, besuche: z.neu, aktualisiert: z.aktualisiert, gleich: z.gleich };
         }
         // Tabelle: Zeile je Art, Spalte je Tag; darunter Regen je Tag
         function prognoseHtml(reihe, kompakt, arten) {
@@ -6791,7 +6911,12 @@
             };
             spots.push(sp);
           }
-          stelleNormal(sp).besuche.push(b);
+          // Besuch derselben Stelle vom selben Tag, höchstens 60 Min. alt: Fund hinzufügen statt zweiten Gang zählen
+          var zu = besuchZumZusammenfassen(stelleNormal(sp), b.ts),
+            vorherSp = zu ? kopie(sp) : null,
+            spIdx = spots.indexOf(sp);
+          if (zu) sp.besuche[sp.besuche.indexOf(zu)] = besucheVereinen(zu, b);
+          else sp.besuche.push(b);
           sp.besuche.sort(function (x, y) {
             return x.ts - y.ts;
           });
@@ -6809,6 +6934,31 @@
           update();
           // Inhalt frisch aufbauen, sonst öffnet ein Tipp auf den Pin den alten, schon gespeicherten Entwurf
           if (pin && pin.getPopup()) pinInhalt("");
+          if (zu) {
+            // „Rückgängig“: Stelle wie vorher; „Als eigener Besuch“: vorher + neuer Besuch getrennt
+            var zurueck = function (eigen) {
+              return function () {
+                var s2 = kopie(vorherSp);
+                if (eigen) {
+                  s2.besuche.push(b);
+                  s2.besuche.sort(function (x, y) {
+                    return x.ts - y.ts;
+                  });
+                }
+                altfelderSpiegeln(s2);
+                spots[spIdx >= 0 ? spIdx : spots.length - 1] = s2;
+                persist();
+                lerne(spots);
+                render();
+                update();
+              };
+            };
+            toast("Zum Besuch von " + uhrzeit(zu.ts) + " hinzugefügt — " + sp.name, [
+              { text: "Rückgängig", fn: zurueck(false) },
+              { text: "Als eigener Besuch", fn: zurueck(true) },
+            ]);
+            return;
+          }
           // Online und die Umgebung dort noch nicht offline gespeichert: im Toast anbieten, nicht automatisch laden
           var angebot = umgebungAngebot(L.latLng(sp.lat, sp.lng), sp.name);
           toast(
@@ -13824,9 +13974,33 @@
             spots = [];
           }
           spots.forEach(stelleNormal); // alte Stellen → erster Besuch; die alten Felder bleiben erhalten
+          var vorherL = kopie(spots),
+            weg = leereDoppelEntfernen(spots);
+          if (weg.length) persist();
           lerne(spots);
           render();
           update();
+          if (weg.length)
+            toast(doppelText(weg.length), {
+              text: "Rückgängig",
+              fn: stellenZurueck(vorherL),
+            });
+        }
+        function doppelText(n) {
+          return n + (n === 1 ? " leere Doppel-Stelle" : " leere Doppel-Stellen") + " entfernt";
+        }
+        // Rückgängig für Änderungen an der ganzen Liste (Import, Aufräumen): tiefe Kopie zurücklegen
+        function stellenZurueck(vorher) {
+          return function () {
+            spots.length = 0;
+            vorher.forEach(function (sp) {
+              spots.push(sp);
+            });
+            persist();
+            lerne(spots);
+            render();
+            update();
+          };
         }
         $("lern-an").addEventListener("change", function () {
           lernAktiv = this.checked;
@@ -13967,12 +14141,19 @@
             .slice()
             .reverse()
             .forEach(function (b) {
-              var tage = tageZurueck(datumIso(new Date(b.ts))),
-                nachholen = !b.wetter && b.nachgetragen && tage <= 35 && !istOffline();
+              // ohne Wetter (nachgetragen oder offline gespeichert): nachholen aus Live-Reihe bzw. Archiv
+              var nachholen = !b.wetter && !istOffline(),
+                chrono = sp.besuche.slice().sort(function (x, y) {
+                  return x.ts - y.ts;
+                }),
+                vorig = chrono[chrono.indexOf(b) - 1],
+                zusammen = vorig && zusammenGleich(vorig, b);
               h +=
                 '<div class="bb-besuch"><div class="bb-kurz">' +
                 besuchKurz(b).replace(/</g, "&lt;") +
-                (!b.wetter && b.nachgetragen ? " · ohne Wetter" : "") +
+                " · " +
+                uhrzeit(b.ts) +
+                (!b.wetter ? " · ohne Wetter – nachholen" : "") +
                 '</div><div class="bb-knoepfe">' +
                 '<button type="button" class="act ghost" data-bb="aendern" data-id="' +
                 b.id +
@@ -13986,6 +14167,11 @@
                   ? '<button type="button" class="act ghost" data-bb="nachholen" data-id="' +
                     b.id +
                     '">Wetter nachholen</button>'
+                  : "") +
+                (zusammen
+                  ? '<button type="button" class="act ghost" data-bb="zusammen" data-id="' +
+                    b.id +
+                    '">Mit vorherigem zusammenführen</button>'
                   : "") +
                 "</div>";
               if (bb.b && bb.b.id === b.id) h += bbBesuchHtml();
@@ -14464,6 +14650,23 @@
             });
             if (bb.b && bb.b.id === id) bb.b = null;
             stelleGeaendert(sp, vorher, "Besuch „" + besuchKurz(b) + "“ gelöscht");
+          } else if (aktion === "zusammen" && b) {
+            var chrono2 = sp.besuche.slice().sort(function (x, y) {
+                return x.ts - y.ts;
+              }),
+              vorig2 = chrono2[chrono2.indexOf(b) - 1];
+            if (!vorig2) return;
+            var vorher3 = kopie(sp),
+              m = besucheVereinen(vorig2, b);
+            sp.besuche = sp.besuche.filter(function (x) {
+              return x !== vorig2 && x !== b;
+            });
+            sp.besuche.push(m);
+            sp.besuche.sort(function (x, y) {
+              return x.ts - y.ts;
+            });
+            if (bb.b && (bb.b.id === b.id || bb.b.id === vorig2.id)) bb.b = null;
+            stelleGeaendert(sp, vorher3, "Besuche zusammengeführt: " + besuchKurz(m));
           } else if (aktion === "nachholen" && b) {
             // bis 30 Tage aus der Live-Reihe, älter aus dem Open-Meteo-Archiv (+ Stationsnetz)
             var vorher2 = kopie(sp),
@@ -14595,8 +14798,13 @@
               });
               d.appendChild(panel);
             }
+            var ohneW = s.besuche.filter(function (b) {
+              return !b.wetter;
+            }).length;
             d.querySelector(".besuche").textContent = s.besuche.length
-              ? besucheKurz(s) + (s.besuche.length > 3 ? " (" + s.besuche.length + " Besuche)" : "")
+              ? besucheKurz(s) +
+                (s.besuche.length > 3 ? " (" + s.besuche.length + " Besuche)" : "") +
+                (ohneW ? " · " + (ohneW > 1 ? ohneW + " " : "") + "ohne Wetter – nachholen" : "")
               : "Noch kein Besuch";
             var nz = d.querySelector(".notiz");
             nz.textContent =
@@ -14735,12 +14943,24 @@
           var rd = new FileReader();
           rd.onload = function () {
             try {
-              var erg = stellenImport(spots, JSON.parse(rd.result), readForm);
+              var vorherI = kopie(spots),
+                erg = stellenImport(spots, JSON.parse(rd.result), readForm),
+                weg = leereDoppelEntfernen(spots);
               persist();
               lerne(spots);
               render();
               update();
-              toast(erg.stellen + " Stelle(n), " + erg.besuche + " Besuch(e) importiert.");
+              var txt =
+                "Besuche: " +
+                erg.besuche +
+                " neu, " +
+                erg.aktualisiert +
+                " aktualisiert, " +
+                erg.gleich +
+                " unverändert" +
+                (erg.stellen ? " · " + erg.stellen + " neue Stelle(n)" : "") +
+                (weg.length ? " · " + doppelText(weg.length) : "");
+              toast(txt, weg.length ? { text: "Rückgängig", fn: stellenZurueck(vorherI) } : undefined);
             } catch (e) {
               toast("Datei nicht lesbar.");
             }
@@ -14798,13 +15018,47 @@
             box.innerHTML = "";
             return nachZustand();
           }
+          var paare = nachLauf.paare || [];
           box.innerHTML =
             '<div class="nach-liste">' +
             nachLauf.aenderungen.map(nachZeile).join("") +
             "</div>" +
+            (paare.length
+              ? '<div class="note">Zusammenführen (gleicher Tag, ≤ 60 Min.):</div>' +
+                paare
+                  .map(function (x, i) {
+                    return (
+                      '<button type="button" class="md-u nach-paar' +
+                      (x.an ? " an" : "") +
+                      '" role="checkbox" aria-checked="' +
+                      x.an +
+                      '" data-i="' +
+                      i +
+                      '"><span class="md-haken">' +
+                      (x.an ? "☑" : "☐") +
+                      "</span>" +
+                      x.sp.name.replace(/</g, "&lt;") +
+                      " · " +
+                      besuchKurz(x.a).replace(/</g, "&lt;") +
+                      " " +
+                      uhrzeit(x.a.ts) +
+                      " + " +
+                      uhrzeit(x.b.ts) +
+                      "</button>"
+                    );
+                  })
+                  .join("")
+              : "") +
             '<div class="bb-knoepfe"><button class="act" id="nach-ok">Übernehmen</button>' +
             '<button class="act ghost" id="nach-weg">Verwerfen</button></div>';
           $("nach-ok").onclick = nachUebernehmen;
+          Array.prototype.forEach.call(box.querySelectorAll(".nach-paar"), function (el) {
+            el.onclick = function () {
+              var x = nachLauf.paare[+el.dataset.i];
+              x.an = !x.an;
+              nachZeigen();
+            };
+          });
           $("nach-weg").onclick = function () {
             nachLauf = null;
             nachZeigen();
@@ -14817,6 +15071,21 @@
           nachLauf.aenderungen.forEach(function (x) {
             var i = x.sp.besuche.indexOf(x.b);
             if (i >= 0) x.sp.besuche[i] = x.neu;
+            altfelderSpiegeln(x.sp);
+          });
+          // gewählte Paare zusammenführen (nach dem Nachrechnen, ids bleiben gleich)
+          (nachLauf.paare || []).forEach(function (x) {
+            if (!x.an) return;
+            var l = x.sp.besuche,
+              a = l.find(function (y) {
+                return y.id === x.a.id;
+              }),
+              b = l.find(function (y) {
+                return y.id === x.b.id;
+              });
+            if (!a || !b) return;
+            l.splice(l.indexOf(b), 1);
+            l[l.indexOf(a)] = besucheVereinen(a, b);
             altfelderSpiegeln(x.sp);
           });
           nachLauf = null;
@@ -14869,6 +15138,7 @@
               info.textContent = "Rechne " + i + " / " + n + " …";
             },
           );
+          erg.paare = besuchPaare(spots);
           nachLauf = erg;
           info.textContent =
             erg.aenderungen.length +
